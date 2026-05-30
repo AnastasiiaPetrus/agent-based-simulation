@@ -57,13 +57,14 @@ CHECK_DESCRIPTIONS = {
 DISTRICTS = ["A", "B", "C"]
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 DEFAULT_LLM_MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
-DEFAULT_DEBRIEF_WORD_LIMIT = 180
+DEFAULT_DEBRIEF_WORD_LIMIT = 250
 MAX_RUN_LOG_SIZE = 5
 DEFAULT_SYSTEM_PROMPT = (
-    "You generate strict JSON for a synthetic, ethics-focused policy simulation. "
-    "Use English only. Never include markdown fences. Never claim to predict real people, "
-    "assign guilt, rank children morally, or recommend punishment. Treat all outputs as aggregate "
-    "thought-experiment data under explicit assumptions."
+    "You run a synthetic multi-agent life-course simulation for an ethical thought experiment. "
+    "Use English only. Never include markdown fences. "
+    "Simulate individual developmental trajectories first, then derive aggregate outcomes from those trajectories. "
+    "Never claim to predict real people, assign guilt, use demographic characteristics, or recommend punishment. "
+    "Never assume a high-risk prediction becomes reality. Treat all output as synthetic thought-experiment data."
 )
 RUN_METRIC_COLUMNS = [
     "run",
@@ -473,81 +474,112 @@ def build_llm_simulation_prompt(settings):
     }
 
     return (
-        "Generate a synthetic-agent simulation for an ethical thought experiment about predictive justice. "
-        "Your task is to produce plausible aggregate numbers that illustrate consequences under the stated "
-        "assumptions. Do not evaluate which policy is better or worse.\n\n"
-        "Thought experiment premise:\n"
-        "A society possesses a risk-scoring tool that predicts, with stated accuracy, which children at "
-        "age 10 are likely to commit a violent offense by age 30. The tool is imperfect: it produces both "
-        "false positives (children flagged who would not have committed the offense) and false negatives "
-        "(children missed who would have). The simulation asks: what happens if the society acts on that "
-        "prediction under each policy choice? The prediction is a synthetic signal only. It does not "
-        "describe real children, real communities, or real predictability.\n\n"
-        "Non-negotiable framing:\n"
-        "- This is not a real-world decision tool.\n"
+        "You are running a synthetic multi-agent life-course simulation in a fictional city.\n"
+        "All agents, districts, risks, and outcomes are synthetic.\n"
+        "This is an ethical thought experiment, not a real-world prediction system.\n\n"
+
+        "Setting:\n"
+        "A fictional city uses an imperfect risk-scoring tool to flag 10-year-old children for elevated "
+        "risk of violent offenses by age 30. The signal is probabilistic and uncertain. It does not "
+        "indicate guilt. It does not determine destiny. It reflects only an uncertain prediction.\n\n"
+
+        "Non-negotiable constraints:\n"
         "- Do not claim to predict real people or assign guilt, blame, dangerousness, or moral status.\n"
-        "- Do not recommend punishment, incapacitation, or real-world intervention.\n"
-        "- Districts A, B, and C are abstract labels; they are not demographic groups, neighborhoods, "
-        "protected classes, or proxies for real places.\n\n"
-        "Policy definitions and required metric behavior:\n"
-        "- Targeted support for high-risk children: Only flagged synthetic children receive voluntary "
-        "support. children_helped is approximately high_risk_threshold × population_size. "
-        "children_harmed is 0. Crime reduction depends on flagging accuracy: false positives receive "
-        "unnecessary support, false negatives receive none. Do not output a numeric cost score.\n\n"
-        "- Surveillance of high-risk children: Flagged synthetic children are monitored without consent. "
-        "This is monitoring, not support. children_helped is 0. children_harmed is greater than 0 because "
-        "surveillance causes stigma and privacy harm. Crime reduction is modest: surveillance may deter "
-        "or detect but does not address underlying causes. False positives are flagged children subjected "
-        "to surveillance without basis. Do not output a numeric harm score.\n\n"
-        "- Coercive preventive intervention for high-risk children: Flagged synthetic children face "
-        "state-imposed restrictions before committing any act (e.g., mandatory programs, movement limits, "
-        "or institutional placement). This is preventive restriction of liberty. children_helped is 0. "
-        "children_harmed is high because each coerced child suffers restriction of freedom. Crime reduction "
-        "may be the strongest among the three policies. False positives are children coerced without basis. "
-        "Do not output a numeric harm or cost score.\n\n"
-        "How to translate parameters into numbers:\n"
-        "- population_size: total synthetic children; all counts are fractions of this.\n"
-        "- high_risk_threshold (0.01–0.70): share of population flagged. At 0.25, roughly 25% are flagged "
-        "(true positives + false positives combined).\n"
-        "- prediction_noise (0.0–0.35): controls error rate. At 0.0, the signal is accurate; at 0.35, "
-        "false positives and false negatives are substantially elevated relative to the flagged group.\n"
-        "- policy_effect_strength (Low/Medium/High/None): scales crimes_prevented among those reached. "
-        "Approximate share of baseline_crimes prevented — Low ≈ 5%, Medium ≈ 15%, High ≈ 25–30%. "
-        "None means 0 crimes prevented.\n"
-        "- bias_against_district_c (0.0–0.30): inflates false_positives and children_harmed in District C by "
-        "approximately this fraction above the baseline rate. Districts A and B remain comparable.\n\n"
+        "- Do not create stereotypes or use demographic characteristics.\n"
+        "- Do not assume a high-risk prediction becomes reality.\n"
+        "- Do not recommend punishment or real-world intervention.\n"
+        "- Districts A, B, C are abstract labels only.\n\n"
+
+        "Work in this order — populate the JSON keys in this sequence:\n\n"
+
+        "STEP 1 — Simulate individual life trajectories (populate representative_agents).\n"
+        "For each representative synthetic child, reason through how their life may develop "
+        "between ages 10 and 30 under the selected policy. Vary the children along:\n"
+        "- Temperament and resilience\n"
+        "- Family support and stability\n"
+        "- Trust in institutions\n"
+        "- School engagement\n"
+        "- Social environment and peer relationships\n"
+        "- Reaction to the intervention: positive, neutral, harmful, or absent\n\n"
+        "Model these mechanisms:\n"
+        "- Accumulation of experiences and skills over time\n"
+        "- Feedback loops: stigma narrowing opportunities; support building confidence; "
+        "surveillance eroding trust; coercion cutting off social bonds\n"
+        "- Chance events and uncertainty at key moments\n"
+        "- Interaction with family, school, peers, and institutions\n"
+        "- Improvement, stagnation, or deterioration at different life stages\n\n"
+        "Each representative_agent must include these fields (string values):\n"
+        "  age_10_profile: brief description of the child's situation and context at age 10\n"
+        "  flagged: true or false (whether the risk signal flagged this child)\n"
+        "  trajectory: how the intervention affected their development step by step, ages 10 to 30\n"
+        "  outcome_at_30: their situation at age 30\n"
+        "  mechanism: the specific mechanism that drove the outcome "
+        "(e.g. stigma, institutional trust, opportunity creation, coercion harm, chance)\n"
+        "Include both children who benefit and children who are harmed or unaffected. "
+        "Include at least one false positive.\n\n"
+
+        "STEP 2 — Derive aggregate outcomes (populate run_results).\n"
+        "After reasoning through the trajectories, estimate aggregate statistics as emergent "
+        "properties of the simulated population. Do not assume stronger intervention always "
+        "reduces crime. Consider indirect effects:\n"
+        "- False positives stigmatized or harmed without basis\n"
+        "- Trust erosion reducing cooperation with institutions\n"
+        "- Opportunity creation through voluntary support\n"
+        "- Disengagement caused by surveillance\n"
+        "- Developmental harm from coercive restriction\n"
+        "- Heterogeneous responses: the same policy benefits some and harms others\n\n"
+
+        "STEP 3 — Summarize what the trajectories reveal (populate debrief_text).\n"
+        "Based only on the trajectories you simulated, explain what this policy does to "
+        "children's developmental paths. Cover: which mechanisms drive outcomes, who benefits "
+        "and who is harmed, the false-positive problem, and the harm-prevention trade-off. "
+        "Do not declare any policy correct or incorrect.\n\n"
+
+        "Policy being simulated and required metric behavior:\n\n"
+        "- Targeted support for high-risk children:\n"
+        "  Flagged children receive voluntary developmental support. Some build on it; some resent "
+        "the label; false positives receive unnecessary intervention; false negatives receive nothing.\n"
+        "  children_helped ≈ high_risk_threshold × population_size. children_harmed = 0.\n\n"
+        "- Surveillance of high-risk children:\n"
+        "  Flagged children are monitored without consent. Deterrence is possible for some. "
+        "For others, surveillance causes stigma, distrust, and disengagement from school and institutions. "
+        "False positives are surveilled without basis.\n"
+        "  children_helped = 0. children_harmed > 0.\n\n"
+        "- Coercive preventive intervention for high-risk children:\n"
+        "  Flagged children face state-imposed restrictions before any act. Some are diverted from "
+        "harmful pathways. Many suffer restriction of freedom, severed social bonds, and lasting "
+        "harm to opportunity. False positives face severe harm without basis.\n"
+        "  children_helped = 0. children_harmed is high.\n\n"
+
+        "Parameter guidance:\n"
+        "- population_size: total synthetic children; all counts are fractions of this\n"
+        "- high_risk_threshold: share of population flagged (0.25 → ~25% flagged)\n"
+        "- prediction_noise: error rate (0.0 = accurate; 0.35 = many false positives and false negatives)\n"
+        "- policy_effect_strength: scale of crime reduction among those reached — "
+        "Low ≈ 5%, Medium ≈ 15%, High ≈ 25–30% of baseline_crimes\n\n"
+
         "Metric constraints:\n"
-        "- All counts must be non-negative integers; no count may exceed population_size.\n"
-        "- crimes_prevented must equal baseline_crimes minus crimes_after_policy.\n"
-        "- children_helped and children_harmed are separate; a child cannot be both in the same scenario.\n"
-        "- Do not include total_harm, total_cost, dollar values, utility scores, welfare scores, or any other "
-        "aggregate harm/cost scale. These are deliberately omitted because they would be falsely precise.\n"
-        "- Across runs, vary numbers by small random amounts (roughly ±5–10%) to model natural variation. "
-        "Do not change the qualitative pattern run-to-run.\n\n"
-        "Fairness:\n"
-        "- Do not invent demographic explanations for District C differences. Unequal outcomes must reflect "
-        "only the bias_against_district_c parameter.\n"
-        "- If bias_against_district_c is 0, all three districts must be broadly comparable.\n\n"
-        "Output requirements:\n"
-        "- Return only valid JSON with exactly these keys: run_results, district_results, "
-        "representative_agents, debrief_text.\n"
-        "- run_results: one object per run, every field in required_run_metric_columns, numeric values only, "
-        "no extra fields.\n"
-        "- district_results: one row per run per district with fields run, district, false_positives, "
-        "children_harmed, crimes (crimes = crimes after policy is applied in that district).\n"
-        "- representative_agents: abstract synthetic children only; no names, no protected attributes, "
-        "no diagnoses, no family details, no real-world identifiers.\n"
-        f"- debrief_text: no more than {DEFAULT_DEBRIEF_WORD_LIMIT} words covering exactly: "
-        "(1) average crimes prevented, (2) false positives and what they mean for the flagged children, "
-        "(3) children helped and children harmed, (4) the trade-off between crime reduction and exposing "
-        "children to support, surveillance, or coercion, and (5) District C differences if "
-        "bias_against_district_c is greater than 0. "
-        "Do not declare any policy morally correct or incorrect.\n\n"
+        "- All counts: non-negative integers, none exceeding population_size\n"
+        "- crimes_prevented must equal baseline_crimes minus crimes_after_policy\n"
+        "- children_helped and children_harmed are separate\n"
+        "- Do not output cost scores, dollar values, or utility scores\n"
+        "- Vary run numbers ±5–10% across runs to model natural variation\n"
+        "- Districts A, B, C: keep broadly comparable when bias_against_district_c is 0\n\n"
+
+        "Output — return only valid JSON with exactly these keys:\n"
+        "- run_results: one object per run, every field in required_run_metric_columns, "
+        "numeric values only, no extra fields\n"
+        "- district_results: one row per run per district, "
+        "fields: run, district, false_positives, children_harmed, crimes (after policy)\n"
+        f"- representative_agents: {int(settings['llm_representative_agents'])} synthetic children "
+        "with trajectory descriptions using the fields above\n"
+        f"- debrief_text: no more than {DEFAULT_DEBRIEF_WORD_LIMIT} words, "
+        "grounded in the trajectories you simulated\n\n"
         f"Simulation request:\n{json.dumps(prompt_payload, indent=2)}"
     )
 
 
-def run_openai_json(system_prompt, user_prompt, model, max_tokens=5000):
+def run_openai_json(system_prompt, user_prompt, model, max_tokens=8000):
     from openai import OpenAI
 
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -559,7 +591,7 @@ def run_openai_json(system_prompt, user_prompt, model, max_tokens=5000):
         ],
         response_format={"type": "json_object"},
         max_tokens=max_tokens,
-        temperature=0.2,
+        temperature=0.6,
     )
     return json.loads(response.choices[0].message.content)
 
@@ -670,17 +702,7 @@ def normalize_llm_metrics(run_results, district_results, settings):
         run_results["baseline_crimes"] - run_results["crimes_after_policy"]
     ).clip(lower=0, upper=population_size)
 
-    if policy == "No action":
-        run_results["crimes_after_policy"] = run_results["baseline_crimes"]
-        run_results["crimes_prevented"] = 0
-        run_results["children_helped"] = 0
-        run_results["children_harmed"] = 0
-        district_results["children_harmed"] = 0
-    elif policy == "Universal support":
-        run_results["children_helped"] = population_size
-        run_results["children_harmed"] = 0
-        district_results["children_harmed"] = 0
-    elif policy == "Targeted support for high-risk children":
+    if policy == "Targeted support for high-risk children":
         run_results["children_harmed"] = 0
         district_results["children_harmed"] = 0
 
