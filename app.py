@@ -302,14 +302,12 @@ def compact_parameter_summary(settings):
     return (
         f"population_size={int(settings['population_size'])}; "
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
-        f"seed={int(settings['seed'])}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
         f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
         f"bias_against_district_c={settings['bias_against_district_c']:.2f}; "
-        f"support_effectiveness={settings['support_effectiveness']:.2f}; "
-        f"surveillance_effectiveness={settings['surveillance_effectiveness']:.2f}; "
-        f"surveillance_harm={settings['surveillance_harm']:.1f}; "
-        f"coercive_harm={settings['coercive_harm']:.1f}"
+        f"policy_effect_strength={settings['policy_effect_strength']}; "
+        f"intervention_harm_level={settings['intervention_harm_level']}; "
+        f"intervention_cost_level={settings['intervention_cost_level']}"
     )
 
 
@@ -319,23 +317,34 @@ def llm_assumptions(settings):
         "prediction_noise": metric_value(settings["prediction_noise"]),
         "high_risk_threshold": metric_value(settings["high_risk_threshold"]),
         "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
-        "support_effectiveness": metric_value(settings["support_effectiveness"]),
-        "surveillance_effectiveness": metric_value(settings["surveillance_effectiveness"]),
-        "surveillance_harm": metric_value(settings["surveillance_harm"]),
-        "coercive_intervention_harm": metric_value(settings["coercive_harm"]),
-        "support_cost": metric_value(settings["support_cost"]),
-        "surveillance_cost": metric_value(settings["surveillance_cost"]),
-        "coercive_intervention_cost": metric_value(settings["coercive_cost"]),
+        "policy_effect_strength": settings["policy_effect_strength"],
+        "intervention_harm_level": settings["intervention_harm_level"],
+        "intervention_cost_level": settings["intervention_cost_level"],
     }
+
+
+def policy_uses_effect(policy):
+    return policy != "No action"
+
+
+def policy_uses_harm(policy):
+    return policy in [
+        "Surveillance of high-risk children",
+        "Coercive preventive intervention for high-risk children",
+        "Rights-preserving targeted support",
+    ]
+
+
+def policy_uses_cost(policy):
+    return policy != "No action"
 
 
 def build_llm_simulation_prompt(settings):
     run_count = int(settings["llm_simulation_runs"])
-    population_size = int(settings["llm_display_population_size"])
     debrief_word_limit = int(settings["llm_output_word_limit"])
     prompt_payload = {
         "selected_policy": settings["policy"],
-        "population_size": population_size,
+        "population_size": int(settings["population_size"]),
         "synthetic_runs_to_generate": run_count,
         "representative_agents_to_generate": int(settings["llm_representative_agents"]),
         "assumptions": llm_assumptions(settings),
@@ -358,7 +367,8 @@ def build_llm_simulation_prompt(settings):
         "prevented. Universal support helps everyone and has support cost. Targeted support helps only "
         "flagged synthetic agents. Surveillance can slightly reduce crimes but adds harm and cost. "
         "Coercive intervention can sharply reduce crimes but adds high harm and high cost. "
-        "Rights-preserving targeted support adds support with minimal stigma harm.\n"
+        "Rights-preserving targeted support adds support with minimal stigma harm. If an assumption level "
+        "is set to None, do not use it as an active policy driver.\n"
         "Return only valid JSON with exactly these keys: run_results, district_results, "
         "representative_agents, debrief_text.\n"
         "run_results must contain one object per run and every required_run_metric_columns field. "
@@ -592,40 +602,39 @@ def render_llm_agent_section(settings):
 
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
+    policy = st.sidebar.selectbox("Selected policy", POLICIES)
     settings = {
+        "policy": policy,
         "population_size": st.sidebar.slider("Population size", 100, 10000, 2000, step=100),
-        "seed": st.sidebar.number_input(
-            "Random seed", min_value=0, max_value=1_000_000, value=42, step=1
-        ),
         "prediction_noise": st.sidebar.slider("Prediction error / noise", 0.0, 0.35, 0.10, step=0.01),
         "high_risk_threshold": st.sidebar.slider("High-risk threshold", 0.01, 0.70, 0.25, step=0.01),
-        "support_effectiveness": st.sidebar.slider(
-            "Support effectiveness", 0.0, 0.80, 0.30, step=0.01
-        ),
-        "surveillance_effectiveness": st.sidebar.slider(
-            "Surveillance effectiveness", 0.0, 0.50, 0.12, step=0.01
-        ),
-        "surveillance_harm": st.sidebar.slider("Surveillance harm", 0.0, 10.0, 1.5, step=0.1),
-        "coercive_harm": st.sidebar.slider(
-            "Coercive intervention harm", 0.0, 50.0, 15.0, step=0.5
-        ),
         "bias_against_district_c": st.sidebar.slider(
             "Bias against District C", 0.0, 0.30, 0.00, step=0.01
         ),
-        "support_cost": st.sidebar.slider("Support cost", 0.0, 10000.0, 1200.0, step=100.0),
-        "surveillance_cost": st.sidebar.slider(
-            "Surveillance cost", 0.0, 10000.0, 1800.0, step=100.0
-        ),
-        "coercive_cost": st.sidebar.slider(
-            "Coercive intervention cost", 0.0, 50000.0, 15000.0, step=500.0
-        ),
-        "policy": st.sidebar.selectbox("Selected policy", POLICIES),
     }
 
+    if policy_uses_effect(policy):
+        settings["policy_effect_strength"] = st.sidebar.select_slider(
+            "Policy effect strength", options=["Low", "Medium", "High"], value="Medium"
+        )
+    else:
+        settings["policy_effect_strength"] = "None"
+
+    if policy_uses_harm(policy):
+        settings["intervention_harm_level"] = st.sidebar.select_slider(
+            "Intervention harm level", options=["Low", "Medium", "High"], value="Medium"
+        )
+    else:
+        settings["intervention_harm_level"] = "None"
+
+    if policy_uses_cost(policy):
+        settings["intervention_cost_level"] = st.sidebar.select_slider(
+            "Intervention cost level", options=["Low", "Medium", "High"], value="Medium"
+        )
+    else:
+        settings["intervention_cost_level"] = "None"
+
     st.sidebar.subheader("LLM-agent settings")
-    settings["llm_display_population_size"] = st.sidebar.slider(
-        "LLM display population size", 20, 300, 100, step=10
-    )
     settings["llm_simulation_runs"] = st.sidebar.slider(
         "LLM synthetic runs", 3, 20, 8, step=1
     )

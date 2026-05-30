@@ -25,7 +25,7 @@ Then open the local URL printed by Streamlit.
 ## How to use the app
 
 1. Choose assumptions in the sidebar (population size, noise, threshold, policy, costs, harms, and bias).
-2. Configure the LLM-agent settings (display population size, synthetic runs, representative agents, output word limit, and run log size).
+2. Configure the LLM-agent settings (synthetic runs, representative agents, output word limit, and run log size).
 3. Click "Run LLM-agent simulation" to generate synthetic run metrics, district metrics, representative synthetic agents, and an explanation.
 4. Review:
    - "LLM-agent simulation averages" for the main aggregated metrics.
@@ -85,33 +85,25 @@ The exported CSV contains run-level metrics plus district-level columns for fals
 The sidebar lets you change:
 
 - Population size
-- Random seed
 - Prediction error
 - High-risk threshold
-- Support effectiveness
-- Surveillance effectiveness
-- Intervention harms
 - Bias against District C
-- Intervention costs
 - Selected policy
+- Policy effect strength (shown only when the selected policy changes outcomes)
+- Intervention harm level (shown only for policies that can create intervention harm)
+- Intervention cost level (shown only for policies with intervention cost)
 - LLM-agent controls
 
 Details:
 
 - Population size: Main scenario population reference shown in the sidebar.
-- Random seed: Scenario seed reference included in the LLM prompt.
 - Prediction error / noise: Assumption passed to the LLM about how noisy the prediction system is.
 - High-risk threshold: A cutoff applied to predicted risk. Children with `predicted_risk >= threshold` are flagged as high-risk.
-- Support effectiveness: Fractional reduction applied to true risk for children receiving support (for example, 0.30 means a 30% reduction).
-- Surveillance effectiveness: Smaller fractional reduction applied to true risk under surveillance (for high-risk children in that policy).
-- Surveillance harm: Harm units assigned to each child placed under surveillance (in the surveillance policy).
-- Coercive intervention harm: Harm units assigned to each child receiving coercive intervention (in the coercive policy).
 - Bias against District C: Additive upward shift applied to predicted risk for District C only, illustrating how small bias can increase false positives and unequal harm.
-- Support cost: Cost units assigned per child receiving support (universal support; targeted support; rights-preserving targeted support).
-- Surveillance cost: Cost units assigned per child placed under surveillance (surveillance policy).
-- Coercive intervention cost: Cost units assigned per coerced child (coercive policy).
 - Selected policy: Which policy is applied in the LLM-agent simulation.
-- LLM display population size: Synthetic population size used as context for the LLM-generated scenario.
+- Policy effect strength: Low, medium, or high assumption about how strongly the selected policy changes modeled outcomes. Hidden for "No action".
+- Intervention harm level: Low, medium, or high assumption about intervention harm. Shown for surveillance, coercive intervention, and rights-preserving targeted support.
+- Intervention cost level: Low, medium, or high assumption about intervention cost. Hidden for "No action".
 - LLM synthetic runs: Number of run-level metric rows requested from the LLM, capped at 20.
 - LLM representative agents: Number of representative synthetic agents requested from the LLM, capped at 3.
 - LLM output word limit: Maximum requested length of the generated explanation.
