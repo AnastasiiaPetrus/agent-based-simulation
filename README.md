@@ -80,7 +80,10 @@ The app generates the simulation prompt from the current sidebar settings. It as
 - Use English only.
 - Avoid claims about real people or real-world prediction.
 - Treat Districts A, B, and C as abstract labels.
+- Avoid demographic explanations, protected attributes, moral labels, or claims of guilt.
 - Respect the selected policy logic.
+- Treat `bias_against_district_c` as a synthetic sensitivity test, not as a factual claim.
+- Explain trade-offs without recommending any policy as morally correct.
 - Return only valid JSON with exactly these keys:
   - `run_results`
   - `district_results`
@@ -102,6 +105,15 @@ The generated user prompt includes the current values for:
 - Policy effect strength
 - Intervention harm level
 - Intervention cost level
+
+The prompt defines each policy explicitly:
+
+- **No action**: baseline comparison only, with no support, harm, cost, or crimes prevented.
+- **Universal support**: voluntary support for everyone, with cost but no direct intervention harm.
+- **Targeted support**: voluntary support for flagged children, lower cost but sensitive to false positives.
+- **Surveillance**: monitoring for flagged children, with privacy/stigma harm and cost.
+- **Coercive preventive intervention**: restrictive action before any act, with high harm and ethical concern.
+- **Rights-preserving targeted support**: voluntary targeted support with protections against stigma and coercion.
 
 When sidebar settings change, the prompt is regenerated for the new settings.
 
