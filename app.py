@@ -236,7 +236,7 @@ def glossary_markdown(items):
 
 
 def render_user_summary():
-    st.info(
+    st.write(
         "Synthetic population: **1 000 children**. "
         "Adjust prediction error, the high-risk threshold, and policy effect strength in the sidebar, "
         "then run the simulation. The app shows how many crimes each policy prevents, "
@@ -246,13 +246,6 @@ def render_user_summary():
 
 def render_reference_guide():
     with st.expander("Guide: policies, inputs, and metrics", expanded=False):
-        st.caption(
-            "The simulation uses a life-course approach: the LLM first simulates individual "
-            "developmental trajectories for synthetic children aged 10–30, then derives aggregate "
-            "metrics from those trajectories. Outcomes emerge from modeled mechanisms — stigma, "
-            "trust, opportunity, coercion — not from assumed policy effectiveness."
-        )
-
         st.markdown("### Policies compared")
         st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
@@ -389,7 +382,7 @@ def render_interpretation(policy, average_table, bias_against_district_c):
             f"{children_harmed:.1f} children are counted as harmed by the intervention."
         )
     elif policy == "Targeted support for high-risk children":
-        st.info(
+        st.write(
             f"This support-oriented policy prevents an average of {crimes_prevented:.1f} crimes per run "
             f"under the selected assumptions and reaches {children_helped:.1f} children. "
             "Resource burden is intentionally not shown as a numeric score because it would depend on real "
@@ -409,10 +402,6 @@ def render_interpretation(policy, average_table, bias_against_district_c):
             "than any claim about real people or places."
         )
 
-    st.caption(
-        "Prediction is not destiny. This model does not predict real human behavior and must not be used "
-        "to justify preventive punishment."
-    )
 
 
 def metric_value(value):
@@ -761,7 +750,7 @@ def render_llm_run_log(max_entries):
 
     if st.button("Clear LLM-agent run log"):
         st.session_state["llm_agent_run_log"] = []
-        st.info("LLM-agent run log cleared for this session.")
+        st.write("LLM-agent run log cleared for this session.")
         return
 
     run_log = st.session_state["llm_agent_run_log"]
@@ -832,7 +821,7 @@ def render_llm_agent_section(settings):
     initialize_llm_state()
     st.subheader("LLM-Agent Simulation")
     total_calls = len(settings["llm_agent_models"]) * len(POLICIES)
-    st.info(
+    st.write(
         "This mode runs one LLM call per selected model agent and per policy to generate run-level metrics, "
         "district metrics, charts, and explanations. It remains a thought experiment, not a prediction system."
         f" This run will make {total_calls} call(s)."
@@ -956,7 +945,7 @@ def render_llm_agent_section(settings):
     if latest_result and not latest_result_has_current_schema(latest_result):
         st.session_state.pop("llm_agent_latest_result", None)
         latest_result = None
-        st.info("Previous in-session results used an older metric schema. Run the simulation again.")
+        st.write("Previous in-session results used an older metric schema. Run the simulation again.")
 
     if latest_result:
         latest_run_results = latest_result["run_results"]
@@ -1054,10 +1043,16 @@ def render_app():
     st.set_page_config(page_title="Predictive Justice Simulation", layout="wide")
 
     st.title("Predictive Justice Simulation")
-    st.warning(
-        "This model does not decide what is morally permissible. It shows the consequences of different "
-        "policies under explicit assumptions. Children should not be punished for a predicted future act. "
-        "This is not a real-world decision tool. All agents, districts, risks, and outcomes are synthetic."
+    st.markdown(
+        "This is a synthetic thought experiment, not a real-world decision tool. "
+        "The simulation uses a life-course approach: an LLM first simulates individual developmental "
+        "trajectories for synthetic children aged 10–30, then derives aggregate metrics from those "
+        "trajectories. Outcomes emerge from modeled mechanisms — stigma, trust, opportunity, coercion — "
+        "not from assumed policy effectiveness. "
+        "The simulation shows consequences of different policies under explicit assumptions. "
+        "It does not decide what is morally permissible. "
+        "Prediction is not destiny. Children should not be punished for a predicted future act. "
+        "All agents, districts, risks, and outcomes are synthetic."
     )
     render_user_summary()
     render_reference_guide()
