@@ -19,8 +19,6 @@ POLICIES = [
 ]
 
 DISTRICTS = ["A", "B", "C"]
-RIGHTS_PRESERVING_STIGMA_HARM = 0.08
-COERCIVE_RISK_MULTIPLIER = 0.18
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 RUN_METRIC_COLUMNS = [
     "run",
@@ -50,283 +48,6 @@ RUN_METRIC_COLUMNS = [
     "crimes_district_b",
     "crimes_district_c",
 ]
-
-
-def clamp(values, lower=0.0, upper=1.0):
-    return np.clip(values, lower, upper)
-
-
-def safe_divide(numerator, denominator):
-    return numerator / denominator if denominator else 0.0
-
-
-def per_crime_prevented(value, crimes_prevented):
-    if crimes_prevented <= 0:
-        return np.nan
-    return value / crimes_prevented
-
-
-def generate_population(population_size, prediction_noise, bias_against_district_c, rng):
-    """Generate a fully synthetic population with hidden risk and observed predicted risk."""
-    population = pd.DataFrame({"id": np.arange(1, population_size + 1)})
-    population["district"] = rng.choice(DISTRICTS, size=population_size, p=[0.34, 0.33, 0.33])
-
-    district_stress_shift = population["district"].map({"A": -0.04, "B": 0.0, "C": 0.04}).to_numpy()
-    district_support_shift = population["district"].map({"A": 0.04, "B": 0.0, "C": -0.03}).to_numpy()
-
-    population["socioeconomic_stress"] = clamp(
-        rng.beta(2.2, 3.2, population_size) + district_stress_shift
-    )
-    population["family_stress"] = clamp(
-        rng.beta(2.0, 3.0, population_size) + 0.5 * district_stress_shift
-    )
-    population["school_support"] = clamp(
-        rng.beta(3.0, 2.2, population_size) + district_support_shift
-    )
-
-    risk_score = (
-        -3.35
-        + 1.30 * population["socioeconomic_stress"]
-        + 1.20 * population["family_stress"]
-        - 1.15 * population["school_support"]
-        + rng.normal(0.0, 0.22, population_size)
-    )
-    population["true_risk"] = clamp(1 / (1 + np.exp(-risk_score)), 0.01, 0.65)
-
-    district_bias = np.where(population["district"] == "C", bias_against_district_c, 0.0)
-    population["predicted_risk"] = clamp(
-        population["true_risk"] + rng.normal(0.0, prediction_noise, population_size) + district_bias
-    )
-
-    return population
-
-
-def add_prediction_flags(population, high_risk_threshold, prediction_noise, rng):
-    population["high_risk_flag"] = population["predicted_risk"] >= high_risk_threshold
-    population["reassessed_predicted_risk"] = clamp(
-        0.7 * population["predicted_risk"]
-        + 0.3 * population["true_risk"]
-        + rng.normal(0.0, prediction_noise * 0.5, len(population))
-    )
-    population["reassessment_flag"] = population["reassessed_predicted_risk"] >= high_risk_threshold
-    return population
-
-
-def apply_policy(
-    population,
-    policy,
-    support_effectiveness,
-    surveillance_effectiveness,
-    surveillance_harm,
-    coercive_harm,
-    support_cost,
-    surveillance_cost,
-    coercive_cost,
-):
-    """Apply the selected thought-experiment policy to synthetic agents."""
-    adjusted = population.copy()
-    adjusted["applied_policy"] = policy
-    adjusted["received_help"] = False
-    adjusted["coercive_intervention"] = False
-    adjusted["intervention_harm"] = 0.0
-    adjusted["intervention_cost"] = 0.0
-    adjusted["adjusted_risk"] = adjusted["true_risk"]
-
-    high_risk = adjusted["high_risk_flag"]
-    reassessed_high_risk = high_risk & adjusted["reassessment_flag"]
-
-    if policy == "Universal support":
-        adjusted["received_help"] = True
-        adjusted["adjusted_risk"] = adjusted["true_risk"] * (1 - support_effectiveness)
-        adjusted["intervention_cost"] = support_cost
-
-    elif policy == "Targeted support for high-risk children":
-        adjusted.loc[high_risk, "received_help"] = True
-        adjusted.loc[high_risk, "adjusted_risk"] = (
-            adjusted.loc[high_risk, "true_risk"] * (1 - support_effectiveness)
-        )
-        adjusted.loc[high_risk, "intervention_cost"] = support_cost
-
-    elif policy == "Surveillance of high-risk children":
-        adjusted.loc[high_risk, "adjusted_risk"] = (
-            adjusted.loc[high_risk, "true_risk"] * (1 - surveillance_effectiveness)
-        )
-        adjusted.loc[high_risk, "intervention_harm"] = surveillance_harm
-        adjusted.loc[high_risk, "intervention_cost"] = surveillance_cost
-
-    elif policy == "Coercive preventive intervention for high-risk children":
-        adjusted.loc[high_risk, "coercive_intervention"] = True
-        adjusted.loc[high_risk, "adjusted_risk"] = (
-            adjusted.loc[high_risk, "true_risk"] * COERCIVE_RISK_MULTIPLIER
-        )
-        adjusted.loc[high_risk, "intervention_harm"] = coercive_harm
-        adjusted.loc[high_risk, "intervention_cost"] = coercive_cost
-
-    elif policy == "Rights-preserving targeted support":
-        adjusted.loc[reassessed_high_risk, "received_help"] = True
-        adjusted.loc[reassessed_high_risk, "adjusted_risk"] = (
-            adjusted.loc[reassessed_high_risk, "true_risk"] * (1 - support_effectiveness)
-        )
-        adjusted.loc[reassessed_high_risk, "intervention_harm"] = RIGHTS_PRESERVING_STIGMA_HARM
-        adjusted.loc[reassessed_high_risk, "intervention_cost"] = support_cost * 1.15
-
-    adjusted["adjusted_risk"] = clamp(adjusted["adjusted_risk"])
-    return adjusted
-
-
-def aggregate_district_metrics(population, run_id):
-    rows = []
-
-    for district in DISTRICTS:
-        district_data = population[population["district"] == district]
-        false_positive_mask = district_data["high_risk_flag"] & ~district_data["baseline_committed_crime"]
-
-        rows.append(
-            {
-                "run": run_id,
-                "district": district,
-                "false_positives": int(false_positive_mask.sum()),
-                "harm": float(district_data["intervention_harm"].sum()),
-                "crimes": int(district_data["committed_crime"].sum()),
-            }
-        )
-
-    return rows
-
-
-def calculate_metrics(population, district_rows, run_id):
-    flagged = population["high_risk_flag"]
-    baseline_crime = population["baseline_committed_crime"]
-
-    baseline_crimes = int(baseline_crime.sum())
-    crimes_after_policy = int(population["committed_crime"].sum())
-    crimes_prevented = baseline_crimes - crimes_after_policy
-    true_positives = int((flagged & baseline_crime).sum())
-    false_positives = int((flagged & ~baseline_crime).sum())
-    false_negatives = int((~flagged & baseline_crime).sum())
-    total_harm = float(population["intervention_harm"].sum())
-    total_cost = float(population["intervention_cost"].sum())
-
-    metrics = {
-        "run": run_id,
-        "baseline_crimes": baseline_crimes,
-        "crimes_after_policy": crimes_after_policy,
-        "crimes_prevented": crimes_prevented,
-        "high_risk_flagged": int(flagged.sum()),
-        "true_positives": true_positives,
-        "false_positives": false_positives,
-        "false_negatives": false_negatives,
-        "precision": safe_divide(true_positives, true_positives + false_positives),
-        "recall": safe_divide(true_positives, true_positives + false_negatives),
-        "children_helped": int(population["received_help"].sum()),
-        "children_harmed": int((population["intervention_harm"] > 0).sum()),
-        "coerced_children": int(population["coercive_intervention"].sum()),
-        "total_harm": total_harm,
-        "total_cost": total_cost,
-        "harm_per_crime_prevented": per_crime_prevented(total_harm, crimes_prevented),
-        "cost_per_crime_prevented": per_crime_prevented(total_cost, crimes_prevented),
-    }
-
-    for row in district_rows:
-        district_key = row["district"].lower()
-        metrics[f"false_positives_district_{district_key}"] = row["false_positives"]
-        metrics[f"harm_district_{district_key}"] = row["harm"]
-        metrics[f"crimes_district_{district_key}"] = row["crimes"]
-
-    return metrics
-
-
-def simulate_once(
-    run_id,
-    population_size,
-    seed,
-    prediction_noise,
-    high_risk_threshold,
-    bias_against_district_c,
-    policy,
-    support_effectiveness,
-    surveillance_effectiveness,
-    surveillance_harm,
-    coercive_harm,
-    support_cost,
-    surveillance_cost,
-    coercive_cost,
-    return_population=False,
-):
-    rng = np.random.default_rng(seed + run_id)
-    population = generate_population(
-        population_size, prediction_noise, bias_against_district_c, rng
-    )
-    population = add_prediction_flags(population, high_risk_threshold, prediction_noise, rng)
-    outcome_draw = rng.random(population_size)
-    population["baseline_committed_crime"] = outcome_draw < population["true_risk"]
-    population["baseline_outcome"] = np.where(
-        population["baseline_committed_crime"], "Committed crime", "Did not commit crime"
-    )
-
-    population = apply_policy(
-        population,
-        policy,
-        support_effectiveness,
-        surveillance_effectiveness,
-        surveillance_harm,
-        coercive_harm,
-        support_cost,
-        surveillance_cost,
-        coercive_cost,
-    )
-    population["committed_crime"] = outcome_draw < population["adjusted_risk"]
-    population["outcome"] = np.where(
-        population["committed_crime"], "Committed crime", "Did not commit crime"
-    )
-
-    district_rows = aggregate_district_metrics(population, run_id)
-    run_metrics = calculate_metrics(population, district_rows, run_id)
-    if return_population:
-        return run_metrics, district_rows, population
-    return run_metrics, district_rows
-
-
-def run_monte_carlo(
-    population_size,
-    monte_carlo_runs,
-    seed,
-    prediction_noise,
-    high_risk_threshold,
-    bias_against_district_c,
-    policy,
-    support_effectiveness,
-    surveillance_effectiveness,
-    surveillance_harm,
-    coercive_harm,
-    support_cost,
-    surveillance_cost,
-    coercive_cost,
-):
-    run_rows = []
-    district_rows = []
-
-    for run_id in range(1, monte_carlo_runs + 1):
-        run_metrics, run_district_rows = simulate_once(
-            run_id,
-            population_size,
-            seed,
-            prediction_noise,
-            high_risk_threshold,
-            bias_against_district_c,
-            policy,
-            support_effectiveness,
-            surveillance_effectiveness,
-            surveillance_harm,
-            coercive_harm,
-            support_cost,
-            surveillance_cost,
-            coercive_cost,
-        )
-        run_rows.append(run_metrics)
-        district_rows.extend(run_district_rows)
-
-    return pd.DataFrame(run_rows), pd.DataFrame(district_rows)
 
 
 def average_results_table(run_results):
@@ -381,7 +102,7 @@ def line_chart(data, x_column, y_column, title, y_label):
     fig, ax = plt.subplots(figsize=(7, 3.6))
     ax.plot(data[x_column], data[y_column], linewidth=1.8)
     ax.set_title(title)
-    ax.set_xlabel("Monte Carlo run")
+    ax.set_xlabel("Synthetic run")
     ax.set_ylabel(y_label)
     ax.grid(True, alpha=0.25)
     fig.tight_layout()
@@ -580,7 +301,7 @@ def compact_aggregate_metrics(run_results):
 def compact_parameter_summary(settings):
     return (
         f"population_size={int(settings['population_size'])}; "
-        f"monte_carlo_runs={int(settings['monte_carlo_runs'])}; "
+        f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
         f"seed={int(settings['seed'])}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
         f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
@@ -606,96 +327,6 @@ def llm_assumptions(settings):
         "surveillance_cost": metric_value(settings["surveillance_cost"]),
         "coercive_intervention_cost": metric_value(settings["coercive_cost"]),
     }
-
-
-def sample_representative_agents(population_df, max_agents, seed):
-    category_masks = [
-        population_df["high_risk_flag"] & ~population_df["baseline_committed_crime"],
-        population_df["high_risk_flag"] & population_df["baseline_committed_crime"],
-        ~population_df["high_risk_flag"] & population_df["baseline_committed_crime"],
-        population_df["received_help"],
-        population_df["intervention_harm"] > 0,
-    ]
-    selected_indices = []
-    rng = np.random.default_rng(seed)
-
-    for mask in category_masks:
-        candidates = population_df.loc[mask & ~population_df.index.isin(selected_indices)]
-        if not candidates.empty and len(selected_indices) < max_agents:
-            selected_indices.append(rng.choice(candidates.index.to_numpy()))
-
-    if len(selected_indices) < max_agents:
-        remaining = population_df.loc[~population_df.index.isin(selected_indices)].sort_values(
-            ["intervention_harm", "predicted_risk"], ascending=False
-        )
-        selected_indices.extend(remaining.index[: max_agents - len(selected_indices)].to_list())
-
-    labels = ["Representative child A", "Representative child B", "Representative child C"]
-    representatives = []
-
-    for label, (_, child) in zip(labels, population_df.loc[selected_indices].iterrows()):
-        representatives.append(
-            {
-                "label": label,
-                "district": child["district"],
-                "predicted_risk": round(float(child["predicted_risk"]), 3),
-                "true_risk": round(float(child["true_risk"]), 3),
-                "high_risk": bool(child["high_risk_flag"]),
-                "received_help": bool(child["received_help"]),
-                "experienced_harm": bool(child["intervention_harm"] > 0),
-                "coercive_intervention": bool(child["coercive_intervention"]),
-                "baseline_outcome": child["baseline_outcome"],
-                "post_policy_outcome": child["outcome"],
-            }
-        )
-
-    return representatives
-
-
-def build_llm_display_population(settings):
-    _, _, population = simulate_once(
-        10_001,
-        int(settings["llm_display_population_size"]),
-        int(settings["seed"]),
-        settings["prediction_noise"],
-        settings["high_risk_threshold"],
-        settings["bias_against_district_c"],
-        settings["policy"],
-        settings["support_effectiveness"],
-        settings["surveillance_effectiveness"],
-        settings["surveillance_harm"],
-        settings["coercive_harm"],
-        settings["support_cost"],
-        settings["surveillance_cost"],
-        settings["coercive_cost"],
-        return_population=True,
-    )
-    return population
-
-
-def build_llm_debrief_prompt(policy_name, aggregate_metrics, representative_agents, assumptions, max_words):
-    prompt_payload = {
-        "selected_policy": policy_name,
-        "aggregate_metrics": aggregate_metrics,
-        "assumptions": assumptions,
-        "representative_synthetic_agents": representative_agents,
-    }
-
-    return (
-        "You are writing a concise debrief for a synthetic ethical thought experiment about predictive "
-        "justice.\n"
-        "Use English only.\n"
-        f"Do not exceed {max_words} words.\n"
-        "Do not recommend real-world punishment.\n"
-        "Do not claim the simulation predicts real people.\n"
-        "Do not treat prediction as destiny.\n"
-        "Do not identify anyone.\n"
-        "Do not make up numbers not provided.\n"
-        "Explain trade-offs and uncertainty.\n"
-        "Highlight false positives, false negatives, harm, cost, and District C bias if relevant.\n"
-        "Keep the output concise and grounded in the provided values.\n\n"
-        f"Simulation context:\n{json.dumps(prompt_payload, indent=2)}"
-    )
 
 
 def build_llm_simulation_prompt(settings):
@@ -740,25 +371,6 @@ def build_llm_simulation_prompt(settings):
         "uncertainty, false positives, false negatives, harm, cost, and District C bias if relevant.\n\n"
         f"Simulation request:\n{json.dumps(prompt_payload, indent=2)}"
     )
-
-
-def run_openai_debrief(prompt, max_words):
-    from openai import OpenAI
-
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": "You provide cautious ethical analysis for synthetic simulations.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=max(250, min(900, max_words * 3)),
-        temperature=0.2,
-    )
-    return response.choices[0].message.content.strip()
 
 
 def run_openai_json(prompt, max_tokens=4000):
@@ -905,9 +517,6 @@ def friendly_llm_error(error):
 
 
 def render_llm_agent_section(settings):
-    if not settings["enable_llm_agent_mode"]:
-        return
-
     initialize_llm_state()
     st.subheader("LLM-Agent Simulation")
     st.write(
@@ -985,7 +594,6 @@ def sidebar_inputs():
     st.sidebar.header("Simulation settings")
     settings = {
         "population_size": st.sidebar.slider("Population size", 100, 10000, 2000, step=100),
-        "monte_carlo_runs": st.sidebar.slider("Number of Monte Carlo runs", 5, 300, 50, step=5),
         "seed": st.sidebar.number_input(
             "Random seed", min_value=0, max_value=1_000_000, value=42, step=1
         ),
@@ -1014,30 +622,20 @@ def sidebar_inputs():
         "policy": st.sidebar.selectbox("Selected policy", POLICIES),
     }
 
-    settings["enable_llm_agent_mode"] = st.sidebar.toggle(
-        "Enable lightweight LLM-agent mode", value=False
+    st.sidebar.subheader("LLM-agent settings")
+    settings["llm_display_population_size"] = st.sidebar.slider(
+        "LLM display population size", 20, 300, 100, step=10
     )
-    if settings["enable_llm_agent_mode"]:
-        st.sidebar.subheader("LLM-agent settings")
-        settings["llm_display_population_size"] = st.sidebar.slider(
-            "LLM display population size", 20, 300, 100, step=10
-        )
-        settings["llm_simulation_runs"] = st.sidebar.slider(
-            "LLM synthetic runs", 3, 20, 8, step=1
-        )
-        settings["llm_representative_agents"] = st.sidebar.slider(
-            "LLM representative agents", 1, 3, 3, step=1
-        )
-        settings["llm_output_word_limit"] = st.sidebar.slider(
-            "LLM output word limit", 100, 400, 200, step=25
-        )
-        settings["llm_run_log_size"] = st.sidebar.slider("LLM run log size", 1, 10, 5, step=1)
-    else:
-        settings["llm_display_population_size"] = 100
-        settings["llm_simulation_runs"] = 8
-        settings["llm_representative_agents"] = 3
-        settings["llm_output_word_limit"] = 200
-        settings["llm_run_log_size"] = 5
+    settings["llm_simulation_runs"] = st.sidebar.slider(
+        "LLM synthetic runs", 3, 20, 8, step=1
+    )
+    settings["llm_representative_agents"] = st.sidebar.slider(
+        "LLM representative agents", 1, 3, 3, step=1
+    )
+    settings["llm_output_word_limit"] = st.sidebar.slider(
+        "LLM output word limit", 100, 400, 200, step=25
+    )
+    settings["llm_run_log_size"] = st.sidebar.slider("LLM run log size", 1, 10, 5, step=1)
 
     return settings
 
@@ -1055,56 +653,17 @@ def render_app():
     )
 
     settings = sidebar_inputs()
-    if settings["enable_llm_agent_mode"]:
-        render_llm_agent_section(settings)
-        latest_result = st.session_state.get("llm_agent_latest_result")
-        if latest_result:
-            csv_buffer = StringIO()
-            latest_result["run_results"].to_csv(csv_buffer, index=False)
-            st.download_button(
-                "Download LLM-agent results as CSV",
-                data=csv_buffer.getvalue(),
-                file_name="llm_agent_simulation_results.csv",
-                mime="text/csv",
-            )
-        return
-
-    run_results, district_results = run_monte_carlo(
-        int(settings["population_size"]),
-        int(settings["monte_carlo_runs"]),
-        int(settings["seed"]),
-        settings["prediction_noise"],
-        settings["high_risk_threshold"],
-        settings["bias_against_district_c"],
-        settings["policy"],
-        settings["support_effectiveness"],
-        settings["surveillance_effectiveness"],
-        settings["surveillance_harm"],
-        settings["coercive_harm"],
-        settings["support_cost"],
-        settings["surveillance_cost"],
-        settings["coercive_cost"],
-    )
-
-    st.subheader("Average results across Monte Carlo runs")
-    average_table = average_results_table(run_results)
-    display_average_table(average_table)
-
-    render_charts(run_results, district_results)
-    render_interpretation(
-        settings["policy"],
-        average_table,
-        settings["bias_against_district_c"],
-    )
-
-    csv_buffer = StringIO()
-    run_results.to_csv(csv_buffer, index=False)
-    st.download_button(
-        "Download results as CSV",
-        data=csv_buffer.getvalue(),
-        file_name="predictive_justice_simulation_results.csv",
-        mime="text/csv",
-    )
+    render_llm_agent_section(settings)
+    latest_result = st.session_state.get("llm_agent_latest_result")
+    if latest_result:
+        csv_buffer = StringIO()
+        latest_result["run_results"].to_csv(csv_buffer, index=False)
+        st.download_button(
+            "Download LLM-agent results as CSV",
+            data=csv_buffer.getvalue(),
+            file_name="llm_agent_simulation_results.csv",
+            mime="text/csv",
+        )
 
 
 if __name__ == "__main__":
