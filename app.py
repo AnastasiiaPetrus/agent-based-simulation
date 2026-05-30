@@ -21,55 +21,57 @@ POLICIES = [
 
 POLICY_DESCRIPTIONS = {
     "No action": (
-        "Baseline comparison. No support, surveillance, coercion, cost, or intervention harm is applied; "
-        "modeled baseline crimes remain unchanged."
+        "Baseline: no support, surveillance, coercion, cost, or intervention harm."
     ),
     "Universal support": (
-        "Every synthetic child receives non-punitive support. This can reduce risk without targeting, but it "
-        "creates broad support cost."
+        "Everyone receives non-punitive support; broad help, broad cost, no targeting."
     ),
     "Targeted support for high-risk children": (
-        "Only synthetic children flagged as high-risk receive support. It costs less than universal support, "
-        "but depends on an imperfect risk signal."
+        "Only flagged children receive support; cheaper, but dependent on an imperfect flag."
     ),
     "Surveillance of high-risk children": (
-        "Flagged synthetic children are monitored. It may reduce some modeled crimes, but it adds privacy, "
-        "stigma, and error-related harm."
+        "Flagged children are monitored; may reduce crime, but adds privacy and stigma harm."
     ),
     "Coercive preventive intervention for high-risk children": (
-        "Flagged synthetic children face a restrictive intervention before any real act. It can reduce modeled "
-        "crime most strongly, but imposes the highest harm and is ethically dangerous."
+        "Flagged children face restriction before any act; strongest reduction, highest harm."
     ),
     "Rights-preserving targeted support": (
-        "Flagged synthetic children receive voluntary, non-punitive support with extra protections against "
-        "stigma and coercion."
+        "Flagged children receive voluntary support with protections against stigma and coercion."
     ),
 }
 
 SETTING_DESCRIPTIONS = {
-    "Population size": "How many synthetic children the LLM should use as the imagined population.",
-    "Prediction error / noise": "How unreliable the synthetic risk signal is. Higher values mean more mistakes.",
-    "High-risk threshold": "The cutoff for labeling a synthetic child as high-risk. Lower values flag more children.",
-    "Bias against District C": "Extra synthetic risk pressure applied to District C to test uneven false positives and harm.",
-    "Policy effect strength": "How strongly the selected policy is allowed to change modeled outcomes.",
-    "Intervention harm level": "How much harm the selected intervention adds to affected synthetic children.",
-    "Intervention cost level": "How expensive the selected policy is in the synthetic scenario.",
-    "LLM synthetic runs": "How many scenario runs the LLM should generate for charts and averages.",
-    "LLM model agents": "Which OpenAI models should each run the same synthetic scenario independently.",
-    "LLM representative agents": "How many abstract synthetic example agents the LLM may include.",
+    "Population size": "Imagined number of synthetic children.",
+    "Prediction error / noise": "How unreliable the risk signal is.",
+    "High-risk threshold": "Cutoff for labeling a child high-risk.",
+    "Bias against District C": "Extra risk pressure used to test unequal impact.",
+    "Policy effect strength": "How strongly the policy may change outcomes.",
+    "Intervention harm level": "How harmful an intervention is.",
+    "Intervention cost level": "How expensive a policy is.",
+    "LLM synthetic runs": "How many scenario rows each model generates.",
+    "LLM model agents": "Which models run the same simulation prompt.",
+    "LLM representative agents": "How many abstract example agents to show.",
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Baseline crimes": "Modeled crimes before any policy is applied.",
-    "Crimes after policy": "Modeled crimes remaining after the selected policy is applied.",
+    "Baseline crimes": "Crimes before the policy.",
+    "Crimes after policy": "Crimes remaining after the policy.",
     "Crimes prevented": "Baseline crimes minus crimes after policy.",
-    "False positives": "Flagged synthetic children who would not have committed the modeled offense in the baseline.",
-    "False negatives": "Unflagged synthetic children who would have committed the modeled offense in the baseline.",
-    "Children helped": "Synthetic children receiving support.",
-    "Children harmed": "Synthetic children receiving modeled intervention harm.",
-    "Total harm": "Aggregate modeled harm created by the selected policy.",
-    "Total cost": "Aggregate modeled cost created by the selected policy.",
-    "District metrics": "District-level false positives, harm, and crimes for abstract Districts A, B, and C.",
+    "False positives": "Flagged children who would not have committed the modeled offense.",
+    "False negatives": "Unflagged children who would have committed the modeled offense.",
+    "Children helped": "Children receiving support.",
+    "Children harmed": "Children receiving modeled intervention harm.",
+    "Total harm": "Aggregate harm created by the policy.",
+    "Total cost": "Aggregate cost created by the policy.",
+    "District metrics": "False positives, harm, and crimes by abstract district.",
+}
+
+CHECK_DESCRIPTIONS = {
+    "Policy trade-off": "Does a policy reduce modeled crime, and at what cost or harm?",
+    "Prediction error": "How much do false positives and false negatives matter?",
+    "Unequal impact": "Does District C bias shift harm or errors unevenly?",
+    "Model agreement": "Do different LLM model agents produce similar conclusions?",
+    "Output validity": "Are all required runs, districts, and metrics present and non-negative?",
 }
 
 DISTRICTS = ["A", "B", "C"]
@@ -198,15 +200,27 @@ def glossary_markdown(items):
     return "\n\n".join(lines)
 
 
+def render_user_summary():
+    st.info(
+        "Choose a policy and assumptions in the sidebar, edit the simulation prompts if needed, "
+        "then run one or more LLM model agents. The app checks whether modeled crime changes, "
+        "who is helped or harmed, how many prediction errors appear, and whether district outcomes "
+        "become uneven. All results are synthetic."
+    )
+
+
 def render_reference_guide():
-    with st.expander("Policy and metric guide", expanded=False):
-        st.markdown("### Policy options")
+    with st.expander("Compact guide: checks, policies, and metrics", expanded=False):
+        st.markdown("### What is checked")
+        st.markdown(glossary_markdown(CHECK_DESCRIPTIONS))
+
+        st.markdown("### Policies")
         st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
-        st.markdown("### Sidebar settings")
+        st.markdown("### Inputs")
         st.markdown(glossary_markdown(SETTING_DESCRIPTIONS))
 
-        st.markdown("### Result metrics")
+        st.markdown("### Metrics")
         st.markdown(glossary_markdown(RESULT_METRIC_DESCRIPTIONS))
 
 
@@ -1118,6 +1132,7 @@ def render_app():
         "policies under explicit assumptions. Children should not be punished for a predicted future act. "
         "This is not a real-world decision tool. All agents, districts, risks, and outcomes are synthetic."
     )
+    render_user_summary()
     render_reference_guide()
 
     settings = sidebar_inputs()
