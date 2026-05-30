@@ -1099,14 +1099,7 @@ def render_llm_agent_section(settings):
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
     settings = {
-        "population_size": st.sidebar.slider(
-            "Population size",
-            100,
-            10000,
-            2000,
-            step=100,
-            help=SETTING_DESCRIPTIONS["Population size"],
-        ),
+        "population_size": 1000,
         "prediction_noise": st.sidebar.slider(
             "Prediction error / noise",
             0.0,
@@ -1123,49 +1116,19 @@ def sidebar_inputs():
             step=0.01,
             help=SETTING_DESCRIPTIONS["High-risk threshold"],
         ),
-        "bias_against_district_c": st.sidebar.slider(
-            "Bias against District C",
-            0.0,
-            0.30,
-            0.00,
-            step=0.01,
-            help=SETTING_DESCRIPTIONS["Bias against District C"],
+        "bias_against_district_c": 0.0,
+        "policy_effect_strength": st.sidebar.select_slider(
+            "Policy effect strength",
+            options=["Low", "Medium", "High"],
+            value="Medium",
+            help=SETTING_DESCRIPTIONS["Policy effect strength"],
         ),
+        "llm_simulation_runs": 5,
+        "llm_representative_agents": 2,
     }
 
-    st.sidebar.subheader("Policy assumptions (applied across policies)")
-    settings["policy_effect_strength"] = st.sidebar.select_slider(
-        "Policy effect strength",
-        options=["Low", "Medium", "High"],
-        value="Medium",
-        help=SETTING_DESCRIPTIONS["Policy effect strength"],
-    )
-
-    st.sidebar.subheader("LLM-agent settings")
-    settings["llm_simulation_runs"] = st.sidebar.slider(
-        "LLM synthetic runs",
-        3,
-        20,
-        8,
-        step=1,
-        help=SETTING_DESCRIPTIONS["LLM synthetic runs"],
-    )
     model_options = llm_model_options()
-    settings["llm_agent_models"] = st.sidebar.multiselect(
-        "LLM model agents",
-        model_options,
-        default=default_llm_agent_models(model_options),
-        help=SETTING_DESCRIPTIONS["LLM model agents"],
-    )
-    st.sidebar.caption("Each selected model makes one OpenAI API call per policy when you run the simulation.")
-    settings["llm_representative_agents"] = st.sidebar.slider(
-        "LLM representative agents",
-        1,
-        3,
-        3,
-        step=1,
-        help=SETTING_DESCRIPTIONS["LLM representative agents"],
-    )
+    settings["llm_agent_models"] = default_llm_agent_models(model_options)
 
     return settings
 
