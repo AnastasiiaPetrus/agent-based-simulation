@@ -1,3 +1,6 @@
+import json
+import os
+from datetime import datetime
 from io import StringIO
 
 import matplotlib.pyplot as plt
@@ -18,6 +21,7 @@ POLICIES = [
 DISTRICTS = ["A", "B", "C"]
 RIGHTS_PRESERVING_STIGMA_HARM = 0.08
 COERCIVE_RISK_MULTIPLIER = 0.18
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 
 
 def clamp(values, lower=0.0, upper=1.0):
@@ -219,6 +223,7 @@ def simulate_once(
     support_cost,
     surveillance_cost,
     coercive_cost,
+    return_population=False,
 ):
     rng = np.random.default_rng(seed + run_id)
     population = generate_population(
@@ -249,6 +254,8 @@ def simulate_once(
 
     district_rows = aggregate_district_metrics(population, run_id)
     run_metrics = calculate_metrics(population, district_rows, run_id)
+    if return_population:
+        return run_metrics, district_rows, population
     return run_metrics, district_rows
 
 
@@ -520,9 +527,301 @@ def render_interpretation(policy, average_table, bias_against_district_c):
     )
 
 
+def metric_value(value):
+    if pd.isna(value):
+        return None
+    if isinstance(value, (np.integer, int)):
+        return int(value)
+    return round(float(value), 3)
+
+
+def compact_aggregate_metrics(run_results):
+    metric_columns = [
+        "crimes_prevented",
+        "false_positives",
+        "false_negatives",
+        "children_harmed",
+        "total_harm",
+        "total_cost",
+        "harm_per_crime_prevented",
+    ]
+    averages = run_results[metric_columns].mean(numeric_only=True)
+    return {column: metric_value(averages[column]) for column in metric_columns}
+
+
+def compact_parameter_summary(settings):
+    return (
+        f"population_size={int(settings['population_size'])}; "
+        f"monte_carlo_runs={int(settings['monte_carlo_runs'])}; "
+        f"seed={int(settings['seed'])}; "
+        f"prediction_noise={settings['prediction_noise']:.2f}; "
+        f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
+        f"bias_against_district_c={settings['bias_against_district_c']:.2f}; "
+        f"support_effectiveness={settings['support_effectiveness']:.2f}; "
+        f"surveillance_effectiveness={settings['surveillance_effectiveness']:.2f}; "
+        f"surveillance_harm={settings['surveillance_harm']:.1f}; "
+        f"coercive_harm={settings['coercive_harm']:.1f}"
+    )
+
+
+def llm_assumptions(settings):
+    return {
+        "selected_policy": settings["policy"],
+        "prediction_noise": metric_value(settings["prediction_noise"]),
+        "high_risk_threshold": metric_value(settings["high_risk_threshold"]),
+        "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
+        "support_effectiveness": metric_value(settings["support_effectiveness"]),
+        "surveillance_effectiveness": metric_value(settings["surveillance_effectiveness"]),
+        "surveillance_harm": metric_value(settings["surveillance_harm"]),
+        "coercive_intervention_harm": metric_value(settings["coercive_harm"]),
+        "support_cost": metric_value(settings["support_cost"]),
+        "surveillance_cost": metric_value(settings["surveillance_cost"]),
+        "coercive_intervention_cost": metric_value(settings["coercive_cost"]),
+    }
+
+
+def sample_representative_agents(population_df, max_agents, seed):
+    category_masks = [
+        population_df["high_risk_flag"] & ~population_df["baseline_committed_crime"],
+        population_df["high_risk_flag"] & population_df["baseline_committed_crime"],
+        ~population_df["high_risk_flag"] & population_df["baseline_committed_crime"],
+        population_df["received_help"],
+        population_df["intervention_harm"] > 0,
+    ]
+    selected_indices = []
+    rng = np.random.default_rng(seed)
+
+    for mask in category_masks:
+        candidates = population_df.loc[mask & ~population_df.index.isin(selected_indices)]
+        if not candidates.empty and len(selected_indices) < max_agents:
+            selected_indices.append(rng.choice(candidates.index.to_numpy()))
+
+    if len(selected_indices) < max_agents:
+        remaining = population_df.loc[~population_df.index.isin(selected_indices)].sort_values(
+            ["intervention_harm", "predicted_risk"], ascending=False
+        )
+        selected_indices.extend(remaining.index[: max_agents - len(selected_indices)].to_list())
+
+    labels = ["Representative child A", "Representative child B", "Representative child C"]
+    representatives = []
+
+    for label, (_, child) in zip(labels, population_df.loc[selected_indices].iterrows()):
+        representatives.append(
+            {
+                "label": label,
+                "district": child["district"],
+                "predicted_risk": round(float(child["predicted_risk"]), 3),
+                "true_risk": round(float(child["true_risk"]), 3),
+                "high_risk": bool(child["high_risk_flag"]),
+                "received_help": bool(child["received_help"]),
+                "experienced_harm": bool(child["intervention_harm"] > 0),
+                "coercive_intervention": bool(child["coercive_intervention"]),
+                "baseline_outcome": child["baseline_outcome"],
+                "post_policy_outcome": child["outcome"],
+            }
+        )
+
+    return representatives
+
+
+def build_llm_display_population(settings):
+    _, _, population = simulate_once(
+        10_001,
+        int(settings["llm_display_population_size"]),
+        int(settings["seed"]),
+        settings["prediction_noise"],
+        settings["high_risk_threshold"],
+        settings["bias_against_district_c"],
+        settings["policy"],
+        settings["support_effectiveness"],
+        settings["surveillance_effectiveness"],
+        settings["surveillance_harm"],
+        settings["coercive_harm"],
+        settings["support_cost"],
+        settings["surveillance_cost"],
+        settings["coercive_cost"],
+        return_population=True,
+    )
+    return population
+
+
+def build_llm_debrief_prompt(policy_name, aggregate_metrics, representative_agents, assumptions, max_words):
+    prompt_payload = {
+        "selected_policy": policy_name,
+        "aggregate_metrics": aggregate_metrics,
+        "assumptions": assumptions,
+        "representative_synthetic_agents": representative_agents,
+    }
+
+    return (
+        "You are writing a concise debrief for a synthetic ethical thought experiment about predictive "
+        "justice.\n"
+        "Use English only.\n"
+        f"Do not exceed {max_words} words.\n"
+        "Do not recommend real-world punishment.\n"
+        "Do not claim the simulation predicts real people.\n"
+        "Do not treat prediction as destiny.\n"
+        "Do not identify anyone.\n"
+        "Do not make up numbers not provided.\n"
+        "Explain trade-offs and uncertainty.\n"
+        "Highlight false positives, false negatives, harm, cost, and District C bias if relevant.\n"
+        "Keep the output concise and grounded in the provided values.\n\n"
+        f"Simulation context:\n{json.dumps(prompt_payload, indent=2)}"
+    )
+
+
+def run_openai_debrief(prompt, max_words):
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": "You provide cautious ethical analysis for synthetic simulations.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=max(250, min(900, max_words * 3)),
+        temperature=0.2,
+    )
+    return response.choices[0].message.content.strip()
+
+
+def initialize_llm_state():
+    if "llm_agent_run_log" not in st.session_state:
+        st.session_state["llm_agent_run_log"] = []
+
+
+def trim_llm_run_log(max_entries):
+    st.session_state["llm_agent_run_log"] = st.session_state["llm_agent_run_log"][:max_entries]
+
+
+def add_llm_run_log_entry(entry, max_entries):
+    st.session_state["llm_agent_run_log"].insert(0, entry)
+    trim_llm_run_log(max_entries)
+
+
+def render_llm_run_log(max_entries):
+    trim_llm_run_log(max_entries)
+    st.subheader("Previous LLM-Agent Runs")
+
+    if st.button("Clear LLM-agent run log"):
+        st.session_state["llm_agent_run_log"] = []
+        st.info("LLM-agent run log cleared for this session.")
+        return
+
+    run_log = st.session_state["llm_agent_run_log"]
+    if not run_log:
+        st.caption("No LLM-agent debriefs have been run in this session.")
+        return
+
+    log_for_csv = []
+    for entry in run_log:
+        metrics = entry["aggregate_metrics"]
+        log_for_csv.append(
+            {
+                "timestamp": entry["timestamp"],
+                "selected_policy": entry["selected_policy"],
+                "parameter_summary": entry["parameter_summary"],
+                "representative_agent_count": entry["representative_agent_count"],
+                "llm_model": entry["llm_model"],
+                "crimes_prevented": metrics["crimes_prevented"],
+                "false_positives": metrics["false_positives"],
+                "false_negatives": metrics["false_negatives"],
+                "children_harmed": metrics["children_harmed"],
+                "total_harm": metrics["total_harm"],
+                "total_cost": metrics["total_cost"],
+                "harm_per_crime_prevented": metrics["harm_per_crime_prevented"],
+                "debrief_text": entry["debrief_text"],
+            }
+        )
+
+    csv_buffer = StringIO()
+    pd.DataFrame(log_for_csv).to_csv(csv_buffer, index=False)
+    st.download_button(
+        "Download LLM-agent run log as CSV",
+        data=csv_buffer.getvalue(),
+        file_name="llm_agent_run_log.csv",
+        mime="text/csv",
+    )
+
+    for entry in run_log:
+        title = f"{entry['timestamp']} | {entry['selected_policy']} | {entry['llm_model']}"
+        with st.expander(title):
+            st.write(entry["debrief_text"])
+            st.caption(entry["parameter_summary"])
+            st.json(entry["aggregate_metrics"])
+
+
+def render_llm_agent_section(settings, run_results):
+    if not settings["enable_llm_agent_mode"]:
+        return
+
+    initialize_llm_state()
+    st.subheader("Lightweight LLM-Agent Debrief")
+    st.write(
+        "This optional layer summarizes the synthetic results. It does not change risks, flags, outcomes, "
+        "metrics, charts, or policy effects."
+    )
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        st.warning(
+            "LLM-agent mode is enabled, but OPENAI_API_KEY is not configured. Add it as an environment "
+            "variable or Railway secret."
+        )
+
+    aggregate_metrics = compact_aggregate_metrics(run_results)
+    parameter_summary = compact_parameter_summary(settings)
+
+    if st.button("Run one LLM-agent debrief", disabled=not bool(api_key)):
+        display_population = build_llm_display_population(settings)
+        representative_agents = sample_representative_agents(
+            display_population,
+            int(settings["llm_representative_agents"]),
+            int(settings["seed"]),
+        )
+        prompt = build_llm_debrief_prompt(
+            settings["policy"],
+            aggregate_metrics,
+            representative_agents,
+            llm_assumptions(settings),
+            int(settings["llm_output_word_limit"]),
+        )
+
+        try:
+            debrief_text = run_openai_debrief(prompt, int(settings["llm_output_word_limit"]))
+        except Exception as error:
+            st.error(f"LLM-agent debrief failed: {error}")
+            debrief_text = None
+
+        if debrief_text:
+            entry = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "selected_policy": settings["policy"],
+                "parameter_summary": parameter_summary,
+                "representative_agent_count": len(representative_agents),
+                "llm_model": LLM_MODEL,
+                "aggregate_metrics": aggregate_metrics,
+                "debrief_text": debrief_text,
+            }
+            add_llm_run_log_entry(entry, int(settings["llm_run_log_size"]))
+            st.success("LLM-agent debrief generated.")
+            with st.expander("Representative synthetic agents used", expanded=False):
+                st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
+
+    if st.session_state["llm_agent_run_log"]:
+        st.markdown("**Latest LLM-agent debrief**")
+        st.write(st.session_state["llm_agent_run_log"][0]["debrief_text"])
+
+    render_llm_run_log(int(settings["llm_run_log_size"]))
+
+
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
-    return {
+    settings = {
         "population_size": st.sidebar.slider("Population size", 100, 10000, 2000, step=100),
         "monte_carlo_runs": st.sidebar.slider("Number of Monte Carlo runs", 5, 300, 50, step=5),
         "seed": st.sidebar.number_input(
@@ -552,6 +851,29 @@ def sidebar_inputs():
         ),
         "policy": st.sidebar.selectbox("Selected policy", POLICIES),
     }
+
+    settings["enable_llm_agent_mode"] = st.sidebar.toggle(
+        "Enable lightweight LLM-agent mode", value=False
+    )
+    if settings["enable_llm_agent_mode"]:
+        st.sidebar.subheader("LLM-agent settings")
+        settings["llm_display_population_size"] = st.sidebar.slider(
+            "LLM display population size", 20, 300, 100, step=10
+        )
+        settings["llm_representative_agents"] = st.sidebar.slider(
+            "LLM representative agents", 1, 3, 3, step=1
+        )
+        settings["llm_output_word_limit"] = st.sidebar.slider(
+            "LLM output word limit", 100, 400, 200, step=25
+        )
+        settings["llm_run_log_size"] = st.sidebar.slider("LLM run log size", 1, 10, 5, step=1)
+    else:
+        settings["llm_display_population_size"] = 100
+        settings["llm_representative_agents"] = 3
+        settings["llm_output_word_limit"] = 200
+        settings["llm_run_log_size"] = 5
+
+    return settings
 
 
 def render_app():
@@ -594,6 +916,7 @@ def render_app():
         average_table,
         settings["bias_against_district_c"],
     )
+    render_llm_agent_section(settings, run_results)
 
     csv_buffer = StringIO()
     run_results.to_csv(csv_buffer, index=False)

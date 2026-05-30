@@ -12,6 +12,8 @@ All data is synthetic. The model does not use real crime data, race, ethnicity, 
 pip install -r requirements.txt
 ```
 
+The OpenAI package is included only for the optional LLM-agent debrief mode. The default simulation does not require an API key and does not call any LLM API.
+
 ## Run the app
 
 ```bash
@@ -30,6 +32,38 @@ Then open the local URL printed by Streamlit.
    - The "Interpretation" block for a short, automatic summary of trade-offs under the current assumptions.
 4. Click "Download results as CSV" to export run-level metrics to:
    `predictive_justice_simulation_results.csv`
+
+## Optional LLM-agent debrief mode
+
+The app includes an optional lightweight LLM-agent debrief mode. It is disabled by default.
+
+When disabled:
+
+- No API key is needed.
+- No LLM requests are made.
+- No tokens are spent.
+- The Monte Carlo simulation remains fully NumPy/Pandas-based.
+- Synthetic agents are still rows in a DataFrame, not AI agents.
+
+When enabled in the sidebar, the app shows a "Lightweight LLM-Agent Debrief" section. The LLM is called only when the user clicks "Run one LLM-agent debrief". It is not called automatically on Streamlit reruns, inside Monte Carlo loops, or once per child.
+
+The LLM debrief can summarize trade-offs, uncertainty, false positives, false negatives, harm, cost, and District C bias. It does not change risks, high-risk flags, outcomes, metrics, or charts.
+
+To enable it locally or on Railway, set:
+
+```bash
+OPENAI_API_KEY=your_api_key
+```
+
+Optional model override:
+
+```bash
+LLM_MODEL=gpt-4o-mini
+```
+
+On Railway, add these as service variables or secrets.
+
+The LLM-agent run log is stored only in the current Streamlit session. It may disappear after refresh, restart, redeploy, or server sleep. This is intentional to keep the app simple and privacy-preserving.
 
 ## Compared policies
 
@@ -61,6 +95,7 @@ The sidebar lets you change:
 - Bias against District C
 - Intervention costs
 - Selected policy
+- Optional lightweight LLM-agent mode controls
 
 Details:
 
@@ -78,6 +113,11 @@ Details:
 - Surveillance cost: Cost units assigned per child placed under surveillance (surveillance policy).
 - Coercive intervention cost: Cost units assigned per coerced child (coercive policy).
 - Selected policy: Which policy is applied in each Monte Carlo run.
+- Enable lightweight LLM-agent mode: Shows the optional LLM debrief section. It does not call the LLM by itself.
+- LLM display population size: Size of the small single-run synthetic sample used only for representative debrief context.
+- LLM representative agents: Number of representative synthetic agents sent to the LLM, capped at 3.
+- LLM output word limit: Maximum requested length of the generated debrief.
+- LLM run log size: Number of previous in-session debriefs to keep.
 
 Notes on interpretation:
 
