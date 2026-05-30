@@ -1051,8 +1051,7 @@ def render_app():
         "not from assumed policy effectiveness. "
         "The simulation shows consequences of different policies under explicit assumptions. "
         "It does not decide what is morally permissible. "
-        "Prediction is not destiny. Children should not be punished for a predicted future act. "
-        "All agents, districts, risks, and outcomes are synthetic."
+        "Prediction is not destiny. All agents, districts, risks, and outcomes are synthetic."
     )
     render_user_summary()
     render_reference_guide()
