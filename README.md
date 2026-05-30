@@ -38,11 +38,13 @@ Then open the local URL printed by Streamlit.
 - Targeted support for high-risk children
 - Surveillance of high-risk children
 - Coercive preventive intervention for high-risk children
-- Rights-preserving targeted support
+- Rights-preserving targeted support with periodic reassessment
 
 ## What the simulation shows
 
 The app runs repeated Monte Carlo simulations and reports average outcomes such as baseline crimes, crimes after policy, crimes prevented, false positives, false negatives, children helped, children harmed, total harm, total cost, and district-level differences.
+
+The exported CSV contains run-level metrics plus district-level columns for false positives, harm, and crimes after policy in Districts A, B, and C.
 
 ## Sidebar parameters (what each control means)
 
@@ -81,6 +83,7 @@ Notes on interpretation:
 
 - "True risk" is a hidden probability used only by the simulation.
 - "Predicted risk" is the imperfect estimate used for high-risk flags.
+- Rights-preserving targeted support uses a second synthetic reassessment before support is applied.
 - False positives are flagged children whose baseline outcome would not include a crime.
 - The districts A, B, and C are abstract labels and are not proxies for real demographic groups.
 
