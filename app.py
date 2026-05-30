@@ -30,36 +30,28 @@ POLICY_DESCRIPTIONS = {
 }
 
 SETTING_DESCRIPTIONS = {
-    "Population size": "Imagined number of synthetic children.",
-    "Prediction error / noise": "How unreliable the risk signal is.",
-    "High-risk threshold": "Cutoff for labeling a child high-risk.",
-    "Bias against District C": "Extra risk pressure used to test unequal impact.",
-    "Policy effect strength": "Scenario assumption for how strongly a policy may change modeled crime.",
-    "LLM synthetic runs": "How many scenario rows each model generates.",
-    "LLM model agents": "Which models run the same simulation prompt.",
-    "LLM representative agents": "How many abstract example agents to show.",
+    "Prediction error / noise": "How unreliable the risk signal is (0 = perfect, 0.35 = very noisy).",
+    "High-risk threshold": "Share of population flagged as high-risk (e.g. 0.25 = 25%).",
+    "Policy effect strength": "How strongly the policy may change modeled crime (Low / Medium / High).",
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Modeled crimes before policy": "Synthetic baseline crimes before a policy is applied.",
-    "Modeled crimes after policy": "Synthetic crimes remaining after the policy.",
-    "Modeled crimes prevented": "Before-policy crimes minus after-policy crimes.",
-    "Modeled crime reduction (%)": "Prevented crimes as a percentage of before-policy crimes.",
-    "Children incorrectly flagged": "Flagged children who would not have committed the modeled offense.",
-    "Children missed by risk signal": "Unflagged children who would have committed the modeled offense.",
-    "Children receiving support": "Children receiving voluntary support.",
+    "Synthetic population": "Fixed number of synthetic children in the scenario (1 000).",
+    "Baseline criminal children": "Synthetic children who would commit a violent offense with no intervention.",
+    "Modeled crimes prevented": "Baseline criminal children minus those remaining after the policy.",
+    "Crime reduction (%)": "Crimes prevented as a share of baseline criminal children.",
+    "Children incorrectly flagged": "Flagged children who would NOT have committed the offense — false positives.",
+    "Children missed by risk signal": "Unflagged children who WOULD have committed the offense — false negatives.",
+    "Children receiving support": "Children reached by voluntary support (targeted support policy only).",
     "Children exposed to harmful intervention": (
-        "Children exposed to surveillance, coercion, or residual stigma in the scenario."
+        "Children exposed to surveillance or coercive restriction (surveillance and coercive policies)."
     ),
-    "District metrics": "Incorrect flags, harmful exposure, and modeled crimes by abstract district.",
 }
 
 CHECK_DESCRIPTIONS = {
-    "Policy trade-off": "Crime reduction, support reach, and children exposed to harmful intervention.",
-    "Prediction error": "False positives and false negatives.",
-    "Unequal impact": "Whether District C receives more errors or harmful exposure.",
-    "Model agreement": "Whether selected models tell a similar story.",
-    "Output validity": "Required rows, districts, and non-negative metrics.",
+    "Policy trade-off": "Crimes prevented vs. children incorrectly flagged and children harmed.",
+    "Prediction error": "How many false positives and false negatives the risk signal produces.",
+    "Output validity": "Required rows and non-negative metric values.",
 }
 
 DISTRICTS = ["A", "B", "C"]
@@ -98,6 +90,7 @@ NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
 
 RUN_METRIC_LABELS = {
+    "baseline_crimes": "Baseline criminal children",
     "crimes_prevented": "Modeled crimes prevented",
     "false_positives": "Children incorrectly flagged",
     "false_negatives": "Children missed by risk signal",
@@ -245,19 +238,16 @@ def glossary_markdown(items):
 
 def render_user_summary():
     st.info(
-        "Choose assumptions in the sidebar, then run one or more LLM model agents across all policies. "
-        "The app checks whether modeled crime changes, "
-        "who is helped or harmed, how many prediction errors appear, and whether district outcomes "
-        "become uneven. All results are synthetic."
+        "Synthetic population: **1 000 children**. "
+        "Adjust prediction error, the high-risk threshold, and policy effect strength in the sidebar, "
+        "then run the simulation. The app shows how many crimes each policy prevents, "
+        "how many children are incorrectly flagged, and how many are harmed. All results are synthetic."
     )
 
 
 def render_reference_guide():
-    with st.expander("Compact guide: checks, policies, and metrics", expanded=False):
-        st.markdown("### What is checked")
-        st.markdown(glossary_markdown(CHECK_DESCRIPTIONS))
-
-        st.markdown("### Policies")
+    with st.expander("Guide: policies, inputs, and metrics", expanded=False):
+        st.markdown("### Policies compared")
         st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
         st.markdown("### Inputs")
@@ -265,6 +255,9 @@ def render_reference_guide():
 
         st.markdown("### Metrics")
         st.markdown(glossary_markdown(RESULT_METRIC_DESCRIPTIONS))
+
+        st.markdown("### What is checked")
+        st.markdown(glossary_markdown(CHECK_DESCRIPTIONS))
 
 
 def line_chart(data, x_column, y_column, title, y_label):
@@ -997,6 +990,7 @@ def render_llm_agent_section(settings):
 
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
+    st.sidebar.caption("Synthetic population: **1 000 children** (fixed).")
     settings = {
         "population_size": 1000,
         "prediction_noise": st.sidebar.slider(
