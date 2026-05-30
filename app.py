@@ -964,9 +964,6 @@ def render_llm_agent_section(settings):
         )
         display_combined_policy_totals_table(latest_run_results)
 
-        st.subheader("Policy comparison (average per model agent)")
-        display_policy_model_comparison_table(latest_run_results)
-
         policy_tabs = st.tabs(POLICY_ORDER)
         for policy, tab in zip(POLICY_ORDER, policy_tabs):
             with tab:
