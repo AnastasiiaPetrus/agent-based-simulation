@@ -94,6 +94,21 @@ RUN_METRIC_COLUMNS = [
     "total_harm",
     "total_cost",
 ]
+DISTRICT_METRIC_COLUMNS = ["run", "district", "false_positives", "harm", "crimes"]
+RUN_COUNT_COLUMNS = [
+    "baseline_crimes",
+    "crimes_after_policy",
+    "crimes_prevented",
+    "false_positives",
+    "false_negatives",
+    "children_helped",
+    "children_harmed",
+]
+RUN_TOTAL_COLUMNS = ["total_harm", "total_cost"]
+DISTRICT_COUNT_COLUMNS = ["false_positives", "crimes"]
+DISTRICT_TOTAL_COLUMNS = ["harm"]
+NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS + RUN_TOTAL_COLUMNS
+NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS + DISTRICT_TOTAL_COLUMNS
 
 
 def unique_values(values):
@@ -518,14 +533,21 @@ def build_llm_simulation_prompt(settings):
         "Coercive intervention can sharply reduce crimes but adds high harm and high cost. "
         "Rights-preserving targeted support adds support with minimal stigma harm. If an assumption level "
         "is set to None, do not use it as an active policy driver.\n"
+        "Use these metric meanings: baseline_crimes is the pre-policy modeled count; "
+        "crimes_after_policy is the post-policy modeled count; crimes_prevented is baseline_crimes minus "
+        "crimes_after_policy; false_positives are flagged synthetic children who would not have committed "
+        "the baseline offense; false_negatives are unflagged synthetic children who would have committed "
+        "the baseline offense; children_helped are synthetic children receiving support; children_harmed "
+        "are synthetic children receiving modeled intervention harm; total_harm and total_cost are "
+        "aggregate policy effects.\n"
         "Return only valid JSON with exactly these keys: run_results, district_results, "
         "representative_agents, debrief_text.\n"
         "run_results must contain one object per run and every required_run_metric_columns field. "
         "district_results must contain one row for each run and each district with fields run, district, "
-        "false_positives, harm, crimes (crimes after policy is applied). representative_agents must contain up to 3 abstract synthetic "
-        "children with no names and no protected attributes.\n"
-        "Use numeric values only for metric fields. Compute crimes_prevented as baseline_crimes minus "
-        "crimes_after_policy.\n"
+        "false_positives, harm, crimes (crimes after policy is applied). representative_agents must "
+        "contain only abstract synthetic children with no names and no protected attributes.\n"
+        "Use numeric values only for metric fields. Counts must be non-negative and cannot exceed "
+        "population_size. Do not invent extra metric fields.\n"
         f"The debrief_text must be no more than {DEFAULT_DEBRIEF_WORD_LIMIT} words and should explain trade-offs, "
         "uncertainty, false positives, false negatives, harm, cost, and District C bias if relevant.\n\n"
         f"Simulation request:\n{json.dumps(prompt_payload, indent=2)}"
@@ -596,11 +618,86 @@ def clean_llm_district_results(raw_rows):
 
     district_results = pd.DataFrame(rows)
     if district_results.empty:
-        return pd.DataFrame(columns=["run", "district", "false_positives", "harm", "crimes"])
+        return pd.DataFrame(columns=DISTRICT_METRIC_COLUMNS)
     for column in ["run", "false_positives", "harm", "crimes"]:
         district_results[column] = pd.to_numeric(district_results[column], errors="coerce")
     district_results["run"] = district_results["run"].astype("Int64")
     return district_results
+
+
+def validate_llm_tables(run_results, district_results, settings):
+    expected_runs = set(range(1, int(settings["llm_simulation_runs"]) + 1))
+    actual_runs = set(run_results["run"].dropna().astype(int).tolist())
+    if actual_runs != expected_runs or len(run_results) != len(expected_runs):
+        raise ValueError("The model returned incomplete run-level simulation rows.")
+
+    required_run_columns = [column for column in RUN_METRIC_COLUMNS if column != "crimes_prevented"]
+    if run_results[required_run_columns].isna().any().any():
+        raise ValueError("The model returned missing run-level metric values.")
+
+    expected_district_rows = {
+        (run_number, district)
+        for run_number in expected_runs
+        for district in DISTRICTS
+    }
+    actual_district_rows = {
+        (int(row.run), row.district)
+        for row in district_results[["run", "district"]].dropna().itertuples(index=False)
+    }
+    if (
+        actual_district_rows != expected_district_rows
+        or len(district_results) != len(expected_district_rows)
+    ):
+        raise ValueError("The model returned incomplete district-level simulation rows.")
+
+    if district_results[NON_NEGATIVE_DISTRICT_COLUMNS].isna().any().any():
+        raise ValueError("The model returned missing district-level metric values.")
+
+
+def normalize_llm_metrics(run_results, district_results, settings):
+    run_results = run_results.copy()
+    district_results = district_results.copy()
+    population_size = int(settings["population_size"])
+    policy = settings["policy"]
+
+    run_results[RUN_COUNT_COLUMNS] = run_results[RUN_COUNT_COLUMNS].clip(
+        lower=0,
+        upper=population_size,
+    )
+    run_results[RUN_TOTAL_COLUMNS] = run_results[RUN_TOTAL_COLUMNS].clip(lower=0)
+    district_results[DISTRICT_COUNT_COLUMNS] = district_results[DISTRICT_COUNT_COLUMNS].clip(
+        lower=0,
+        upper=population_size,
+    )
+    district_results[DISTRICT_TOTAL_COLUMNS] = district_results[DISTRICT_TOTAL_COLUMNS].clip(lower=0)
+
+    run_results["crimes_after_policy"] = np.minimum(
+        run_results["crimes_after_policy"],
+        run_results["baseline_crimes"],
+    )
+    run_results["crimes_prevented"] = (
+        run_results["baseline_crimes"] - run_results["crimes_after_policy"]
+    ).clip(lower=0, upper=population_size)
+
+    if policy == "No action":
+        run_results["crimes_after_policy"] = run_results["baseline_crimes"]
+        run_results["crimes_prevented"] = 0
+        run_results["children_helped"] = 0
+        run_results["children_harmed"] = 0
+        run_results["total_harm"] = 0
+        run_results["total_cost"] = 0
+        district_results["harm"] = 0
+    elif policy == "Universal support":
+        run_results["children_helped"] = population_size
+        run_results["children_harmed"] = 0
+        run_results["total_harm"] = 0
+        district_results["harm"] = 0
+    elif policy == "Targeted support for high-risk children":
+        run_results["children_harmed"] = 0
+        run_results["total_harm"] = 0
+        district_results["harm"] = 0
+
+    return run_results, district_results
 
 
 def attach_model_label(run_results, district_results, model):
@@ -661,13 +758,13 @@ def render_llm_run_log(max_entries):
                 "parameter_summary": entry["parameter_summary"],
                 "representative_agent_count": entry["representative_agent_count"],
                 "llm_model": entry["llm_model"],
-                "crimes_prevented": metrics["crimes_prevented"],
-                "false_positives": metrics["false_positives"],
-                "false_negatives": metrics["false_negatives"],
-                "children_helped": metrics["children_helped"],
-                "children_harmed": metrics["children_harmed"],
-                "total_harm": metrics["total_harm"],
-                "total_cost": metrics["total_cost"],
+                "crimes_prevented": metrics.get("crimes_prevented"),
+                "false_positives": metrics.get("false_positives"),
+                "false_negatives": metrics.get("false_negatives"),
+                "children_helped": metrics.get("children_helped"),
+                "children_harmed": metrics.get("children_harmed"),
+                "total_harm": metrics.get("total_harm"),
+                "total_cost": metrics.get("total_cost"),
                 "debrief_text": entry["debrief_text"],
             }
         )
@@ -782,6 +879,12 @@ def render_llm_agent_section(settings):
                     raw_result = run_openai_json(system_prompt, user_prompt, model=model)
                     run_results = clean_llm_run_results(raw_result.get("run_results", []))
                     district_results = clean_llm_district_results(raw_result.get("district_results", []))
+                    validate_llm_tables(run_results, district_results, settings)
+                    run_results, district_results = normalize_llm_metrics(
+                        run_results,
+                        district_results,
+                        settings,
+                    )
                     run_results, district_results = attach_model_label(
                         run_results, district_results, model
                     )
@@ -792,9 +895,6 @@ def render_llm_agent_section(settings):
                         model,
                     )
                     debrief_text = str(raw_result.get("debrief_text", "")).strip()
-
-                    if run_results.empty or district_results.empty:
-                        raise ValueError("The model returned incomplete simulation tables.")
 
                     model_results.append(
                         {

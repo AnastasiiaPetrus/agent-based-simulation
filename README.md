@@ -15,6 +15,8 @@ The app uses LLM model agents to generate compact synthetic simulations from the
 
 The app then builds tables and charts from those LLM-generated results. If multiple model agents are selected, the app compares their outputs and also shows combined averages.
 
+Before showing results, the app validates and normalizes the LLM output. It checks that every requested run and every District A/B/C row is present, rejects missing metric values, removes negative counts, recomputes `crimes_prevented`, and enforces basic policy constraints such as zero harm/cost for **No action**.
+
 ## Why This Exists
 
 The goal is to make ethical trade-offs visible:
@@ -115,19 +117,27 @@ The generated user prompt includes the current values for:
 
 When sidebar settings change, the user prompt is regenerated for the new settings.
 
+Even if the prompt is edited, the returned JSON must still contain the required keys and metric fields. Otherwise the app shows an error instead of drawing misleading charts.
+
 ## Policies
 
 ### No action
 
 Baseline comparison. No support, surveillance, coercion, cost, or intervention harm is applied. Modeled baseline crimes remain unchanged.
 
+Code-level constraint: `crimes_after_policy = baseline_crimes`, `crimes_prevented = 0`, `children_helped = 0`, `children_harmed = 0`, `total_harm = 0`, and `total_cost = 0`.
+
 ### Universal support
 
 Every synthetic child receives non-punitive support. This can reduce risk without targeting, but it creates broad support cost.
 
+Code-level constraint: all synthetic children are counted as helped, while direct intervention harm is set to zero.
+
 ### Targeted support for high-risk children
 
 Only synthetic children flagged as high-risk receive support. It costs less than universal support, but depends on an imperfect risk signal.
+
+Code-level constraint: this policy can help and cost resources, but direct intervention harm is set to zero.
 
 ### Surveillance of high-risk children
 
@@ -169,6 +179,8 @@ The app intentionally keeps only the core metrics needed for interpretation:
 - **Total harm**: aggregate modeled harm created by the selected policy.
 - **Total cost**: aggregate modeled cost created by the selected policy.
 - **District metrics**: District A/B/C false positives, harm, and crimes after policy.
+
+The app does not show precision, recall, true positives, high-risk flagged counts, or per-crime ratios. Those were removed to keep the interface focused on the policy trade-offs that matter most here.
 
 ## Outputs
 
