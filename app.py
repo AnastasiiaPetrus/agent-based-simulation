@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from hashlib import sha1
 from io import StringIO
 
 import matplotlib.pyplot as plt
@@ -54,61 +55,64 @@ SETTING_DESCRIPTIONS = {
     "Intervention harm level": "How much harm the selected intervention adds to affected synthetic children.",
     "Intervention cost level": "How expensive the selected policy is in the synthetic scenario.",
     "LLM synthetic runs": "How many scenario runs the LLM should generate for charts and averages.",
+    "LLM model agents": "Which OpenAI models should each run the same synthetic scenario independently.",
     "LLM representative agents": "How many abstract synthetic example agents the LLM may include.",
-    "LLM output word limit": "Maximum length of the written LLM explanation.",
-    "LLM run log size": "How many previous LLM runs are kept in this browser session.",
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
     "Baseline crimes": "Modeled crimes before any policy is applied.",
     "Crimes after policy": "Modeled crimes remaining after the selected policy is applied.",
     "Crimes prevented": "Baseline crimes minus crimes after policy.",
-    "High-risk flagged": "Synthetic children labeled high-risk by the risk signal.",
-    "True positives": "Flagged synthetic children who would have committed the modeled offense in the baseline.",
     "False positives": "Flagged synthetic children who would not have committed the modeled offense in the baseline.",
     "False negatives": "Unflagged synthetic children who would have committed the modeled offense in the baseline.",
-    "Precision": "Share of flagged children who are true positives.",
-    "Recall": "Share of baseline crimes captured by the high-risk flag.",
     "Children helped": "Synthetic children receiving support.",
     "Children harmed": "Synthetic children receiving modeled intervention harm.",
-    "Coerced children": "Synthetic children affected by coercive restriction.",
     "Total harm": "Aggregate modeled harm created by the selected policy.",
     "Total cost": "Aggregate modeled cost created by the selected policy.",
-    "Harm per crime prevented": "Total harm divided by crimes prevented; not applicable if no crimes are prevented.",
-    "Cost per crime prevented": "Total cost divided by crimes prevented; not applicable if no crimes are prevented.",
     "District metrics": "District-level false positives, harm, and crimes for abstract Districts A, B, and C.",
 }
 
 DISTRICTS = ["A", "B", "C"]
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+DEFAULT_LLM_MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
+DEFAULT_DEBRIEF_WORD_LIMIT = 180
+MAX_RUN_LOG_SIZE = 5
+DEFAULT_SYSTEM_PROMPT = (
+    "You generate strict JSON for a synthetic, ethics-focused simulation. "
+    "Never include markdown fences. Use English only. Do not claim to predict real people, "
+    "assign guilt, or recommend punishment."
+)
 RUN_METRIC_COLUMNS = [
     "run",
     "baseline_crimes",
     "crimes_after_policy",
     "crimes_prevented",
-    "high_risk_flagged",
-    "true_positives",
     "false_positives",
     "false_negatives",
-    "precision",
-    "recall",
     "children_helped",
     "children_harmed",
-    "coerced_children",
     "total_harm",
     "total_cost",
-    "harm_per_crime_prevented",
-    "cost_per_crime_prevented",
-    "false_positives_district_a",
-    "false_positives_district_b",
-    "false_positives_district_c",
-    "harm_district_a",
-    "harm_district_b",
-    "harm_district_c",
-    "crimes_district_a",
-    "crimes_district_b",
-    "crimes_district_c",
 ]
+
+
+def unique_values(values):
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def csv_values(raw_value):
+    return [value.strip() for value in raw_value.split(",") if value.strip()]
+
+
+def llm_model_options():
+    configured_models = csv_values(os.environ.get("LLM_AGENT_MODELS", ""))
+    return unique_values(configured_models or [LLM_MODEL, *DEFAULT_LLM_MODEL_OPTIONS])
+
+
+def default_llm_agent_models(model_options):
+    preferred_models = unique_values([LLM_MODEL, "gpt-4.1-mini"])
+    defaults = [model for model in preferred_models if model in model_options]
+    return defaults or model_options[:1]
 
 
 def average_results_table(run_results):
@@ -116,28 +120,12 @@ def average_results_table(run_results):
         "baseline_crimes": "Baseline crimes",
         "crimes_after_policy": "Crimes after policy",
         "crimes_prevented": "Crimes prevented",
-        "high_risk_flagged": "High-risk flagged",
-        "true_positives": "True positives",
         "false_positives": "False positives",
         "false_negatives": "False negatives",
-        "precision": "Precision",
-        "recall": "Recall",
         "children_helped": "Children helped",
         "children_harmed": "Children harmed",
-        "coerced_children": "Coerced children",
         "total_harm": "Total harm",
         "total_cost": "Total cost",
-        "harm_per_crime_prevented": "Harm per crime prevented",
-        "cost_per_crime_prevented": "Cost per crime prevented",
-        "false_positives_district_a": "False positives in District A",
-        "false_positives_district_b": "False positives in District B",
-        "false_positives_district_c": "False positives in District C",
-        "harm_district_a": "Harm in District A",
-        "harm_district_b": "Harm in District B",
-        "harm_district_c": "Harm in District C",
-        "crimes_district_a": "Crimes in District A",
-        "crimes_district_b": "Crimes in District B",
-        "crimes_district_c": "Crimes in District C",
     }
 
     metric_order = [column for column in display_names if column in run_results.columns]
@@ -159,44 +147,85 @@ def display_average_table(average_table):
     st.dataframe(display_table, use_container_width=True, hide_index=True)
 
 
-def glossary_table(items):
-    return pd.DataFrame(
-        [{"Item": item, "Meaning": meaning} for item, meaning in items.items()]
-    )
+def model_comparison_table(run_results):
+    metric_names = {
+        "baseline_crimes": "Baseline crimes",
+        "crimes_after_policy": "Crimes after policy",
+        "crimes_prevented": "Crimes prevented",
+        "false_positives": "False positives",
+        "false_negatives": "False negatives",
+        "children_helped": "Children helped",
+        "children_harmed": "Children harmed",
+        "total_harm": "Total harm",
+        "total_cost": "Total cost",
+    }
+    metric_order = [column for column in metric_names if column in run_results.columns]
+    grouped = run_results.groupby("llm_model")[metric_order].mean(numeric_only=True).T
+    table = grouped.rename(index=metric_names).reset_index().rename(columns={"index": "Metric"})
+
+    for column in table.columns:
+        if column != "Metric":
+            table[column] = table[column].map(
+                lambda value: "Not applicable" if pd.isna(value) else f"{value:,.3f}"
+            )
+
+    return table
+
+
+def display_model_comparison_table(run_results):
+    st.dataframe(model_comparison_table(run_results), use_container_width=True, hide_index=True)
+
+
+def glossary_markdown(items):
+    lines = []
+    for item, meaning in items.items():
+        lines.append(f"**{item}**  \n{meaning}")
+    return "\n\n".join(lines)
 
 
 def render_reference_guide():
     with st.expander("Policy and metric guide", expanded=False):
-        st.markdown("**Policy options**")
-        st.dataframe(
-            glossary_table(POLICY_DESCRIPTIONS),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.markdown("### Policy options")
+        st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
-        st.markdown("**Sidebar settings**")
-        st.dataframe(
-            glossary_table(SETTING_DESCRIPTIONS),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.markdown("### Sidebar settings")
+        st.markdown(glossary_markdown(SETTING_DESCRIPTIONS))
 
-        st.markdown("**Result metrics**")
-        st.dataframe(
-            glossary_table(RESULT_METRIC_DESCRIPTIONS),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.markdown("### Result metrics")
+        st.markdown(glossary_markdown(RESULT_METRIC_DESCRIPTIONS))
 
 
 def line_chart(data, x_column, y_column, title, y_label):
     fig, ax = plt.subplots(figsize=(7, 3.6))
-    plot_data = data[[x_column, y_column]].dropna()
-    ax.plot(plot_data[x_column], plot_data[y_column], linewidth=1.8)
+    columns = [x_column, y_column]
+    if "llm_model" in data.columns:
+        columns.append("llm_model")
+
+    plot_data = data[columns].dropna()
+    if "llm_model" in plot_data.columns and plot_data["llm_model"].nunique() > 1:
+        for llm_model, model_data in plot_data.groupby("llm_model"):
+            ax.plot(model_data[x_column], model_data[y_column], linewidth=1.8, label=llm_model)
+        ax.legend(fontsize=8)
+    else:
+        ax.plot(plot_data[x_column], plot_data[y_column], linewidth=1.8)
+
     ax.set_title(title)
     ax.set_xlabel("Synthetic run")
     ax.set_ylabel(y_label)
     ax.grid(True, alpha=0.25)
+    fig.tight_layout()
+    return fig
+
+
+def grouped_bar_chart(data, x_column, y_column, group_column, title, y_label):
+    fig, ax = plt.subplots(figsize=(6, 3.6))
+    pivot = data.pivot(index=x_column, columns=group_column, values=y_column).fillna(0)
+    pivot.plot(kind="bar", ax=ax)
+    ax.set_title(title)
+    ax.set_xlabel("District")
+    ax.set_ylabel(y_label)
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend(title="Model", fontsize=8)
     fig.tight_layout()
     return fig
 
@@ -213,14 +242,18 @@ def bar_chart(data, x_column, y_column, title, y_label):
 
 
 def district_summary_table(district_results):
+    group_columns = ["district"]
+    if "llm_model" in district_results.columns:
+        group_columns.insert(0, "llm_model")
+
     return (
-        district_results.groupby("district", as_index=False)
+        district_results.groupby(group_columns, as_index=False)
         .agg(
             false_positives=("false_positives", "mean"),
             harm=("harm", "mean"),
             crimes=("crimes", "mean"),
         )
-        .sort_values("district")
+        .sort_values(group_columns)
     )
 
 
@@ -258,9 +291,9 @@ def render_charts(run_results, district_results):
             line_chart(
                 run_results,
                 "run",
-                "harm_per_crime_prevented",
-                "Harm per crime prevented by run",
-                "Harm per crime prevented",
+                "total_cost",
+                "Total cost by run",
+                "Total cost",
             ),
             clear_figure=True,
         )
@@ -269,32 +302,49 @@ def render_charts(run_results, district_results):
 
     district_left, district_right = st.columns(2)
     with district_left:
-        st.pyplot(
-            bar_chart(
+        if "llm_model" in district_summary.columns and district_summary["llm_model"].nunique() > 1:
+            false_positive_chart = grouped_bar_chart(
+                district_summary,
+                "district",
+                "false_positives",
+                "llm_model",
+                "Average false positives by district and model",
+                "False positives",
+            )
+        else:
+            false_positive_chart = bar_chart(
                 district_summary,
                 "district",
                 "false_positives",
                 "Average false positives by district",
                 "False positives",
-            ),
-            clear_figure=True,
-        )
+            )
+        st.pyplot(false_positive_chart, clear_figure=True)
 
     with district_right:
-        st.pyplot(
-            bar_chart(
+        if "llm_model" in district_summary.columns and district_summary["llm_model"].nunique() > 1:
+            harm_chart = grouped_bar_chart(
+                district_summary,
+                "district",
+                "harm",
+                "llm_model",
+                "Average harm by district and model",
+                "Intervention harm",
+            )
+        else:
+            harm_chart = bar_chart(
                 district_summary,
                 "district",
                 "harm",
                 "Average harm by district",
                 "Intervention harm",
-            ),
-            clear_figure=True,
-        )
+            )
+        st.pyplot(harm_chart, clear_figure=True)
 
     st.subheader("Average district outcomes")
     district_display = district_summary.rename(
         columns={
+            "llm_model": "Model",
             "district": "District",
             "false_positives": "False positives",
             "harm": "Harm",
@@ -378,13 +428,15 @@ def metric_value(value):
 
 def compact_aggregate_metrics(run_results):
     metric_columns = [
+        "baseline_crimes",
+        "crimes_after_policy",
         "crimes_prevented",
         "false_positives",
         "false_negatives",
+        "children_helped",
         "children_harmed",
         "total_harm",
         "total_cost",
-        "harm_per_crime_prevented",
     ]
     averages = run_results[metric_columns].mean(numeric_only=True)
     return {column: metric_value(averages[column]) for column in metric_columns}
@@ -394,6 +446,7 @@ def compact_parameter_summary(settings):
     return (
         f"population_size={int(settings['population_size'])}; "
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
+        f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
         f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
         f"bias_against_district_c={settings['bias_against_district_c']:.2f}; "
@@ -401,6 +454,11 @@ def compact_parameter_summary(settings):
         f"intervention_harm_level={settings['intervention_harm_level']}; "
         f"intervention_cost_level={settings['intervention_cost_level']}"
     )
+
+
+def stable_prompt_key(parameter_summary):
+    digest = sha1(parameter_summary.encode("utf-8")).hexdigest()[:12]
+    return f"llm_user_prompt_{digest}"
 
 
 def llm_assumptions(settings):
@@ -433,7 +491,6 @@ def policy_uses_cost(policy):
 
 def build_llm_simulation_prompt(settings):
     run_count = int(settings["llm_simulation_runs"])
-    debrief_word_limit = int(settings["llm_output_word_limit"])
     prompt_payload = {
         "selected_policy": settings["policy"],
         "population_size": int(settings["population_size"]),
@@ -467,29 +524,23 @@ def build_llm_simulation_prompt(settings):
         "district_results must contain one row for each run and each district with fields run, district, "
         "false_positives, harm, crimes (crimes after policy is applied). representative_agents must contain up to 3 abstract synthetic "
         "children with no names and no protected attributes.\n"
-        "Use numeric values only for metric fields. If crimes_prevented is 0 or negative, set "
-        "harm_per_crime_prevented and cost_per_crime_prevented to null.\n"
-        f"The debrief_text must be no more than {debrief_word_limit} words and should explain trade-offs, "
+        "Use numeric values only for metric fields. Compute crimes_prevented as baseline_crimes minus "
+        "crimes_after_policy.\n"
+        f"The debrief_text must be no more than {DEFAULT_DEBRIEF_WORD_LIMIT} words and should explain trade-offs, "
         "uncertainty, false positives, false negatives, harm, cost, and District C bias if relevant.\n\n"
         f"Simulation request:\n{json.dumps(prompt_payload, indent=2)}"
     )
 
 
-def run_openai_json(prompt, max_tokens=8000):
+def run_openai_json(system_prompt, user_prompt, model, max_tokens=5000):
     from openai import OpenAI
 
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
     response = client.chat.completions.create(
-        model=LLM_MODEL,
+        model=model,
         messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You generate strict JSON for a synthetic, ethics-focused simulation. "
-                    "Never include markdown fences."
-                ),
-            },
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
         ],
         response_format={"type": "json_object"},
         max_tokens=max_tokens,
@@ -510,6 +561,9 @@ def clean_llm_run_results(raw_rows):
                 cleaned[column] = value
         rows.append(cleaned)
 
+    if not rows:
+        return pd.DataFrame(columns=RUN_METRIC_COLUMNS)
+
     run_results = pd.DataFrame(rows)
     for column in RUN_METRIC_COLUMNS:
         run_results[column] = pd.to_numeric(run_results[column], errors="coerce")
@@ -520,14 +574,6 @@ def clean_llm_run_results(raw_rows):
     run_results["crimes_prevented"] = (
         run_results["baseline_crimes"] - run_results["crimes_after_policy"]
     )
-    flagged = run_results["true_positives"] + run_results["false_positives"]
-    run_results["high_risk_flagged"] = flagged
-    run_results["precision"] = run_results["true_positives"] / flagged
-    denominator_recall = run_results["true_positives"] + run_results["false_negatives"]
-    run_results["recall"] = run_results["true_positives"] / denominator_recall
-    safe_cp = run_results["crimes_prevented"].replace(0, np.nan)
-    run_results["harm_per_crime_prevented"] = run_results["total_harm"] / safe_cp
-    run_results["cost_per_crime_prevented"] = run_results["total_cost"] / safe_cp
 
     return run_results
 
@@ -555,6 +601,26 @@ def clean_llm_district_results(raw_rows):
         district_results[column] = pd.to_numeric(district_results[column], errors="coerce")
     district_results["run"] = district_results["run"].astype("Int64")
     return district_results
+
+
+def attach_model_label(run_results, district_results, model):
+    run_results = run_results.copy()
+    district_results = district_results.copy()
+    run_results.insert(0, "llm_model", model)
+    district_results.insert(0, "llm_model", model)
+    return run_results, district_results
+
+
+def normalize_representative_agents(raw_agents, model):
+    rows = []
+    for agent in raw_agents:
+        if isinstance(agent, dict):
+            row = dict(agent)
+        else:
+            row = {"description": str(agent)}
+        row["llm_model"] = model
+        rows.append(row)
+    return rows
 
 
 def initialize_llm_state():
@@ -598,10 +664,10 @@ def render_llm_run_log(max_entries):
                 "crimes_prevented": metrics["crimes_prevented"],
                 "false_positives": metrics["false_positives"],
                 "false_negatives": metrics["false_negatives"],
+                "children_helped": metrics["children_helped"],
                 "children_harmed": metrics["children_harmed"],
                 "total_harm": metrics["total_harm"],
                 "total_cost": metrics["total_cost"],
-                "harm_per_crime_prevented": metrics["harm_per_crime_prevented"],
                 "debrief_text": entry["debrief_text"],
             }
         )
@@ -615,12 +681,27 @@ def render_llm_run_log(max_entries):
         mime="text/csv",
     )
 
-    for entry in run_log:
+    for index, entry in enumerate(run_log):
         title = f"{entry['timestamp']} | {entry['selected_policy']} | {entry['llm_model']}"
         with st.expander(title):
             st.write(entry["debrief_text"])
             st.caption(entry["parameter_summary"])
             st.json(entry["aggregate_metrics"])
+            with st.expander("Prompts used"):
+                st.text_area(
+                    "System prompt used",
+                    value=entry.get("system_prompt", ""),
+                    height=100,
+                    disabled=True,
+                    key=f"run_log_{index}_system_prompt",
+                )
+                st.text_area(
+                    "User prompt used",
+                    value=entry.get("user_prompt", ""),
+                    height=220,
+                    disabled=True,
+                    key=f"run_log_{index}_user_prompt",
+                )
 
 
 def friendly_llm_error(error):
@@ -637,9 +718,10 @@ def render_llm_agent_section(settings):
     initialize_llm_state()
     st.subheader("LLM-Agent Simulation")
     st.info(
-        "This mode uses one LLM call to generate a small synthetic scenario, run-level metrics, district "
-        "metrics, charts, and a concise explanation. It remains a thought experiment, not a prediction "
-        "system. Run the LLM-agent simulation to generate metrics and charts for the current settings."
+        "This mode uses one LLM call per selected model agent to generate a small synthetic scenario, "
+        "run-level metrics, district metrics, charts, and a concise explanation. It remains a thought "
+        "experiment, not a prediction system. Run the LLM-agent simulation to compare the selected model "
+        "agents under the current settings."
     )
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -649,50 +731,151 @@ def render_llm_agent_section(settings):
             "variable or Railway secret."
         )
 
+    selected_models = settings["llm_agent_models"]
+    if not selected_models:
+        st.warning("Select at least one LLM model agent in the sidebar.")
+
     parameter_summary = compact_parameter_summary(settings)
+    if "llm_system_prompt" not in st.session_state:
+        st.session_state["llm_system_prompt"] = DEFAULT_SYSTEM_PROMPT
 
-    if st.button("Run LLM-agent simulation", disabled=not bool(api_key), type="primary"):
-        try:
-            raw_result = run_openai_json(build_llm_simulation_prompt(settings))
-            run_results = clean_llm_run_results(raw_result.get("run_results", []))
-            district_results = clean_llm_district_results(raw_result.get("district_results", []))
-            representative_agents = raw_result.get("representative_agents", [])[:3]
-            debrief_text = str(raw_result.get("debrief_text", "")).strip()
+    default_user_prompt = build_llm_simulation_prompt(settings)
+    user_prompt_key = stable_prompt_key(parameter_summary)
 
-            if run_results.empty or district_results.empty:
-                raise ValueError("The model returned incomplete simulation tables.")
+    with st.expander("Simulation prompts", expanded=True):
+        st.caption(
+            "You can edit these prompts, then run or rerun the simulation. "
+            "The user prompt is regenerated when the sidebar settings change."
+        )
+        prompt_reset_left, prompt_reset_right = st.columns(2)
+        with prompt_reset_left:
+            if st.button("Reset system prompt"):
+                st.session_state["llm_system_prompt"] = DEFAULT_SYSTEM_PROMPT
+                st.rerun()
+        with prompt_reset_right:
+            if st.button("Reset user prompt"):
+                st.session_state[user_prompt_key] = default_user_prompt
+                st.rerun()
+        system_prompt = st.text_area(
+            "System prompt",
+            key="llm_system_prompt",
+            height=110,
+        )
+        user_prompt = st.text_area(
+            "User prompt for the current settings",
+            value=default_user_prompt,
+            key=user_prompt_key,
+            height=360,
+        )
 
-            aggregate_metrics = compact_aggregate_metrics(run_results)
+    if st.button(
+        "Run / rerun LLM-agent simulation",
+        disabled=not bool(api_key) or not selected_models,
+        type="primary",
+    ):
+        model_results = []
+        model_errors = []
+
+        with st.spinner(f"Running {len(selected_models)} LLM model agent(s)..."):
+            for model in selected_models:
+                try:
+                    raw_result = run_openai_json(system_prompt, user_prompt, model=model)
+                    run_results = clean_llm_run_results(raw_result.get("run_results", []))
+                    district_results = clean_llm_district_results(raw_result.get("district_results", []))
+                    run_results, district_results = attach_model_label(
+                        run_results, district_results, model
+                    )
+                    representative_agents = normalize_representative_agents(
+                        raw_result.get("representative_agents", [])[
+                            : int(settings["llm_representative_agents"])
+                        ],
+                        model,
+                    )
+                    debrief_text = str(raw_result.get("debrief_text", "")).strip()
+
+                    if run_results.empty or district_results.empty:
+                        raise ValueError("The model returned incomplete simulation tables.")
+
+                    model_results.append(
+                        {
+                            "llm_model": model,
+                            "run_results": run_results,
+                            "district_results": district_results,
+                            "representative_agents": representative_agents,
+                            "aggregate_metrics": compact_aggregate_metrics(run_results),
+                            "debrief_text": debrief_text,
+                        }
+                    )
+                except Exception as error:
+                    model_errors.append((model, friendly_llm_error(error)))
+
+        for model, error_message in model_errors:
+            st.error(f"{model}: {error_message}")
+
+        if model_results:
+            combined_run_results = pd.concat(
+                [result["run_results"] for result in model_results], ignore_index=True
+            )
+            combined_district_results = pd.concat(
+                [result["district_results"] for result in model_results], ignore_index=True
+            )
+            all_representative_agents = [
+                agent
+                for result in model_results
+                for agent in result["representative_agents"]
+            ]
+            debrief_text = "\n\n".join(
+                f"{result['llm_model']}: {result['debrief_text']}"
+                for result in model_results
+                if result["debrief_text"]
+            )
+            aggregate_metrics = compact_aggregate_metrics(combined_run_results)
+
             st.session_state["llm_agent_latest_result"] = {
-                "run_results": run_results,
-                "district_results": district_results,
-                "representative_agents": representative_agents,
+                "run_results": combined_run_results,
+                "district_results": combined_district_results,
+                "model_results": model_results,
+                "representative_agents": all_representative_agents,
                 "debrief_text": debrief_text,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
             }
-        except Exception as error:
-            st.error(friendly_llm_error(error))
-            debrief_text = None
 
-        if debrief_text:
             entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "selected_policy": settings["policy"],
                 "parameter_summary": parameter_summary,
-                "representative_agent_count": len(representative_agents),
-                "llm_model": LLM_MODEL,
+                "representative_agent_count": len(all_representative_agents),
+                "llm_model": ", ".join(result["llm_model"] for result in model_results),
                 "aggregate_metrics": aggregate_metrics,
                 "debrief_text": debrief_text,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
             }
-            add_llm_run_log_entry(entry, int(settings["llm_run_log_size"]))
-            st.success("LLM-agent simulation generated.")
+            add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
+            if model_errors:
+                st.warning("LLM-agent simulation generated for the successful model agents.")
+            else:
+                st.success("LLM-agent simulation generated.")
 
     latest_result = st.session_state.get("llm_agent_latest_result")
     if latest_result:
-        st.subheader("LLM-agent simulation averages")
         latest_run_results = latest_result["run_results"]
         latest_district_results = latest_result["district_results"]
+
+        if latest_run_results["llm_model"].nunique() > 1:
+            st.subheader("LLM-agent model comparison")
+            display_model_comparison_table(latest_run_results)
+            st.subheader("Combined LLM-agent averages")
+            st.caption("Combined averages pool the successful model-agent runs from this session.")
+        else:
+            st.subheader("LLM-agent simulation averages")
+
         display_average_table(average_results_table(latest_run_results))
         render_charts(latest_run_results, latest_district_results)
+
+        if latest_run_results["llm_model"].nunique() > 1:
+            st.caption("The interpretation below uses the combined average across selected model agents.")
 
         render_interpretation(
             settings["policy"],
@@ -700,8 +883,18 @@ def render_llm_agent_section(settings):
             settings["bias_against_district_c"],
         )
 
-        st.markdown("**Latest LLM-agent explanation**")
-        st.write(latest_result["debrief_text"])
+        st.markdown("**Latest LLM-agent explanations**")
+        model_results = latest_result.get("model_results", [])
+        if model_results:
+            for result in model_results:
+                with st.expander(
+                    f"{result['llm_model']} explanation",
+                    expanded=len(model_results) == 1,
+                ):
+                    st.write(result["debrief_text"])
+                    st.json(result["aggregate_metrics"])
+        else:
+            st.write(latest_result["debrief_text"])
 
         representative_agents = latest_result.get("representative_agents", [])
         if representative_agents:
@@ -710,7 +903,7 @@ def render_llm_agent_section(settings):
     else:
         st.caption("No LLM-agent simulation has been generated in this session yet.")
 
-    render_llm_run_log(int(settings["llm_run_log_size"]))
+    render_llm_run_log(MAX_RUN_LOG_SIZE)
 
 
 def sidebar_inputs():
@@ -796,6 +989,14 @@ def sidebar_inputs():
         step=1,
         help=SETTING_DESCRIPTIONS["LLM synthetic runs"],
     )
+    model_options = llm_model_options()
+    settings["llm_agent_models"] = st.sidebar.multiselect(
+        "LLM model agents",
+        model_options,
+        default=default_llm_agent_models(model_options),
+        help=SETTING_DESCRIPTIONS["LLM model agents"],
+    )
+    st.sidebar.caption("Each selected model makes one OpenAI API call when you run the simulation.")
     settings["llm_representative_agents"] = st.sidebar.slider(
         "LLM representative agents",
         1,
@@ -803,22 +1004,6 @@ def sidebar_inputs():
         3,
         step=1,
         help=SETTING_DESCRIPTIONS["LLM representative agents"],
-    )
-    settings["llm_output_word_limit"] = st.sidebar.slider(
-        "LLM output word limit",
-        100,
-        400,
-        200,
-        step=25,
-        help=SETTING_DESCRIPTIONS["LLM output word limit"],
-    )
-    settings["llm_run_log_size"] = st.sidebar.slider(
-        "LLM run log size",
-        1,
-        10,
-        5,
-        step=1,
-        help=SETTING_DESCRIPTIONS["LLM run log size"],
     )
 
     return settings

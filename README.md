@@ -1,130 +1,193 @@
 # Predictive Justice Simulation
 
-This project is a small Streamlit app for exploring a synthetic ethical thought experiment about predictive justice. It models an abstract city where a prediction system estimates, at age 10, the risk that a child will commit a violent crime by age 30.
+This project is a Streamlit app for a synthetic ethical thought experiment about predictive justice. It lets a user compare policy choices in an abstract city where a risk signal is used to estimate whether a child may commit a future violent offense.
 
-The simulation does not recommend real policy. It shows how assumptions about prediction error, thresholds, intervention effects, costs, harm, and district-level bias can change aggregate outcomes.
+The app is not a real-world decision tool. It does not use real crime data, personal data, protected-class data, or demographic proxies. All agents, districts, risks, harms, costs, and outcomes are synthetic.
 
-All data is synthetic. The model does not use real crime data, race, ethnicity, protected-class data, or personal data.
+## What The App Does
 
-## Install dependencies
+The app uses LLM model agents to generate compact synthetic simulations from the assumptions selected in the sidebar. Each selected model receives the same editable prompts and returns JSON containing:
+
+- Run-level metrics
+- District-level metrics
+- A few abstract representative synthetic agents
+- A concise explanation of the modeled trade-offs
+
+The app then builds tables and charts from those LLM-generated results. If multiple model agents are selected, the app compares their outputs and also shows combined averages.
+
+## Why This Exists
+
+The goal is to make ethical trade-offs visible:
+
+- Prediction error can create false positives and false negatives.
+- Support policies can help but cost resources.
+- Surveillance and coercion can reduce modeled crime while adding harm.
+- Bias against an abstract district can shift harm unevenly.
+- Predicted risk must not be treated as guilt.
+
+The app is useful for classroom, research, or discussion settings. It should not be used to justify preventive punishment or real interventions.
+
+## Install
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The app uses an LLM-agent simulation workflow. An OpenAI API key is required to generate new LLM-agent simulation runs.
-
-## Run the app
+## Run Locally
 
 ```bash
+export OPENAI_API_KEY="your_api_key_here"
 streamlit run app.py
 ```
 
 Then open the local URL printed by Streamlit.
 
-## How to use the app
+## Railway Setup
 
-1. Choose assumptions in the sidebar (population size, noise, threshold, policy, costs, harms, and bias).
-2. Configure the LLM-agent settings (synthetic runs, representative agents, output word limit, and run log size).
-3. Click "Run LLM-agent simulation" to generate synthetic run metrics, district metrics, representative synthetic agents, and an explanation.
-4. Review:
-   - "LLM-agent simulation averages" for the main aggregated metrics.
-   - The charts for variability across LLM-generated synthetic runs and district-level differences.
-   - The "Latest LLM-agent explanation" block for a concise interpretation.
-5. Click "Download LLM-agent results as CSV" to export run-level metrics to:
-   `llm_agent_simulation_results.csv`
-
-## LLM-agent simulation mode
-
-The visible app flow is the LLM-agent simulation mode.
-
-The LLM is called only when the user clicks "Run LLM-agent simulation". It is not called automatically on Streamlit reruns, inside loops, or once per child. This keeps token use limited and predictable.
-
-The LLM-agent simulation asks the model to generate a small synthetic set of:
-
-- Run-level metrics
-- District-level metrics
-- Up to 3 representative synthetic agents
-- A concise explanation of trade-offs
-
-It can summarize uncertainty, false positives, false negatives, harm, cost, and District C bias. It is still an ethical thought experiment, not a real-world prediction system.
-
-To run it locally or on Railway, set:
+On Railway, add this service variable:
 
 ```bash
-OPENAI_API_KEY=your_api_key
+OPENAI_API_KEY=your_api_key_here
 ```
 
-Optional model override:
+Optional variables:
 
 ```bash
 LLM_MODEL=gpt-4o-mini
+LLM_AGENT_MODELS=gpt-4o-mini,gpt-4.1-mini
 ```
 
-On Railway, add these as service variables or secrets.
+`LLM_MODEL` sets the default first model. `LLM_AGENT_MODELS` controls the model list shown in the sidebar.
 
-The LLM-agent run log and latest LLM-agent simulation results are stored only in the current Streamlit session. They may disappear after refresh, restart, redeploy, or server sleep. This is intentional to keep the app simple and privacy-preserving.
+## Models
 
-## Compared policies
+By default, the app offers these OpenAI model agents:
 
-- No action
-- Universal support
-- Targeted support for high-risk children
-- Surveillance of high-risk children
-- Coercive preventive intervention for high-risk children
-- Rights-preserving targeted support with periodic reassessment
+- `gpt-4o-mini`
+- `gpt-4.1-mini`
+- `gpt-4.1`
+- `gpt-4o`
 
-## What the simulation shows
+Each selected model agent makes one OpenAI API call when the user clicks **Run / rerun LLM-agent simulation**. Selecting more models increases API usage.
 
-The app asks the LLM for compact synthetic run metrics and district metrics, then builds tables and charts from those LLM-generated metrics.
+## Editable Prompts
 
-The exported CSV contains run-level metrics plus district-level columns for false positives, harm, and crimes after policy in Districts A, B, and C.
+The site shows the prompts inside the **Simulation prompts** expander. The user can edit them before running or rerunning the simulation.
 
-## Sidebar parameters (what each control means)
+The app sends two prompts:
 
-The sidebar lets you change:
+### System Prompt
 
+```text
+You generate strict JSON for a synthetic, ethics-focused simulation. Never include markdown fences. Use English only. Do not claim to predict real people, assign guilt, or recommend punishment.
+```
+
+### User Prompt
+
+The user prompt is generated from the current sidebar settings. It asks the selected model agent to:
+
+- Generate a compact synthetic predictive-justice scenario.
+- Use English only.
+- Avoid claims about real people or real-world prediction.
+- Treat Districts A, B, and C as abstract labels.
+- Respect the selected policy logic.
+- Return only valid JSON with exactly these keys:
+  - `run_results`
+  - `district_results`
+  - `representative_agents`
+  - `debrief_text`
+- Include one run row per requested synthetic run.
+- Include one district row per run for Districts A, B, and C.
+- Keep the debrief concise.
+
+The generated user prompt includes the current values for:
+
+- Selected policy
 - Population size
-- Prediction error
+- Number of synthetic runs
+- Number of representative agents
+- Prediction noise
 - High-risk threshold
 - Bias against District C
-- Selected policy
-- Policy effect strength (shown only when the selected policy changes outcomes)
-- Intervention harm level (shown only for policies that can create intervention harm)
-- Intervention cost level (shown only for policies with intervention cost)
-- LLM-agent controls
+- Policy effect strength
+- Intervention harm level
+- Intervention cost level
 
-Details:
+When sidebar settings change, the user prompt is regenerated for the new settings.
 
-- Population size: Main scenario population reference shown in the sidebar.
-- Prediction error / noise: Assumption passed to the LLM about how noisy the prediction system is.
-- High-risk threshold: A cutoff applied to predicted risk. Children with `predicted_risk >= threshold` are flagged as high-risk.
-- Bias against District C: Additive upward shift applied to predicted risk for District C only, illustrating how small bias can increase false positives and unequal harm.
-- Selected policy: Which policy is applied in the LLM-agent simulation.
-- Policy effect strength: Low, medium, or high assumption about how strongly the selected policy changes modeled outcomes. Hidden for "No action".
-- Intervention harm level: Low, medium, or high assumption about intervention harm. Shown for surveillance, coercive intervention, and rights-preserving targeted support.
-- Intervention cost level: Low, medium, or high assumption about intervention cost. Hidden for "No action".
-- LLM synthetic runs: Number of run-level metric rows requested from the LLM, capped at 20.
-- LLM representative agents: Number of representative synthetic agents requested from the LLM, capped at 3.
-- LLM output word limit: Maximum requested length of the generated explanation.
-- LLM run log size: Number of previous in-session debriefs to keep.
+## Policies
 
-Notes on interpretation:
+### No action
 
-- "True risk" is a hidden probability used only by the simulation.
-- "Predicted risk" is the imperfect estimate used for high-risk flags.
-- Rights-preserving targeted support uses a second synthetic reassessment before support is applied.
-- False positives are flagged children whose baseline outcome would not include a crime.
-- The districts A, B, and C are abstract labels and are not proxies for real demographic groups.
+Baseline comparison. No support, surveillance, coercion, cost, or intervention harm is applied. Modeled baseline crimes remain unchanged.
 
-## Model limitations
+### Universal support
 
-This is an ethical thought experiment, not a predictive system. It uses LLM-generated synthetic metrics to illustrate trade-offs. It does not claim to predict real human behavior.
+Every synthetic child receives non-punitive support. This can reduce risk without targeting, but it creates broad support cost.
 
-Prediction is not destiny. The app should not be used to justify preventive punishment, coercion, or real-world classification of children.
+### Targeted support for high-risk children
 
-Districts A, B, and C are abstract labels only. They are not proxies for real demographic groups or real places.
+Only synthetic children flagged as high-risk receive support. It costs less than universal support, but depends on an imperfect risk signal.
 
-## Why this is not a real-world decision tool
+### Surveillance of high-risk children
 
-The model omits the legal, social, psychological, historical, and institutional realities that would matter in any real justice context. It also depends heavily on user-selected assumptions. For that reason, it is useful only as a classroom or research discussion aid about ethical trade-offs, not as evidence for real-world intervention decisions.
+Flagged synthetic children are monitored. It may reduce some modeled crimes, but it adds privacy, stigma, and error-related harm.
+
+### Coercive preventive intervention for high-risk children
+
+Flagged synthetic children face a restrictive intervention before any real act. It can reduce modeled crime most strongly, but imposes the highest harm and is ethically dangerous.
+
+### Rights-preserving targeted support
+
+Flagged synthetic children receive voluntary, non-punitive support with extra protections against stigma and coercion.
+
+## Sidebar Controls
+
+- **Selected policy**: policy applied to the synthetic scenario.
+- **Population size**: imagined synthetic population size.
+- **Prediction error / noise**: unreliability of the synthetic risk signal.
+- **High-risk threshold**: cutoff for labeling a synthetic child as high-risk.
+- **Bias against District C**: extra synthetic risk pressure applied to District C.
+- **Policy effect strength**: how strongly the selected policy changes modeled outcomes.
+- **Intervention harm level**: harm level for policies that create intervention harm.
+- **Intervention cost level**: cost level for policies that create intervention cost.
+- **LLM synthetic runs**: number of run rows requested from each model agent.
+- **LLM model agents**: OpenAI models that each run the same prompt independently.
+- **LLM representative agents**: number of abstract synthetic example agents to request.
+
+## Metrics
+
+The app intentionally keeps only the core metrics needed for interpretation:
+
+- **Baseline crimes**: modeled crimes before any policy is applied.
+- **Crimes after policy**: modeled crimes remaining after the policy is applied.
+- **Crimes prevented**: baseline crimes minus crimes after policy.
+- **False positives**: flagged synthetic children who would not have committed the modeled offense in the baseline.
+- **False negatives**: unflagged synthetic children who would have committed the modeled offense in the baseline.
+- **Children helped**: synthetic children receiving support.
+- **Children harmed**: synthetic children receiving modeled intervention harm.
+- **Total harm**: aggregate modeled harm created by the selected policy.
+- **Total cost**: aggregate modeled cost created by the selected policy.
+- **District metrics**: District A/B/C false positives, harm, and crimes after policy.
+
+## Outputs
+
+After a successful run, the app shows:
+
+- Model comparison table, if multiple model agents are selected
+- Combined average metrics
+- Line charts across synthetic runs
+- District-level charts and table
+- Interpretation text
+- Per-model LLM explanations
+- Representative synthetic agents
+- CSV download for run-level results
+- In-session run log with prompts used
+
+The run log is stored only in the current Streamlit session and is limited to the latest five entries.
+
+## Important Limitations
+
+This app is a thought experiment. It does not predict real behavior, estimate real crime risk, or recommend policy. The outputs are synthetic and depend on user-selected assumptions and LLM-generated scenario data.
+
+Prediction is not destiny. Children should not be punished for a predicted future act.
