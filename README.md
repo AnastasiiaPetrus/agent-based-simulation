@@ -95,7 +95,7 @@ The app generates the simulation prompt from the current sidebar settings. It as
 
 The generated user prompt includes the current values for:
 
-- Selected policy
+- Policy name (the app runs all policies)
 - Population size
 - Number of synthetic runs
 - Number of representative agents
@@ -153,7 +153,6 @@ Flagged synthetic children receive voluntary, non-punitive support with extra pr
 
 ## Sidebar Controls
 
-- **Selected policy**: policy applied to the synthetic scenario.
 - **Population size**: imagined synthetic population size.
 - **Prediction error / noise**: unreliability of the synthetic risk signal.
 - **High-risk threshold**: cutoff for labeling a synthetic child as high-risk.

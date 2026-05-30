@@ -18,6 +18,8 @@ POLICIES = [
     "Rights-preserving targeted support",
 ]
 
+POLICY_ORDER = list(POLICIES)
+
 POLICY_DESCRIPTIONS = {
     "No action": (
         "Baseline with no intervention, cost, or harm."
@@ -192,6 +194,48 @@ def model_comparison_table(run_results):
 def display_model_comparison_table(run_results):
     st.dataframe(model_comparison_table(run_results), use_container_width=True, hide_index=True)
 
+def policy_model_comparison_table(run_results):
+    metric_columns = [
+        "baseline_crimes",
+        "crimes_after_policy",
+        "crimes_prevented",
+        "false_positives",
+        "false_negatives",
+        "children_helped",
+        "children_harmed",
+        "total_harm",
+        "total_cost",
+    ]
+    table = (
+        run_results.groupby(["policy", "llm_model"], as_index=False)[metric_columns]
+        .mean(numeric_only=True)
+        .sort_values(["policy", "llm_model"])
+    )
+    table = table.rename(
+        columns={
+            "policy": "Policy",
+            "llm_model": "Model",
+            "baseline_crimes": "Baseline crimes",
+            "crimes_after_policy": "Crimes after policy",
+            "crimes_prevented": "Crimes prevented",
+            "false_positives": "False positives",
+            "false_negatives": "False negatives",
+            "children_helped": "Children helped",
+            "children_harmed": "Children harmed",
+            "total_harm": "Total harm",
+            "total_cost": "Total cost",
+        }
+    )
+    for column in table.columns:
+        if column in {"Policy", "Model"}:
+            continue
+        table[column] = table[column].map(lambda v: "Not applicable" if pd.isna(v) else f"{v:,.3f}")
+    return table
+
+
+def display_policy_model_comparison_table(run_results):
+    st.dataframe(policy_model_comparison_table(run_results), use_container_width=True, hide_index=True)
+
 
 def glossary_markdown(items):
     lines = []
@@ -202,7 +246,7 @@ def glossary_markdown(items):
 
 def render_user_summary():
     st.info(
-        "Choose a policy and assumptions in the sidebar, then run one or more LLM model agents. "
+        "Choose assumptions in the sidebar, then run one or more LLM model agents across all policies. "
         "The app checks whether modeled crime changes, "
         "who is helped or harmed, how many prediction errors appear, and whether district outcomes "
         "become uneven. All results are synthetic."
@@ -487,7 +531,6 @@ def compact_parameter_summary(settings):
 
 def llm_assumptions(settings):
     return {
-        "selected_policy": settings["policy"],
         "prediction_noise": metric_value(settings["prediction_noise"]),
         "high_risk_threshold": metric_value(settings["high_risk_threshold"]),
         "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
@@ -771,6 +814,13 @@ def attach_model_label(run_results, district_results, model):
     district_results.insert(0, "llm_model", model)
     return run_results, district_results
 
+def attach_policy_label(run_results, district_results, policy):
+    run_results = run_results.copy()
+    district_results = district_results.copy()
+    run_results.insert(0, "policy", policy)
+    district_results.insert(0, "policy", policy)
+    return run_results, district_results
+
 
 def normalize_representative_agents(raw_agents, model):
     rows = []
@@ -818,7 +868,7 @@ def render_llm_run_log(max_entries):
         log_for_csv.append(
             {
                 "timestamp": entry["timestamp"],
-                "selected_policy": entry["selected_policy"],
+                "policy_summary": entry.get("policy_summary", ""),
                 "parameter_summary": entry["parameter_summary"],
                 "representative_agent_count": entry["representative_agent_count"],
                 "llm_model": entry["llm_model"],
@@ -843,7 +893,7 @@ def render_llm_run_log(max_entries):
     )
 
     for entry in run_log:
-        title = f"{entry['timestamp']} | {entry['selected_policy']} | {entry['llm_model']}"
+        title = f"{entry['timestamp']} | {entry['policy_summary']} | {entry['llm_model']}"
         with st.expander(title):
             st.write(entry["debrief_text"])
             st.caption(entry["parameter_summary"])
@@ -863,11 +913,11 @@ def friendly_llm_error(error):
 def render_llm_agent_section(settings):
     initialize_llm_state()
     st.subheader("LLM-Agent Simulation")
+    total_calls = len(settings["llm_agent_models"]) * len(POLICIES)
     st.info(
-        "This mode uses one LLM call per selected model agent to generate a small synthetic scenario, "
-        "run-level metrics, district metrics, charts, and a concise explanation. It remains a thought "
-        "experiment, not a prediction system. Run the LLM-agent simulation to compare the selected model "
-        "agents under the current settings."
+        "This mode runs one LLM call per selected model agent and per policy to generate run-level metrics, "
+        "district metrics, charts, and explanations. It remains a thought experiment, not a prediction system."
+        f" This run will make {total_calls} call(s)."
     )
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -883,7 +933,6 @@ def render_llm_agent_section(settings):
 
     parameter_summary = compact_parameter_summary(settings)
     system_prompt = DEFAULT_SYSTEM_PROMPT
-    user_prompt = build_llm_simulation_prompt(settings)
 
     if st.button(
         "Run / rerun LLM-agent simulation",
@@ -893,41 +942,56 @@ def render_llm_agent_section(settings):
         model_results = []
         model_errors = []
 
-        with st.spinner(f"Running {len(selected_models)} LLM model agent(s)..."):
+        with st.spinner(f"Running {len(POLICIES)} policy(ies) × {len(selected_models)} model agent(s)..."):
             for model in selected_models:
-                try:
-                    raw_result = run_openai_json(system_prompt, user_prompt, model=model)
-                    run_results = clean_llm_run_results(raw_result.get("run_results", []))
-                    district_results = clean_llm_district_results(raw_result.get("district_results", []))
-                    validate_llm_tables(run_results, district_results, settings)
-                    run_results, district_results = normalize_llm_metrics(
-                        run_results,
-                        district_results,
-                        settings,
-                    )
-                    run_results, district_results = attach_model_label(
-                        run_results, district_results, model
-                    )
-                    representative_agents = normalize_representative_agents(
-                        raw_result.get("representative_agents", [])[
-                            : int(settings["llm_representative_agents"])
-                        ],
-                        model,
-                    )
-                    debrief_text = str(raw_result.get("debrief_text", "")).strip()
+                for policy in POLICY_ORDER:
+                    policy_settings = dict(settings)
+                    policy_settings["policy"] = policy
+                    if not policy_uses_effect(policy):
+                        policy_settings["policy_effect_strength"] = "None"
+                    if not policy_uses_harm(policy):
+                        policy_settings["intervention_harm_level"] = "None"
+                    if not policy_uses_cost(policy):
+                        policy_settings["intervention_cost_level"] = "None"
 
-                    model_results.append(
-                        {
-                            "llm_model": model,
-                            "run_results": run_results,
-                            "district_results": district_results,
-                            "representative_agents": representative_agents,
-                            "aggregate_metrics": compact_aggregate_metrics(run_results),
-                            "debrief_text": debrief_text,
-                        }
-                    )
-                except Exception as error:
-                    model_errors.append((model, friendly_llm_error(error)))
+                    user_prompt = build_llm_simulation_prompt(policy_settings)
+                    try:
+                        raw_result = run_openai_json(system_prompt, user_prompt, model=model)
+                        run_results = clean_llm_run_results(raw_result.get("run_results", []))
+                        district_results = clean_llm_district_results(raw_result.get("district_results", []))
+                        validate_llm_tables(run_results, district_results, policy_settings)
+                        run_results, district_results = normalize_llm_metrics(
+                            run_results,
+                            district_results,
+                            policy_settings,
+                        )
+                        run_results, district_results = attach_model_label(
+                            run_results, district_results, model
+                        )
+                        run_results, district_results = attach_policy_label(
+                            run_results, district_results, policy
+                        )
+                        representative_agents = normalize_representative_agents(
+                            raw_result.get("representative_agents", [])[
+                                : int(settings["llm_representative_agents"])
+                            ],
+                            model,
+                        )
+                        debrief_text = str(raw_result.get("debrief_text", "")).strip()
+
+                        model_results.append(
+                            {
+                                "llm_model": model,
+                                "policy": policy,
+                                "run_results": run_results,
+                                "district_results": district_results,
+                                "representative_agents": representative_agents,
+                                "aggregate_metrics": compact_aggregate_metrics(run_results),
+                                "debrief_text": debrief_text,
+                            }
+                        )
+                    except Exception as error:
+                        model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
         for model, error_message in model_errors:
             st.error(f"{model}: {error_message}")
@@ -945,7 +1009,7 @@ def render_llm_agent_section(settings):
                 for agent in result["representative_agents"]
             ]
             debrief_text = "\n\n".join(
-                f"{result['llm_model']}: {result['debrief_text']}"
+                f"{result['llm_model']} | {result['policy']}: {result['debrief_text']}"
                 for result in model_results
                 if result["debrief_text"]
             )
@@ -961,7 +1025,7 @@ def render_llm_agent_section(settings):
 
             entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "selected_policy": settings["policy"],
+                "policy_summary": "All policies",
                 "parameter_summary": parameter_summary,
                 "representative_agent_count": len(all_representative_agents),
                 "llm_model": ", ".join(result["llm_model"] for result in model_results),
@@ -979,33 +1043,36 @@ def render_llm_agent_section(settings):
         latest_run_results = latest_result["run_results"]
         latest_district_results = latest_result["district_results"]
 
-        if latest_run_results["llm_model"].nunique() > 1:
-            st.subheader("LLM-agent model comparison")
-            display_model_comparison_table(latest_run_results)
-            st.subheader("Combined LLM-agent averages")
-            st.caption("Combined averages pool the successful model-agent runs from this session.")
-        else:
-            st.subheader("LLM-agent simulation averages")
+        st.subheader("Policy comparison (by model)")
+        display_policy_model_comparison_table(latest_run_results)
 
-        display_average_table(average_results_table(latest_run_results))
-        render_charts(latest_run_results, latest_district_results)
+        policy_tabs = st.tabs(POLICY_ORDER)
+        for policy, tab in zip(POLICY_ORDER, policy_tabs):
+            with tab:
+                policy_runs = latest_run_results[latest_run_results["policy"] == policy]
+                policy_districts = latest_district_results[latest_district_results["policy"] == policy]
+                if policy_runs.empty or policy_districts.empty:
+                    st.caption("No results for this policy in the current session.")
+                    continue
 
-        if latest_run_results["llm_model"].nunique() > 1:
-            st.caption("The interpretation below uses the combined average across selected model agents.")
+                st.subheader("Averages")
+                display_average_table(average_results_table(policy_runs))
+                render_charts(policy_runs, policy_districts)
 
-        render_interpretation(
-            settings["policy"],
-            average_results_table(latest_run_results),
-            settings["bias_against_district_c"],
-        )
+                # Interpretation uses combined averages across selected models for this policy.
+                render_interpretation(
+                    policy,
+                    average_results_table(policy_runs),
+                    settings["bias_against_district_c"],
+                )
 
         st.markdown("**Latest LLM-agent explanations**")
         model_results = latest_result.get("model_results", [])
         if model_results:
             for result in model_results:
                 with st.expander(
-                    f"{result['llm_model']} explanation",
-                    expanded=len(model_results) == 1,
+                    f"{result['llm_model']} | {result.get('policy', 'Unknown policy')} explanation",
+                    expanded=False,
                 ):
                     st.write(result["debrief_text"])
                     st.json(result["aggregate_metrics"])
@@ -1024,14 +1091,7 @@ def render_llm_agent_section(settings):
 
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
-    policy = st.sidebar.selectbox(
-        "Selected policy",
-        POLICIES,
-        help="Choose the policy the LLM should compare against the baseline scenario.",
-    )
-    st.sidebar.caption(POLICY_DESCRIPTIONS[policy])
     settings = {
-        "policy": policy,
         "population_size": st.sidebar.slider(
             "Population size",
             100,
@@ -1066,35 +1126,25 @@ def sidebar_inputs():
         ),
     }
 
-    if policy_uses_effect(policy):
-        settings["policy_effect_strength"] = st.sidebar.select_slider(
-            "Policy effect strength",
-            options=["Low", "Medium", "High"],
-            value="Medium",
-            help=SETTING_DESCRIPTIONS["Policy effect strength"],
-        )
-    else:
-        settings["policy_effect_strength"] = "None"
-
-    if policy_uses_harm(policy):
-        settings["intervention_harm_level"] = st.sidebar.select_slider(
-            "Intervention harm level",
-            options=["Low", "Medium", "High"],
-            value="Medium",
-            help=SETTING_DESCRIPTIONS["Intervention harm level"],
-        )
-    else:
-        settings["intervention_harm_level"] = "None"
-
-    if policy_uses_cost(policy):
-        settings["intervention_cost_level"] = st.sidebar.select_slider(
-            "Intervention cost level",
-            options=["Low", "Medium", "High"],
-            value="Medium",
-            help=SETTING_DESCRIPTIONS["Intervention cost level"],
-        )
-    else:
-        settings["intervention_cost_level"] = "None"
+    st.sidebar.subheader("Policy assumptions (applied across policies)")
+    settings["policy_effect_strength"] = st.sidebar.select_slider(
+        "Policy effect strength",
+        options=["Low", "Medium", "High"],
+        value="Medium",
+        help=SETTING_DESCRIPTIONS["Policy effect strength"],
+    )
+    settings["intervention_harm_level"] = st.sidebar.select_slider(
+        "Intervention harm level",
+        options=["Low", "Medium", "High"],
+        value="Medium",
+        help=SETTING_DESCRIPTIONS["Intervention harm level"],
+    )
+    settings["intervention_cost_level"] = st.sidebar.select_slider(
+        "Intervention cost level",
+        options=["Low", "Medium", "High"],
+        value="Medium",
+        help=SETTING_DESCRIPTIONS["Intervention cost level"],
+    )
 
     st.sidebar.subheader("LLM-agent settings")
     settings["llm_simulation_runs"] = st.sidebar.slider(
