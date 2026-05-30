@@ -18,6 +18,67 @@ POLICIES = [
     "Rights-preserving targeted support",
 ]
 
+POLICY_DESCRIPTIONS = {
+    "No action": (
+        "Baseline comparison. No support, surveillance, coercion, cost, or intervention harm is applied; "
+        "modeled baseline crimes remain unchanged."
+    ),
+    "Universal support": (
+        "Every synthetic child receives non-punitive support. This can reduce risk without targeting, but it "
+        "creates broad support cost."
+    ),
+    "Targeted support for high-risk children": (
+        "Only synthetic children flagged as high-risk receive support. It costs less than universal support, "
+        "but depends on an imperfect risk signal."
+    ),
+    "Surveillance of high-risk children": (
+        "Flagged synthetic children are monitored. It may reduce some modeled crimes, but it adds privacy, "
+        "stigma, and error-related harm."
+    ),
+    "Coercive preventive intervention for high-risk children": (
+        "Flagged synthetic children face a restrictive intervention before any real act. It can reduce modeled "
+        "crime most strongly, but imposes the highest harm and is ethically dangerous."
+    ),
+    "Rights-preserving targeted support": (
+        "Flagged synthetic children receive voluntary, non-punitive support with extra protections against "
+        "stigma and coercion."
+    ),
+}
+
+SETTING_DESCRIPTIONS = {
+    "Population size": "How many synthetic children the LLM should use as the imagined population.",
+    "Prediction error / noise": "How unreliable the synthetic risk signal is. Higher values mean more mistakes.",
+    "High-risk threshold": "The cutoff for labeling a synthetic child as high-risk. Lower values flag more children.",
+    "Bias against District C": "Extra synthetic risk pressure applied to District C to test uneven false positives and harm.",
+    "Policy effect strength": "How strongly the selected policy is allowed to change modeled outcomes.",
+    "Intervention harm level": "How much harm the selected intervention adds to affected synthetic children.",
+    "Intervention cost level": "How expensive the selected policy is in the synthetic scenario.",
+    "LLM synthetic runs": "How many scenario runs the LLM should generate for charts and averages.",
+    "LLM representative agents": "How many abstract synthetic example agents the LLM may include.",
+    "LLM output word limit": "Maximum length of the written LLM explanation.",
+    "LLM run log size": "How many previous LLM runs are kept in this browser session.",
+}
+
+RESULT_METRIC_DESCRIPTIONS = {
+    "Baseline crimes": "Modeled crimes before any policy is applied.",
+    "Crimes after policy": "Modeled crimes remaining after the selected policy is applied.",
+    "Crimes prevented": "Baseline crimes minus crimes after policy.",
+    "High-risk flagged": "Synthetic children labeled high-risk by the risk signal.",
+    "True positives": "Flagged synthetic children who would have committed the modeled offense in the baseline.",
+    "False positives": "Flagged synthetic children who would not have committed the modeled offense in the baseline.",
+    "False negatives": "Unflagged synthetic children who would have committed the modeled offense in the baseline.",
+    "Precision": "Share of flagged children who are true positives.",
+    "Recall": "Share of baseline crimes captured by the high-risk flag.",
+    "Children helped": "Synthetic children receiving support.",
+    "Children harmed": "Synthetic children receiving modeled intervention harm.",
+    "Coerced children": "Synthetic children affected by coercive restriction.",
+    "Total harm": "Aggregate modeled harm created by the selected policy.",
+    "Total cost": "Aggregate modeled cost created by the selected policy.",
+    "Harm per crime prevented": "Total harm divided by crimes prevented; not applicable if no crimes are prevented.",
+    "Cost per crime prevented": "Total cost divided by crimes prevented; not applicable if no crimes are prevented.",
+    "District metrics": "District-level false positives, harm, and crimes for abstract Districts A, B, and C.",
+}
+
 DISTRICTS = ["A", "B", "C"]
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 RUN_METRIC_COLUMNS = [
@@ -96,6 +157,36 @@ def display_average_table(average_table):
 
     display_table["Average across runs"] = display_table["Average across runs"].map(format_value)
     st.dataframe(display_table, use_container_width=True, hide_index=True)
+
+
+def glossary_table(items):
+    return pd.DataFrame(
+        [{"Item": item, "Meaning": meaning} for item, meaning in items.items()]
+    )
+
+
+def render_reference_guide():
+    with st.expander("Policy and metric guide", expanded=False):
+        st.markdown("**Policy options**")
+        st.dataframe(
+            glossary_table(POLICY_DESCRIPTIONS),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("**Sidebar settings**")
+        st.dataframe(
+            glossary_table(SETTING_DESCRIPTIONS),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("**Result metrics**")
+        st.dataframe(
+            glossary_table(RESULT_METRIC_DESCRIPTIONS),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def line_chart(data, x_column, y_column, title, y_label):
@@ -545,10 +636,10 @@ def friendly_llm_error(error):
 def render_llm_agent_section(settings):
     initialize_llm_state()
     st.subheader("LLM-Agent Simulation")
-    st.write(
+    st.info(
         "This mode uses one LLM call to generate a small synthetic scenario, run-level metrics, district "
         "metrics, charts, and a concise explanation. It remains a thought experiment, not a prediction "
-        "system."
+        "system. Run the LLM-agent simulation to generate metrics and charts for the current settings."
     )
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -560,7 +651,7 @@ def render_llm_agent_section(settings):
 
     parameter_summary = compact_parameter_summary(settings)
 
-    if st.button("Run LLM-agent simulation", disabled=not bool(api_key)):
+    if st.button("Run LLM-agent simulation", disabled=not bool(api_key), type="primary"):
         try:
             raw_result = run_openai_json(build_llm_simulation_prompt(settings))
             run_results = clean_llm_run_results(raw_result.get("run_results", []))
@@ -617,56 +708,118 @@ def render_llm_agent_section(settings):
             with st.expander("Representative LLM synthetic agents used", expanded=False):
                 st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
     else:
-        st.info("Run the LLM-agent simulation to generate metrics and charts for the current settings.")
+        st.caption("No LLM-agent simulation has been generated in this session yet.")
 
     render_llm_run_log(int(settings["llm_run_log_size"]))
 
 
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
-    policy = st.sidebar.selectbox("Selected policy", POLICIES)
+    policy = st.sidebar.selectbox(
+        "Selected policy",
+        POLICIES,
+        help="Choose the policy the LLM should compare against the baseline scenario.",
+    )
+    st.sidebar.caption(POLICY_DESCRIPTIONS[policy])
     settings = {
         "policy": policy,
-        "population_size": st.sidebar.slider("Population size", 100, 10000, 2000, step=100),
-        "prediction_noise": st.sidebar.slider("Prediction error / noise", 0.0, 0.35, 0.10, step=0.01),
-        "high_risk_threshold": st.sidebar.slider("High-risk threshold", 0.01, 0.70, 0.25, step=0.01),
+        "population_size": st.sidebar.slider(
+            "Population size",
+            100,
+            10000,
+            2000,
+            step=100,
+            help=SETTING_DESCRIPTIONS["Population size"],
+        ),
+        "prediction_noise": st.sidebar.slider(
+            "Prediction error / noise",
+            0.0,
+            0.35,
+            0.10,
+            step=0.01,
+            help=SETTING_DESCRIPTIONS["Prediction error / noise"],
+        ),
+        "high_risk_threshold": st.sidebar.slider(
+            "High-risk threshold",
+            0.01,
+            0.70,
+            0.25,
+            step=0.01,
+            help=SETTING_DESCRIPTIONS["High-risk threshold"],
+        ),
         "bias_against_district_c": st.sidebar.slider(
-            "Bias against District C", 0.0, 0.30, 0.00, step=0.01
+            "Bias against District C",
+            0.0,
+            0.30,
+            0.00,
+            step=0.01,
+            help=SETTING_DESCRIPTIONS["Bias against District C"],
         ),
     }
 
     if policy_uses_effect(policy):
         settings["policy_effect_strength"] = st.sidebar.select_slider(
-            "Policy effect strength", options=["Low", "Medium", "High"], value="Medium"
+            "Policy effect strength",
+            options=["Low", "Medium", "High"],
+            value="Medium",
+            help=SETTING_DESCRIPTIONS["Policy effect strength"],
         )
     else:
         settings["policy_effect_strength"] = "None"
 
     if policy_uses_harm(policy):
         settings["intervention_harm_level"] = st.sidebar.select_slider(
-            "Intervention harm level", options=["Low", "Medium", "High"], value="Medium"
+            "Intervention harm level",
+            options=["Low", "Medium", "High"],
+            value="Medium",
+            help=SETTING_DESCRIPTIONS["Intervention harm level"],
         )
     else:
         settings["intervention_harm_level"] = "None"
 
     if policy_uses_cost(policy):
         settings["intervention_cost_level"] = st.sidebar.select_slider(
-            "Intervention cost level", options=["Low", "Medium", "High"], value="Medium"
+            "Intervention cost level",
+            options=["Low", "Medium", "High"],
+            value="Medium",
+            help=SETTING_DESCRIPTIONS["Intervention cost level"],
         )
     else:
         settings["intervention_cost_level"] = "None"
 
     st.sidebar.subheader("LLM-agent settings")
     settings["llm_simulation_runs"] = st.sidebar.slider(
-        "LLM synthetic runs", 3, 20, 8, step=1
+        "LLM synthetic runs",
+        3,
+        20,
+        8,
+        step=1,
+        help=SETTING_DESCRIPTIONS["LLM synthetic runs"],
     )
     settings["llm_representative_agents"] = st.sidebar.slider(
-        "LLM representative agents", 1, 3, 3, step=1
+        "LLM representative agents",
+        1,
+        3,
+        3,
+        step=1,
+        help=SETTING_DESCRIPTIONS["LLM representative agents"],
     )
     settings["llm_output_word_limit"] = st.sidebar.slider(
-        "LLM output word limit", 100, 400, 200, step=25
+        "LLM output word limit",
+        100,
+        400,
+        200,
+        step=25,
+        help=SETTING_DESCRIPTIONS["LLM output word limit"],
     )
-    settings["llm_run_log_size"] = st.sidebar.slider("LLM run log size", 1, 10, 5, step=1)
+    settings["llm_run_log_size"] = st.sidebar.slider(
+        "LLM run log size",
+        1,
+        10,
+        5,
+        step=1,
+        help=SETTING_DESCRIPTIONS["LLM run log size"],
+    )
 
     return settings
 
@@ -677,11 +830,10 @@ def render_app():
     st.title("Predictive Justice Simulation")
     st.warning(
         "This model does not decide what is morally permissible. It shows the consequences of different "
-        "policies under explicit assumptions. Children should not be punished for a predicted future act."
-    )
-    st.caption(
+        "policies under explicit assumptions. Children should not be punished for a predicted future act. "
         "This is not a real-world decision tool. All agents, districts, risks, and outcomes are synthetic."
     )
+    render_reference_guide()
 
     settings = sidebar_inputs()
     render_llm_agent_section(settings)
