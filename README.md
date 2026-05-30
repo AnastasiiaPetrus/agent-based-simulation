@@ -12,7 +12,7 @@ All data is synthetic. The model does not use real crime data, race, ethnicity, 
 pip install -r requirements.txt
 ```
 
-The OpenAI package is included only for the optional LLM-agent debrief mode. The default simulation does not require an API key and does not call any LLM API.
+The OpenAI package is included for the optional LLM-agent simulation mode. The default NumPy/Pandas mode does not require an API key and does not call any LLM API.
 
 ## Run the app
 
@@ -25,7 +25,7 @@ Then open the local URL printed by Streamlit.
 ## How to use the app
 
 1. Choose assumptions in the sidebar (population size, noise, threshold, policy, costs, harms, and bias).
-2. The app runs repeated Monte Carlo simulations (many independent random runs) using the selected random seed.
+2. By default, the app runs repeated Monte Carlo simulations (many independent random runs) using the selected random seed.
 3. Review:
    - "Average results across Monte Carlo runs" for the main aggregated metrics.
    - The charts for variability across runs and district-level differences.
@@ -33,9 +33,9 @@ Then open the local URL printed by Streamlit.
 4. Click "Download results as CSV" to export run-level metrics to:
    `predictive_justice_simulation_results.csv`
 
-## Optional LLM-agent debrief mode
+## Optional LLM-agent simulation mode
 
-The app includes an optional lightweight LLM-agent debrief mode. It is disabled by default.
+The app includes an optional lightweight LLM-agent simulation mode. It is disabled by default.
 
 When disabled:
 
@@ -45,9 +45,11 @@ When disabled:
 - The Monte Carlo simulation remains fully NumPy/Pandas-based.
 - Synthetic agents are still rows in a DataFrame, not AI agents.
 
-When enabled in the sidebar, the app shows a "Lightweight LLM-Agent Debrief" section. The LLM is called only when the user clicks "Run one LLM-agent debrief". It is not called automatically on Streamlit reruns, inside Monte Carlo loops, or once per child.
+When enabled in the sidebar, the app shows an "LLM-Agent Simulation" section. The deterministic Monte Carlo section is not run in this mode. Instead, one button click asks the LLM to generate a small synthetic set of run-level metrics, district metrics, representative synthetic agents, and a concise explanation.
 
-The LLM debrief can summarize trade-offs, uncertainty, false positives, false negatives, harm, cost, and District C bias. It does not change risks, high-risk flags, outcomes, metrics, or charts.
+The LLM is called only when the user clicks "Run LLM-agent simulation". It is not called automatically on Streamlit reruns, inside loops, or once per child. This keeps token use limited and predictable.
+
+The LLM-agent simulation can create synthetic run metrics for charts and can summarize trade-offs, uncertainty, false positives, false negatives, harm, cost, and District C bias. It is still an ethical thought experiment, not a real-world prediction system.
 
 To enable it locally or on Railway, set:
 
@@ -63,7 +65,7 @@ LLM_MODEL=gpt-4o-mini
 
 On Railway, add these as service variables or secrets.
 
-The LLM-agent run log is stored only in the current Streamlit session. It may disappear after refresh, restart, redeploy, or server sleep. This is intentional to keep the app simple and privacy-preserving.
+The LLM-agent run log and latest LLM-agent simulation results are stored only in the current Streamlit session. They may disappear after refresh, restart, redeploy, or server sleep. This is intentional to keep the app simple and privacy-preserving.
 
 ## Compared policies
 
@@ -76,7 +78,9 @@ The LLM-agent run log is stored only in the current Streamlit session. It may di
 
 ## What the simulation shows
 
-The app runs repeated Monte Carlo simulations and reports average outcomes such as baseline crimes, crimes after policy, crimes prevented, false positives, false negatives, children helped, children harmed, total harm, total cost, and district-level differences.
+In default mode, the app runs repeated Monte Carlo simulations and reports average outcomes such as baseline crimes, crimes after policy, crimes prevented, false positives, false negatives, children helped, children harmed, total harm, total cost, and district-level differences.
+
+In LLM-agent simulation mode, the app asks the LLM for compact synthetic run metrics and district metrics, then builds similar tables and charts from those LLM-generated metrics.
 
 The exported CSV contains run-level metrics plus district-level columns for false positives, harm, and crimes after policy in Districts A, B, and C.
 
@@ -113,10 +117,11 @@ Details:
 - Surveillance cost: Cost units assigned per child placed under surveillance (surveillance policy).
 - Coercive intervention cost: Cost units assigned per coerced child (coercive policy).
 - Selected policy: Which policy is applied in each Monte Carlo run.
-- Enable lightweight LLM-agent mode: Shows the optional LLM debrief section. It does not call the LLM by itself.
-- LLM display population size: Size of the small single-run synthetic sample used only for representative debrief context.
-- LLM representative agents: Number of representative synthetic agents sent to the LLM, capped at 3.
-- LLM output word limit: Maximum requested length of the generated debrief.
+- Enable lightweight LLM-agent mode: Shows the optional LLM-agent simulation section. It does not call the LLM by itself.
+- LLM display population size: Synthetic population size used as context for the LLM-generated scenario.
+- LLM synthetic runs: Number of run-level metric rows requested from the LLM, capped at 20.
+- LLM representative agents: Number of representative synthetic agents requested from the LLM, capped at 3.
+- LLM output word limit: Maximum requested length of the generated explanation.
 - LLM run log size: Number of previous in-session debriefs to keep.
 
 Notes on interpretation:

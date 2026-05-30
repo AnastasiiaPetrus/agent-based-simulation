@@ -22,6 +22,34 @@ DISTRICTS = ["A", "B", "C"]
 RIGHTS_PRESERVING_STIGMA_HARM = 0.08
 COERCIVE_RISK_MULTIPLIER = 0.18
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+RUN_METRIC_COLUMNS = [
+    "run",
+    "baseline_crimes",
+    "crimes_after_policy",
+    "crimes_prevented",
+    "high_risk_flagged",
+    "true_positives",
+    "false_positives",
+    "false_negatives",
+    "precision",
+    "recall",
+    "children_helped",
+    "children_harmed",
+    "coerced_children",
+    "total_harm",
+    "total_cost",
+    "harm_per_crime_prevented",
+    "cost_per_crime_prevented",
+    "false_positives_district_a",
+    "false_positives_district_b",
+    "false_positives_district_c",
+    "harm_district_a",
+    "harm_district_b",
+    "harm_district_c",
+    "crimes_district_a",
+    "crimes_district_b",
+    "crimes_district_c",
+]
 
 
 def clamp(values, lower=0.0, upper=1.0):
@@ -330,7 +358,7 @@ def average_results_table(run_results):
         "crimes_district_c": "Crimes in District C",
     }
 
-    metric_order = list(display_names)
+    metric_order = [column for column in display_names if column in run_results.columns]
     averages = run_results[metric_order].mean(numeric_only=True)
     table = averages.rename(index=display_names).reset_index()
     table.columns = ["Metric", "Average across runs"]
@@ -670,6 +698,50 @@ def build_llm_debrief_prompt(policy_name, aggregate_metrics, representative_agen
     )
 
 
+def build_llm_simulation_prompt(settings):
+    run_count = int(settings["llm_simulation_runs"])
+    population_size = int(settings["llm_display_population_size"])
+    debrief_word_limit = int(settings["llm_output_word_limit"])
+    prompt_payload = {
+        "selected_policy": settings["policy"],
+        "population_size": population_size,
+        "synthetic_runs_to_generate": run_count,
+        "representative_agents_to_generate": int(settings["llm_representative_agents"]),
+        "assumptions": llm_assumptions(settings),
+        "required_run_metric_columns": RUN_METRIC_COLUMNS,
+        "required_district_rows": [
+            {"run": run_number, "district": district}
+            for run_number in range(1, run_count + 1)
+            for district in DISTRICTS
+        ],
+    }
+
+    return (
+        "Generate a compact LLM-agent simulation for a synthetic ethical thought experiment about "
+        "predictive justice. Use English only.\n"
+        "This is not a real-world decision tool. Do not claim to predict real people. Do not recommend "
+        "punishment. Do not assign guilt. Do not treat prediction as destiny.\n"
+        "Create plausible synthetic aggregate metrics only. Do not create real demographic categories. "
+        "Districts A, B, and C are abstract labels.\n"
+        "Respect policy effects: No action has no help, no harm, no coercion, no cost, and no crimes "
+        "prevented. Universal support helps everyone and has support cost. Targeted support helps only "
+        "flagged synthetic agents. Surveillance can slightly reduce crimes but adds harm and cost. "
+        "Coercive intervention can sharply reduce crimes but adds high harm and high cost. "
+        "Rights-preserving targeted support adds support with minimal stigma harm.\n"
+        "Return only valid JSON with exactly these keys: run_results, district_results, "
+        "representative_agents, debrief_text.\n"
+        "run_results must contain one object per run and every required_run_metric_columns field. "
+        "district_results must contain one row for each run and each district with fields run, district, "
+        "false_positives, harm, crimes. representative_agents must contain up to 3 abstract synthetic "
+        "children with no names and no protected attributes.\n"
+        "Use numeric values only for metric fields. If crimes_prevented is 0 or negative, set "
+        "harm_per_crime_prevented and cost_per_crime_prevented to null.\n"
+        f"The debrief_text must be no more than {debrief_word_limit} words and should explain trade-offs, "
+        "uncertainty, false positives, false negatives, harm, cost, and District C bias if relevant.\n\n"
+        f"Simulation request:\n{json.dumps(prompt_payload, indent=2)}"
+    )
+
+
 def run_openai_debrief(prompt, max_words):
     from openai import OpenAI
 
@@ -687,6 +759,73 @@ def run_openai_debrief(prompt, max_words):
         temperature=0.2,
     )
     return response.choices[0].message.content.strip()
+
+
+def run_openai_json(prompt, max_tokens=4000):
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You generate strict JSON for a synthetic, ethics-focused simulation. "
+                    "Never include markdown fences."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=max_tokens,
+        temperature=0.2,
+    )
+    return json.loads(response.choices[0].message.content)
+
+
+def clean_llm_run_results(raw_rows):
+    rows = []
+    for row in raw_rows:
+        cleaned = {}
+        for column in RUN_METRIC_COLUMNS:
+            value = row.get(column)
+            if value is None:
+                cleaned[column] = np.nan
+            else:
+                cleaned[column] = value
+        rows.append(cleaned)
+
+    run_results = pd.DataFrame(rows)
+    for column in RUN_METRIC_COLUMNS:
+        run_results[column] = pd.to_numeric(run_results[column], errors="coerce")
+    run_results["run"] = run_results["run"].astype("Int64")
+    return run_results
+
+
+def clean_llm_district_results(raw_rows):
+    rows = []
+    for row in raw_rows:
+        district = str(row.get("district", "")).upper()
+        if district not in DISTRICTS:
+            continue
+        rows.append(
+            {
+                "run": row.get("run"),
+                "district": district,
+                "false_positives": row.get("false_positives"),
+                "harm": row.get("harm"),
+                "crimes": row.get("crimes"),
+            }
+        )
+
+    district_results = pd.DataFrame(rows)
+    if district_results.empty:
+        return pd.DataFrame(columns=["run", "district", "false_positives", "harm", "crimes"])
+    for column in ["run", "false_positives", "harm", "crimes"]:
+        district_results[column] = pd.to_numeric(district_results[column], errors="coerce")
+    district_results["run"] = district_results["run"].astype("Int64")
+    return district_results
 
 
 def initialize_llm_state():
@@ -755,46 +894,57 @@ def render_llm_run_log(max_entries):
             st.json(entry["aggregate_metrics"])
 
 
-def render_llm_agent_section(settings, run_results):
+def friendly_llm_error(error):
+    message = str(error)
+    if "insufficient_quota" in message or "429" in message:
+        return (
+            "LLM-agent simulation failed because the OpenAI account has no available API quota or billing "
+            "credit. Add credits or increase the project limit, then run the simulation again."
+        )
+    return f"LLM-agent simulation failed: {message}"
+
+
+def render_llm_agent_section(settings):
     if not settings["enable_llm_agent_mode"]:
         return
 
     initialize_llm_state()
-    st.subheader("Lightweight LLM-Agent Debrief")
+    st.subheader("LLM-Agent Simulation")
     st.write(
-        "This optional layer summarizes the synthetic results. It does not change risks, flags, outcomes, "
-        "metrics, charts, or policy effects."
+        "This mode uses one LLM call to generate a small synthetic scenario, run-level metrics, district "
+        "metrics, charts, and a concise explanation. It remains a thought experiment, not a prediction "
+        "system."
     )
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         st.warning(
-            "LLM-agent mode is enabled, but OPENAI_API_KEY is not configured. Add it as an environment "
+            "LLM-agent simulation is enabled, but OPENAI_API_KEY is not configured. Add it as an environment "
             "variable or Railway secret."
         )
 
-    aggregate_metrics = compact_aggregate_metrics(run_results)
     parameter_summary = compact_parameter_summary(settings)
 
-    if st.button("Run one LLM-agent debrief", disabled=not bool(api_key)):
-        display_population = build_llm_display_population(settings)
-        representative_agents = sample_representative_agents(
-            display_population,
-            int(settings["llm_representative_agents"]),
-            int(settings["seed"]),
-        )
-        prompt = build_llm_debrief_prompt(
-            settings["policy"],
-            aggregate_metrics,
-            representative_agents,
-            llm_assumptions(settings),
-            int(settings["llm_output_word_limit"]),
-        )
-
+    if st.button("Run LLM-agent simulation", disabled=not bool(api_key)):
         try:
-            debrief_text = run_openai_debrief(prompt, int(settings["llm_output_word_limit"]))
+            raw_result = run_openai_json(build_llm_simulation_prompt(settings))
+            run_results = clean_llm_run_results(raw_result.get("run_results", []))
+            district_results = clean_llm_district_results(raw_result.get("district_results", []))
+            representative_agents = raw_result.get("representative_agents", [])[:3]
+            debrief_text = str(raw_result.get("debrief_text", "")).strip()
+
+            if run_results.empty or district_results.empty:
+                raise ValueError("The model returned incomplete simulation tables.")
+
+            aggregate_metrics = compact_aggregate_metrics(run_results)
+            st.session_state["llm_agent_latest_result"] = {
+                "run_results": run_results,
+                "district_results": district_results,
+                "representative_agents": representative_agents,
+                "debrief_text": debrief_text,
+            }
         except Exception as error:
-            st.error(f"LLM-agent debrief failed: {error}")
+            st.error(friendly_llm_error(error))
             debrief_text = None
 
         if debrief_text:
@@ -808,13 +958,25 @@ def render_llm_agent_section(settings, run_results):
                 "debrief_text": debrief_text,
             }
             add_llm_run_log_entry(entry, int(settings["llm_run_log_size"]))
-            st.success("LLM-agent debrief generated.")
-            with st.expander("Representative synthetic agents used", expanded=False):
-                st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
+            st.success("LLM-agent simulation generated.")
 
-    if st.session_state["llm_agent_run_log"]:
-        st.markdown("**Latest LLM-agent debrief**")
-        st.write(st.session_state["llm_agent_run_log"][0]["debrief_text"])
+    latest_result = st.session_state.get("llm_agent_latest_result")
+    if latest_result:
+        st.subheader("LLM-agent simulation averages")
+        latest_run_results = latest_result["run_results"]
+        latest_district_results = latest_result["district_results"]
+        display_average_table(average_results_table(latest_run_results))
+        render_charts(latest_run_results, latest_district_results)
+
+        st.markdown("**Latest LLM-agent explanation**")
+        st.write(latest_result["debrief_text"])
+
+        representative_agents = latest_result.get("representative_agents", [])
+        if representative_agents:
+            with st.expander("Representative LLM synthetic agents used", expanded=False):
+                st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
+    else:
+        st.info("Run the LLM-agent simulation to generate metrics and charts for the current settings.")
 
     render_llm_run_log(int(settings["llm_run_log_size"]))
 
@@ -860,6 +1022,9 @@ def sidebar_inputs():
         settings["llm_display_population_size"] = st.sidebar.slider(
             "LLM display population size", 20, 300, 100, step=10
         )
+        settings["llm_simulation_runs"] = st.sidebar.slider(
+            "LLM synthetic runs", 3, 20, 8, step=1
+        )
         settings["llm_representative_agents"] = st.sidebar.slider(
             "LLM representative agents", 1, 3, 3, step=1
         )
@@ -869,6 +1034,7 @@ def sidebar_inputs():
         settings["llm_run_log_size"] = st.sidebar.slider("LLM run log size", 1, 10, 5, step=1)
     else:
         settings["llm_display_population_size"] = 100
+        settings["llm_simulation_runs"] = 8
         settings["llm_representative_agents"] = 3
         settings["llm_output_word_limit"] = 200
         settings["llm_run_log_size"] = 5
@@ -889,6 +1055,20 @@ def render_app():
     )
 
     settings = sidebar_inputs()
+    if settings["enable_llm_agent_mode"]:
+        render_llm_agent_section(settings)
+        latest_result = st.session_state.get("llm_agent_latest_result")
+        if latest_result:
+            csv_buffer = StringIO()
+            latest_result["run_results"].to_csv(csv_buffer, index=False)
+            st.download_button(
+                "Download LLM-agent results as CSV",
+                data=csv_buffer.getvalue(),
+                file_name="llm_agent_simulation_results.csv",
+                mime="text/csv",
+            )
+        return
+
     run_results, district_results = run_monte_carlo(
         int(settings["population_size"]),
         int(settings["monte_carlo_runs"]),
@@ -916,7 +1096,6 @@ def render_app():
         average_table,
         settings["bias_against_district_c"],
     )
-    render_llm_agent_section(settings, run_results)
 
     csv_buffer = StringIO()
     run_results.to_csv(csv_buffer, index=False)
