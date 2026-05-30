@@ -30,8 +30,8 @@ POLICY_DESCRIPTIONS = {
 }
 
 SETTING_DESCRIPTIONS = {
-    "Prediction error / noise": "How unreliable the risk signal is (0 = perfect, 0.35 = very noisy).",
-    "High-risk threshold": "Share of population flagged as high-risk (e.g. 0.25 = 25%).",
+    "Risk signal error rate (%)": "How often the prediction is wrong. 0% = perfect signal; 35% = highly unreliable.",
+    "Children flagged as high-risk (%)": "Share of the population identified by the risk signal. 25% = 250 of 1 000 children flagged.",
     "Intervention strength": "How intensively society acts on the prediction (Low / Medium / High).",
 }
 
@@ -1007,21 +1007,15 @@ def sidebar_inputs():
     settings = {
         "population_size": 1000,
         "prediction_noise": st.sidebar.slider(
-            "Prediction error / noise",
-            0.0,
-            0.35,
-            0.10,
-            step=0.01,
-            help=SETTING_DESCRIPTIONS["Prediction error / noise"],
-        ),
+            "Risk signal error rate (%)",
+            0, 35, 10, step=1,
+            help=SETTING_DESCRIPTIONS["Risk signal error rate (%)"],
+        ) / 100,
         "high_risk_threshold": st.sidebar.slider(
-            "High-risk threshold",
-            0.01,
-            0.70,
-            0.25,
-            step=0.01,
-            help=SETTING_DESCRIPTIONS["High-risk threshold"],
-        ),
+            "Children flagged as high-risk (%)",
+            1, 70, 25, step=1,
+            help=SETTING_DESCRIPTIONS["Children flagged as high-risk (%)"],
+        ) / 100,
         "bias_against_district_c": 0.0,
         "policy_effect_strength": st.sidebar.select_slider(
             "Intervention strength",
