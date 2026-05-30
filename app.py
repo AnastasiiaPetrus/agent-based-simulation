@@ -236,12 +236,7 @@ def glossary_markdown(items):
 
 
 def render_user_summary():
-    st.write(
-        "Synthetic population: **1 000 children**. "
-        "Adjust prediction error, the high-risk threshold, and policy effect strength in the sidebar, "
-        "then run the simulation. The app shows how many crimes each policy prevents, "
-        "how many children are incorrectly flagged, and how many are harmed. All results are synthetic."
-    )
+    pass
 
 
 def render_reference_guide():
@@ -821,11 +816,7 @@ def render_llm_agent_section(settings):
     initialize_llm_state()
     st.subheader("LLM-Agent Simulation")
     total_calls = len(settings["llm_agent_models"]) * len(POLICIES)
-    st.write(
-        "This mode runs one LLM call per selected model agent and per policy to generate run-level metrics, "
-        "district metrics, charts, and explanations. It remains a thought experiment, not a prediction system."
-        f" This run will make {total_calls} call(s)."
-    )
+    st.caption(f"One LLM call per policy — {total_calls} call(s) total.")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -1038,16 +1029,11 @@ def render_app():
 
     st.title("Predictive Justice Simulation")
     st.markdown(
-        "This is a synthetic thought experiment, not a real-world decision tool. "
-        "The simulation uses a life-course approach: an LLM first simulates individual developmental "
-        "trajectories for synthetic children aged 10–30, then derives aggregate metrics from those "
-        "trajectories. Outcomes emerge from modeled mechanisms — stigma, trust, opportunity, coercion — "
-        "not from assumed policy effectiveness. "
-        "The simulation shows consequences of different policies under explicit assumptions. "
-        "It does not decide what is morally permissible. "
-        "Prediction is not destiny. All agents, districts, risks, and outcomes are synthetic."
+        "A life-course simulation of three policy responses to an imperfect prediction of future violent crime. "
+        "An LLM simulates developmental trajectories for 1 000 synthetic children aged 10–30 and derives "
+        "outcomes from those trajectories — through mechanisms such as stigma, trust, opportunity, and coercion. "
+        "All agents and outcomes are synthetic."
     )
-    render_user_summary()
     render_reference_guide()
 
     settings = sidebar_inputs()
