@@ -20,22 +20,22 @@ POLICIES = [
 
 POLICY_DESCRIPTIONS = {
     "No action": (
-        "Baseline: no support, surveillance, coercion, cost, or intervention harm."
+        "Baseline with no intervention, cost, or harm."
     ),
     "Universal support": (
-        "Everyone receives non-punitive support; broad help, broad cost, no targeting."
+        "Support for everyone; broad help and broad cost."
     ),
     "Targeted support for high-risk children": (
-        "Only flagged children receive support; cheaper, but dependent on an imperfect flag."
+        "Support only for flagged children; cheaper but error-sensitive."
     ),
     "Surveillance of high-risk children": (
-        "Flagged children are monitored; may reduce crime, but adds privacy and stigma harm."
+        "Monitoring for flagged children; may reduce crime but adds harm."
     ),
     "Coercive preventive intervention for high-risk children": (
-        "Flagged children face restriction before any act; strongest reduction, highest harm."
+        "Restriction before any act; highest reduction and highest harm."
     ),
     "Rights-preserving targeted support": (
-        "Flagged children receive voluntary support with protections against stigma and coercion."
+        "Voluntary targeted support with stigma and coercion protections."
     ),
 }
 
@@ -66,11 +66,11 @@ RESULT_METRIC_DESCRIPTIONS = {
 }
 
 CHECK_DESCRIPTIONS = {
-    "Policy trade-off": "Does a policy reduce modeled crime, and at what cost or harm?",
-    "Prediction error": "How much do false positives and false negatives matter?",
-    "Unequal impact": "Does District C bias shift harm or errors unevenly?",
-    "Model agreement": "Do different LLM model agents produce similar conclusions?",
-    "Output validity": "Are all required runs, districts, and metrics present and non-negative?",
+    "Policy trade-off": "Crime reduction versus cost and harm.",
+    "Prediction error": "False positives and false negatives.",
+    "Unequal impact": "Whether District C receives more errors or harm.",
+    "Model agreement": "Whether selected models tell a similar story.",
+    "Output validity": "Required rows, districts, and non-negative metrics.",
 }
 
 DISTRICTS = ["A", "B", "C"]
@@ -195,8 +195,8 @@ def display_model_comparison_table(run_results):
 def glossary_markdown(items):
     lines = []
     for item, meaning in items.items():
-        lines.append(f"**{item}**  \n{meaning}")
-    return "\n\n".join(lines)
+        lines.append(f"- **{item}:** {meaning}")
+    return "\n".join(lines)
 
 
 def render_user_summary():
