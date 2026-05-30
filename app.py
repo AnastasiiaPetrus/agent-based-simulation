@@ -98,8 +98,6 @@ NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
 
 RUN_METRIC_LABELS = {
-    "baseline_crimes": "Modeled crimes before policy",
-    "crimes_after_policy": "Modeled crimes after policy",
     "crimes_prevented": "Modeled crimes prevented",
     "false_positives": "Children incorrectly flagged",
     "false_negatives": "Children missed by risk signal",
@@ -191,72 +189,46 @@ def display_policy_model_comparison_table(run_results):
 
 
 def combined_policy_totals_table(run_results):
-    metric_columns = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
-    total_metric_labels = {
-        "baseline_crimes": "Total modeled crimes before policy",
-        "crimes_after_policy": "Total modeled crimes after policy",
-        "crimes_prevented": "Total modeled crimes prevented",
-        "false_positives": "Total children incorrectly flagged",
-        "false_negatives": "Total children missed by risk signal",
-        "children_helped": "Total children receiving support",
-        "children_harmed": "Total children exposed to harmful intervention",
+    avg_metric_labels = {
+        "crimes_prevented": "Avg crimes prevented per run",
+        "false_positives": "Avg children incorrectly flagged",
+        "false_negatives": "Avg children missed by risk signal",
+        "children_helped": "Avg children receiving support",
+        "children_harmed": "Avg children exposed to harmful intervention",
     }
+    metric_columns = [column for column in avg_metric_labels if column in run_results.columns]
+    baseline_avg = run_results.groupby("policy")["baseline_crimes"].mean().rename("baseline_avg")
     table = (
-        run_results.groupby("policy", as_index=False)
-        .agg(
-            synthetic_rows=("run", "count"),
-            model_agents=("llm_model", "nunique"),
-            **{column: (column, "sum") for column in metric_columns},
-        )
+        run_results.groupby("policy", as_index=False)[metric_columns].mean(numeric_only=True)
     )
+    table = table.merge(baseline_avg, on="policy")
     table["policy_sort"] = table["policy"].map({policy: index for index, policy in enumerate(POLICY_ORDER)})
     table = table.sort_values("policy_sort").drop(columns="policy_sort")
-    baseline = table["baseline_crimes"].replace(0, np.nan)
-    table["crime_reduction_percent"] = (table["crimes_prevented"] / baseline) * 100
+    table["crime_reduction_pct"] = (table["crimes_prevented"] / table["baseline_avg"].replace(0, np.nan)) * 100
+    table = table.drop(columns="baseline_avg")
 
-    display_table = table.rename(
-        columns={
-            "policy": "Policy",
-            "synthetic_rows": "Synthetic model-runs included",
-            "model_agents": "Model agents included",
-            **total_metric_labels,
-            "crime_reduction_percent": "Modeled crime reduction (%)",
-        }
-    )
+    display_table = table.rename(columns={"policy": "Policy", "crime_reduction_pct": "Crime reduction (%)", **avg_metric_labels})
     ordered_columns = [
         "Policy",
-        "Model agents included",
-        "Synthetic model-runs included",
-        "Total modeled crimes before policy",
-        "Total modeled crimes after policy",
-        "Total modeled crimes prevented",
-        "Modeled crime reduction (%)",
-        "Total children incorrectly flagged",
-        "Total children missed by risk signal",
-        "Total children receiving support",
-        "Total children exposed to harmful intervention",
+        "Avg crimes prevented per run",
+        "Crime reduction (%)",
+        "Avg children incorrectly flagged",
+        "Avg children missed by risk signal",
+        "Avg children receiving support",
+        "Avg children exposed to harmful intervention",
     ]
-    display_table = display_table[[column for column in ordered_columns if column in display_table.columns]]
-
-    count_columns = [
-        "Total modeled crimes before policy",
-        "Total modeled crimes after policy",
-        "Total modeled crimes prevented",
-        "Total children incorrectly flagged",
-        "Total children missed by risk signal",
-        "Total children receiving support",
-        "Total children exposed to harmful intervention",
-    ]
-    for column in count_columns:
-        if column in display_table.columns:
+    display_table = display_table[[c for c in ordered_columns if c in display_table.columns]]
+    for column in display_table.columns:
+        if column == "Policy":
+            continue
+        if column == "Crime reduction (%)":
             display_table[column] = display_table[column].map(
-                lambda value: "Not applicable" if pd.isna(value) else f"{value:,.0f}"
+                lambda v: "N/A" if pd.isna(v) else f"{v:.1f}%"
             )
-    if "Modeled crime reduction (%)" in display_table.columns:
-        display_table["Modeled crime reduction (%)"] = display_table[
-            "Modeled crime reduction (%)"
-        ].map(lambda value: "Not applicable" if pd.isna(value) else f"{value:,.1f}%")
-
+        else:
+            display_table[column] = display_table[column].map(
+                lambda v: "N/A" if pd.isna(v) else f"{v:.1f}"
+            )
     return display_table
 
 
@@ -371,16 +343,6 @@ def render_charts(run_results, district_results):
             ),
             clear_figure=True,
         )
-        st.pyplot(
-            line_chart(
-                run_results,
-                "run",
-                "children_helped",
-                "Children receiving support by run",
-                "Children receiving support",
-            ),
-            clear_figure=True,
-        )
 
     with chart_right:
         st.pyplot(
@@ -393,6 +355,8 @@ def render_charts(run_results, district_results):
             ),
             clear_figure=True,
         )
+
+    if "children_harmed" in run_results.columns and run_results["children_harmed"].sum() > 0:
         st.pyplot(
             line_chart(
                 run_results,
@@ -403,71 +367,6 @@ def render_charts(run_results, district_results):
             ),
             clear_figure=True,
         )
-
-    district_summary = district_summary_table(district_results)
-
-    district_left, district_right = st.columns(2)
-    with district_left:
-        if "llm_model" in district_summary.columns and district_summary["llm_model"].nunique() > 1:
-            false_positive_chart = grouped_bar_chart(
-                district_summary,
-                "district",
-                "false_positives",
-                "llm_model",
-                "Average incorrectly flagged children by district and model",
-                "Children incorrectly flagged",
-            )
-        else:
-            false_positive_chart = bar_chart(
-                district_summary,
-                "district",
-                "false_positives",
-                "Average incorrectly flagged children by district",
-                "Children incorrectly flagged",
-            )
-        st.pyplot(false_positive_chart, clear_figure=True)
-
-    with district_right:
-        if "llm_model" in district_summary.columns and district_summary["llm_model"].nunique() > 1:
-            harm_chart = grouped_bar_chart(
-                district_summary,
-                "district",
-                "children_harmed",
-                "llm_model",
-                "Average children exposed by district and model",
-                "Children exposed",
-            )
-        else:
-            harm_chart = bar_chart(
-                district_summary,
-                "district",
-                "children_harmed",
-                "Average children exposed by district",
-                "Children exposed",
-            )
-        st.pyplot(harm_chart, clear_figure=True)
-
-    st.subheader("Average district outcomes")
-    district_display = district_summary.rename(
-        columns={
-            "llm_model": "Model",
-            "district": "District",
-            "false_positives": "Children incorrectly flagged",
-            "children_harmed": "Children exposed to harmful intervention",
-            "crimes": "Modeled crimes after policy",
-        }
-    )
-    st.dataframe(
-        district_display.style.format(
-            {
-                "Children incorrectly flagged": "{:.3f}",
-                "Children exposed to harmful intervention": "{:.3f}",
-                "Modeled crimes after policy": "{:.3f}",
-            }
-        ),
-        use_container_width=True,
-        hide_index=True,
-    )
 
 
 def render_interpretation(policy, average_table, bias_against_district_c):
