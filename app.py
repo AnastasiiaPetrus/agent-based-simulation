@@ -31,20 +31,17 @@ POLICY_DESCRIPTIONS = {
 
 SETTING_DESCRIPTIONS = {
     "Risk signal error rate (%)": "How often the prediction is wrong. 0% = perfect signal; 35% = highly unreliable.",
-    "Children flagged as high-risk (%)": "Share of the population identified by the risk signal. 25% = 250 of 1 000 children flagged.",
-    "Intervention strength": "How intensively society acts on the prediction (Low / Medium / High).",
+    "Children flagged as high-risk (%)": "Share of the 1 000 synthetic children identified by the risk signal. 25% = 250 children flagged.",
+    "Intervention strength": "How intensively the chosen policy is applied — scales the simulated effect on offenses, support reach, and harm.",
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Baseline criminal children": "Synthetic children whose simulated life trajectory leads to a violent offense with no intervention.",
-    "Modeled crimes prevented": "Baseline criminal children minus those remaining after the policy.",
-    "Crime reduction (%)": "Crimes prevented as a share of baseline criminal children.",
-    "Children incorrectly flagged": "Flagged children who would NOT have committed the offense — false positives.",
-    "Children missed by risk signal": "Unflagged children who WOULD have committed the offense — false negatives.",
-    "Children receiving support": "Children reached by voluntary support (targeted support policy only).",
-    "Children exposed to harmful intervention": (
-        "Children whose developmental trajectory is harmed by surveillance or coercive restriction."
-    ),
+    "Children who would offend (no intervention)": "Count of synthetic children whose simulated life trajectory leads to a violent offense when no policy is applied — the baseline against which all policies are compared.",
+    "Offenses prevented by policy": "Difference between baseline offenses and offenses remaining after the policy. Derived directly from the two counts above.",
+    "Children incorrectly flagged": "Flagged children who would NOT have committed the offense — false positives. They bear the cost of the policy without any benefit.",
+    "Children missed by risk signal": "Unflagged children who WOULD have committed the offense — false negatives. They receive no intervention regardless of policy.",
+    "Children receiving support": "Children reached by voluntary support. Non-zero only under the targeted support policy.",
+    "Children exposed to harmful intervention": "Children whose simulated trajectory is adversely affected by surveillance (stigma, trust loss) or coercive restriction (liberty, opportunity). Zero under targeted support.",
 }
 
 CHECK_DESCRIPTIONS = {
@@ -89,8 +86,8 @@ NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
 
 RUN_METRIC_LABELS = {
-    "baseline_crimes": "Baseline criminal children",
-    "crimes_prevented": "Modeled crimes prevented",
+    "baseline_crimes": "Children who would offend (no intervention)",
+    "crimes_prevented": "Offenses prevented by policy",
     "false_positives": "Children incorrectly flagged",
     "false_negatives": "Children missed by risk signal",
     "children_helped": "Children receiving support",
@@ -325,8 +322,8 @@ def render_charts(run_results, district_results):
                 run_results,
                 "run",
                 "crimes_prevented",
-                "Modeled crimes prevented by run",
-                "Modeled crimes prevented",
+                "Offenses prevented by run",
+                "Offenses prevented",
             ),
             clear_figure=True,
         )
@@ -358,7 +355,7 @@ def render_charts(run_results, district_results):
 
 def render_interpretation(policy, average_table, bias_against_district_c):
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
-    crimes_prevented = values.get("Modeled crimes prevented", 0.0)
+    crimes_prevented = values.get("Offenses prevented by policy", 0.0)
     false_positives = values.get("Children incorrectly flagged", 0.0)
     children_helped = values.get("Children receiving support", 0.0)
     children_harmed = values.get("Children exposed to harmful intervention", 0.0)
