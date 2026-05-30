@@ -36,22 +36,20 @@ SETTING_DESCRIPTIONS = {
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Synthetic population": "Fixed number of synthetic children in the scenario (1 000).",
-    "Baseline criminal children": "Synthetic children who would commit a violent offense with no intervention.",
+    "Baseline criminal children": "Synthetic children whose simulated life trajectory leads to a violent offense with no intervention.",
     "Modeled crimes prevented": "Baseline criminal children minus those remaining after the policy.",
     "Crime reduction (%)": "Crimes prevented as a share of baseline criminal children.",
     "Children incorrectly flagged": "Flagged children who would NOT have committed the offense — false positives.",
     "Children missed by risk signal": "Unflagged children who WOULD have committed the offense — false negatives.",
     "Children receiving support": "Children reached by voluntary support (targeted support policy only).",
     "Children exposed to harmful intervention": (
-        "Children exposed to surveillance or coercive restriction (surveillance and coercive policies)."
+        "Children whose developmental trajectory is harmed by surveillance or coercive restriction."
     ),
 }
 
 CHECK_DESCRIPTIONS = {
-    "Policy trade-off": "Crimes prevented vs. children incorrectly flagged and children harmed.",
-    "Prediction error": "How many false positives and false negatives the risk signal produces.",
-    "Output validity": "Required rows and non-negative metric values.",
+    "Policy trade-off": "Crimes prevented vs. children incorrectly flagged and children exposed to harm.",
+    "Prediction error": "False positives (flagged without basis) and false negatives (missed entirely).",
 }
 
 DISTRICTS = ["A", "B", "C"]
@@ -248,6 +246,13 @@ def render_user_summary():
 
 def render_reference_guide():
     with st.expander("Guide: policies, inputs, and metrics", expanded=False):
+        st.caption(
+            "The simulation uses a life-course approach: the LLM first simulates individual "
+            "developmental trajectories for synthetic children aged 10–30, then derives aggregate "
+            "metrics from those trajectories. Outcomes emerge from modeled mechanisms — stigma, "
+            "trust, opportunity, coercion — not from assumed policy effectiveness."
+        )
+
         st.markdown("### Policies compared")
         st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
@@ -257,7 +262,7 @@ def render_reference_guide():
         st.markdown("### Metrics")
         st.markdown(glossary_markdown(RESULT_METRIC_DESCRIPTIONS))
 
-        st.markdown("### What is checked")
+        st.markdown("### What is compared across policies")
         st.markdown(glossary_markdown(CHECK_DESCRIPTIONS))
 
 
