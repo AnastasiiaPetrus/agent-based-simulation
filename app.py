@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import datetime
-from hashlib import sha1
 from io import StringIO
 
 import matplotlib.pyplot as plt
@@ -202,8 +201,8 @@ def glossary_markdown(items):
 
 def render_user_summary():
     st.info(
-        "Choose a policy and assumptions in the sidebar, edit the simulation prompts if needed, "
-        "then run one or more LLM model agents. The app checks whether modeled crime changes, "
+        "Choose a policy and assumptions in the sidebar, then run one or more LLM model agents. "
+        "The app checks whether modeled crime changes, "
         "who is helped or harmed, how many prediction errors appear, and whether district outcomes "
         "become uneven. All results are synthetic."
     )
@@ -483,11 +482,6 @@ def compact_parameter_summary(settings):
         f"intervention_harm_level={settings['intervention_harm_level']}; "
         f"intervention_cost_level={settings['intervention_cost_level']}"
     )
-
-
-def stable_prompt_key(parameter_summary):
-    digest = sha1(parameter_summary.encode("utf-8")).hexdigest()[:12]
-    return f"llm_user_prompt_{digest}"
 
 
 def llm_assumptions(settings):
@@ -792,27 +786,12 @@ def render_llm_run_log(max_entries):
         mime="text/csv",
     )
 
-    for index, entry in enumerate(run_log):
+    for entry in run_log:
         title = f"{entry['timestamp']} | {entry['selected_policy']} | {entry['llm_model']}"
         with st.expander(title):
             st.write(entry["debrief_text"])
             st.caption(entry["parameter_summary"])
             st.json(entry["aggregate_metrics"])
-            with st.expander("Prompts used"):
-                st.text_area(
-                    "System prompt used",
-                    value=entry.get("system_prompt", ""),
-                    height=100,
-                    disabled=True,
-                    key=f"run_log_{index}_system_prompt",
-                )
-                st.text_area(
-                    "User prompt used",
-                    value=entry.get("user_prompt", ""),
-                    height=220,
-                    disabled=True,
-                    key=f"run_log_{index}_user_prompt",
-                )
 
 
 def friendly_llm_error(error):
@@ -847,37 +826,8 @@ def render_llm_agent_section(settings):
         st.warning("Select at least one LLM model agent in the sidebar.")
 
     parameter_summary = compact_parameter_summary(settings)
-    if "llm_system_prompt" not in st.session_state:
-        st.session_state["llm_system_prompt"] = DEFAULT_SYSTEM_PROMPT
-
-    default_user_prompt = build_llm_simulation_prompt(settings)
-    user_prompt_key = stable_prompt_key(parameter_summary)
-
-    with st.expander("Simulation prompts", expanded=True):
-        st.caption(
-            "You can edit these prompts, then run or rerun the simulation. "
-            "The user prompt is regenerated when the sidebar settings change."
-        )
-        prompt_reset_left, prompt_reset_right = st.columns(2)
-        with prompt_reset_left:
-            if st.button("Reset system prompt"):
-                st.session_state["llm_system_prompt"] = DEFAULT_SYSTEM_PROMPT
-                st.rerun()
-        with prompt_reset_right:
-            if st.button("Reset user prompt"):
-                st.session_state[user_prompt_key] = default_user_prompt
-                st.rerun()
-        system_prompt = st.text_area(
-            "System prompt",
-            key="llm_system_prompt",
-            height=110,
-        )
-        user_prompt = st.text_area(
-            "User prompt for the current settings",
-            value=default_user_prompt,
-            key=user_prompt_key,
-            height=360,
-        )
+    system_prompt = DEFAULT_SYSTEM_PROMPT
+    user_prompt = build_llm_simulation_prompt(settings)
 
     if st.button(
         "Run / rerun LLM-agent simulation",
@@ -951,8 +901,6 @@ def render_llm_agent_section(settings):
                 "model_results": model_results,
                 "representative_agents": all_representative_agents,
                 "debrief_text": debrief_text,
-                "system_prompt": system_prompt,
-                "user_prompt": user_prompt,
             }
 
             entry = {
@@ -963,8 +911,6 @@ def render_llm_agent_section(settings):
                 "llm_model": ", ".join(result["llm_model"] for result in model_results),
                 "aggregate_metrics": aggregate_metrics,
                 "debrief_text": debrief_text,
-                "system_prompt": system_prompt,
-                "user_prompt": user_prompt,
             }
             add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
             if model_errors:

@@ -6,7 +6,7 @@ The app is not a real-world decision tool. It does not use real crime data, pers
 
 ## What The App Does
 
-The app uses LLM model agents to generate compact synthetic simulations from the assumptions selected in the sidebar. Each selected model receives the same editable prompts and returns JSON containing:
+The app uses LLM model agents to generate compact synthetic simulations from the assumptions selected in the sidebar. Each selected model receives the same generated simulation prompt and returns JSON containing:
 
 - Run-level metrics
 - District-level metrics
@@ -72,21 +72,9 @@ By default, the app offers these OpenAI model agents:
 
 Each selected model agent makes one OpenAI API call when the user clicks **Run / rerun LLM-agent simulation**. Selecting more models increases API usage.
 
-## Editable Prompts
+## Internal Prompting
 
-The site shows the prompts inside the **Simulation prompts** expander. The user can edit them before running or rerunning the simulation.
-
-The app sends two prompts:
-
-### System Prompt
-
-```text
-You generate strict JSON for a synthetic, ethics-focused simulation. Never include markdown fences. Use English only. Do not claim to predict real people, assign guilt, or recommend punishment.
-```
-
-### User Prompt
-
-The user prompt is generated from the current sidebar settings. It asks the selected model agent to:
+The app generates the simulation prompt from the current sidebar settings. It asks each selected model agent to:
 
 - Generate a compact synthetic predictive-justice scenario.
 - Use English only.
@@ -115,9 +103,9 @@ The generated user prompt includes the current values for:
 - Intervention harm level
 - Intervention cost level
 
-When sidebar settings change, the user prompt is regenerated for the new settings.
+When sidebar settings change, the prompt is regenerated for the new settings.
 
-Even if the prompt is edited, the returned JSON must still contain the required keys and metric fields. Otherwise the app shows an error instead of drawing misleading charts.
+The returned JSON must contain the required keys and metric fields. Otherwise the app shows an error instead of drawing misleading charts.
 
 ## Policies
 
@@ -162,7 +150,7 @@ Flagged synthetic children receive voluntary, non-punitive support with extra pr
 - **Intervention harm level**: harm level for policies that create intervention harm.
 - **Intervention cost level**: cost level for policies that create intervention cost.
 - **LLM synthetic runs**: number of run rows requested from each model agent.
-- **LLM model agents**: OpenAI models that each run the same prompt independently.
+- **LLM model agents**: OpenAI models that each run the same generated prompt independently.
 - **LLM representative agents**: number of abstract synthetic example agents to request.
 
 ## Metrics
@@ -194,7 +182,7 @@ After a successful run, the app shows:
 - Per-model LLM explanations
 - Representative synthetic agents
 - CSV download for run-level results
-- In-session run log with prompts used
+- In-session run log
 
 The run log is stored only in the current Streamlit session and is limited to the latest five entries.
 
