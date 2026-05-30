@@ -10,34 +10,22 @@ import streamlit as st
 
 
 POLICIES = [
-    "No action",
-    "Universal support",
     "Targeted support for high-risk children",
     "Surveillance of high-risk children",
     "Coercive preventive intervention for high-risk children",
-    "Rights-preserving targeted support",
 ]
 
 POLICY_ORDER = list(POLICIES)
 
 POLICY_DESCRIPTIONS = {
-    "No action": (
-        "Baseline with no intervention, cost, or harm."
-    ),
-    "Universal support": (
-        "Support for everyone; broad help and broad cost."
-    ),
     "Targeted support for high-risk children": (
-        "Support only for flagged children; cheaper but error-sensitive."
+        "Voluntary support only for flagged children; error-sensitive."
     ),
     "Surveillance of high-risk children": (
-        "Monitoring for flagged children; may reduce crime but adds harm."
+        "Monitoring for flagged children; may reduce crime but exposes children to surveillance."
     ),
     "Coercive preventive intervention for high-risk children": (
-        "Restriction before any act; highest reduction and highest harm."
-    ),
-    "Rights-preserving targeted support": (
-        "Voluntary targeted support with stigma and coercion protections."
+        "Restriction before any act; highest harm and cost."
     ),
 }
 
@@ -46,31 +34,30 @@ SETTING_DESCRIPTIONS = {
     "Prediction error / noise": "How unreliable the risk signal is.",
     "High-risk threshold": "Cutoff for labeling a child high-risk.",
     "Bias against District C": "Extra risk pressure used to test unequal impact.",
-    "Policy effect strength": "How strongly the policy may change outcomes.",
-    "Intervention harm level": "How harmful an intervention is.",
-    "Intervention cost level": "How expensive a policy is.",
+    "Policy effect strength": "Scenario assumption for how strongly a policy may change modeled crime.",
     "LLM synthetic runs": "How many scenario rows each model generates.",
     "LLM model agents": "Which models run the same simulation prompt.",
     "LLM representative agents": "How many abstract example agents to show.",
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Baseline crimes": "Crimes before the policy.",
-    "Crimes after policy": "Crimes remaining after the policy.",
-    "Crimes prevented": "Baseline crimes minus crimes after policy.",
-    "False positives": "Flagged children who would not have committed the modeled offense.",
-    "False negatives": "Unflagged children who would have committed the modeled offense.",
-    "Children helped": "Children receiving support.",
-    "Children harmed": "Children receiving modeled intervention harm.",
-    "Total harm": "Aggregate harm created by the policy.",
-    "Total cost": "Aggregate cost created by the policy.",
-    "District metrics": "False positives, harm, and crimes by abstract district.",
+    "Modeled crimes before policy": "Synthetic baseline crimes before a policy is applied.",
+    "Modeled crimes after policy": "Synthetic crimes remaining after the policy.",
+    "Modeled crimes prevented": "Before-policy crimes minus after-policy crimes.",
+    "Modeled crime reduction (%)": "Prevented crimes as a percentage of before-policy crimes.",
+    "Children incorrectly flagged": "Flagged children who would not have committed the modeled offense.",
+    "Children missed by risk signal": "Unflagged children who would have committed the modeled offense.",
+    "Children receiving support": "Children receiving voluntary support.",
+    "Children exposed to harmful intervention": (
+        "Children exposed to surveillance, coercion, or residual stigma in the scenario."
+    ),
+    "District metrics": "Incorrect flags, harmful exposure, and modeled crimes by abstract district.",
 }
 
 CHECK_DESCRIPTIONS = {
-    "Policy trade-off": "Crime reduction versus cost and harm.",
+    "Policy trade-off": "Crime reduction, support reach, and children exposed to harmful intervention.",
     "Prediction error": "False positives and false negatives.",
-    "Unequal impact": "Whether District C receives more errors or harm.",
+    "Unequal impact": "Whether District C receives more errors or harmful exposure.",
     "Model agreement": "Whether selected models tell a similar story.",
     "Output validity": "Required rows, districts, and non-negative metrics.",
 }
@@ -95,10 +82,8 @@ RUN_METRIC_COLUMNS = [
     "false_negatives",
     "children_helped",
     "children_harmed",
-    "total_harm",
-    "total_cost",
 ]
-DISTRICT_METRIC_COLUMNS = ["run", "district", "false_positives", "harm", "crimes"]
+DISTRICT_METRIC_COLUMNS = ["run", "district", "false_positives", "children_harmed", "crimes"]
 RUN_COUNT_COLUMNS = [
     "baseline_crimes",
     "crimes_after_policy",
@@ -108,11 +93,19 @@ RUN_COUNT_COLUMNS = [
     "children_helped",
     "children_harmed",
 ]
-RUN_TOTAL_COLUMNS = ["total_harm", "total_cost"]
-DISTRICT_COUNT_COLUMNS = ["false_positives", "crimes"]
-DISTRICT_TOTAL_COLUMNS = ["harm"]
-NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS + RUN_TOTAL_COLUMNS
-NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS + DISTRICT_TOTAL_COLUMNS
+DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
+NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
+NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
+
+RUN_METRIC_LABELS = {
+    "baseline_crimes": "Modeled crimes before policy",
+    "crimes_after_policy": "Modeled crimes after policy",
+    "crimes_prevented": "Modeled crimes prevented",
+    "false_positives": "Children incorrectly flagged",
+    "false_negatives": "Children missed by risk signal",
+    "children_helped": "Children receiving support",
+    "children_harmed": "Children exposed to harmful intervention",
+}
 
 
 def unique_values(values):
@@ -135,22 +128,10 @@ def default_llm_agent_models(model_options):
 
 
 def average_results_table(run_results):
-    display_names = {
-        "baseline_crimes": "Baseline crimes",
-        "crimes_after_policy": "Crimes after policy",
-        "crimes_prevented": "Crimes prevented",
-        "false_positives": "False positives",
-        "false_negatives": "False negatives",
-        "children_helped": "Children helped",
-        "children_harmed": "Children harmed",
-        "total_harm": "Total harm",
-        "total_cost": "Total cost",
-    }
-
-    metric_order = [column for column in display_names if column in run_results.columns]
+    metric_order = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
     averages = run_results[metric_order].mean(numeric_only=True)
-    table = averages.rename(index=display_names).reset_index()
-    table.columns = ["Metric", "Average across runs"]
+    table = averages.rename(index=RUN_METRIC_LABELS).reset_index()
+    table.columns = ["Metric", "Average per synthetic run"]
     return table
 
 
@@ -162,25 +143,14 @@ def display_average_table(average_table):
             return "Not applicable"
         return f"{value:,.3f}"
 
-    display_table["Average across runs"] = display_table["Average across runs"].map(format_value)
+    display_table["Average per synthetic run"] = display_table["Average per synthetic run"].map(format_value)
     st.dataframe(display_table, use_container_width=True, hide_index=True)
 
 
 def model_comparison_table(run_results):
-    metric_names = {
-        "baseline_crimes": "Baseline crimes",
-        "crimes_after_policy": "Crimes after policy",
-        "crimes_prevented": "Crimes prevented",
-        "false_positives": "False positives",
-        "false_negatives": "False negatives",
-        "children_helped": "Children helped",
-        "children_harmed": "Children harmed",
-        "total_harm": "Total harm",
-        "total_cost": "Total cost",
-    }
-    metric_order = [column for column in metric_names if column in run_results.columns]
+    metric_order = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
     grouped = run_results.groupby("llm_model")[metric_order].mean(numeric_only=True).T
-    table = grouped.rename(index=metric_names).reset_index().rename(columns={"index": "Metric"})
+    table = grouped.rename(index=RUN_METRIC_LABELS).reset_index().rename(columns={"index": "Metric"})
 
     for column in table.columns:
         if column != "Metric":
@@ -195,35 +165,18 @@ def display_model_comparison_table(run_results):
     st.dataframe(model_comparison_table(run_results), use_container_width=True, hide_index=True)
 
 def policy_model_comparison_table(run_results):
-    metric_columns = [
-        "baseline_crimes",
-        "crimes_after_policy",
-        "crimes_prevented",
-        "false_positives",
-        "false_negatives",
-        "children_helped",
-        "children_harmed",
-        "total_harm",
-        "total_cost",
-    ]
+    metric_columns = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
     table = (
         run_results.groupby(["policy", "llm_model"], as_index=False)[metric_columns]
         .mean(numeric_only=True)
-        .sort_values(["policy", "llm_model"])
     )
+    table["policy_sort"] = table["policy"].map({policy: index for index, policy in enumerate(POLICY_ORDER)})
+    table = table.sort_values(["policy_sort", "llm_model"]).drop(columns="policy_sort")
     table = table.rename(
         columns={
             "policy": "Policy",
             "llm_model": "Model",
-            "baseline_crimes": "Baseline crimes",
-            "crimes_after_policy": "Crimes after policy",
-            "crimes_prevented": "Crimes prevented",
-            "false_positives": "False positives",
-            "false_negatives": "False negatives",
-            "children_helped": "Children helped",
-            "children_harmed": "Children harmed",
-            "total_harm": "Total harm",
-            "total_cost": "Total cost",
+            **RUN_METRIC_LABELS,
         }
     )
     for column in table.columns:
@@ -235,6 +188,80 @@ def policy_model_comparison_table(run_results):
 
 def display_policy_model_comparison_table(run_results):
     st.dataframe(policy_model_comparison_table(run_results), use_container_width=True, hide_index=True)
+
+
+def combined_policy_totals_table(run_results):
+    metric_columns = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
+    total_metric_labels = {
+        "baseline_crimes": "Total modeled crimes before policy",
+        "crimes_after_policy": "Total modeled crimes after policy",
+        "crimes_prevented": "Total modeled crimes prevented",
+        "false_positives": "Total children incorrectly flagged",
+        "false_negatives": "Total children missed by risk signal",
+        "children_helped": "Total children receiving support",
+        "children_harmed": "Total children exposed to harmful intervention",
+    }
+    table = (
+        run_results.groupby("policy", as_index=False)
+        .agg(
+            synthetic_rows=("run", "count"),
+            model_agents=("llm_model", "nunique"),
+            **{column: (column, "sum") for column in metric_columns},
+        )
+    )
+    table["policy_sort"] = table["policy"].map({policy: index for index, policy in enumerate(POLICY_ORDER)})
+    table = table.sort_values("policy_sort").drop(columns="policy_sort")
+    baseline = table["baseline_crimes"].replace(0, np.nan)
+    table["crime_reduction_percent"] = (table["crimes_prevented"] / baseline) * 100
+
+    display_table = table.rename(
+        columns={
+            "policy": "Policy",
+            "synthetic_rows": "Synthetic model-runs included",
+            "model_agents": "Model agents included",
+            **total_metric_labels,
+            "crime_reduction_percent": "Modeled crime reduction (%)",
+        }
+    )
+    ordered_columns = [
+        "Policy",
+        "Model agents included",
+        "Synthetic model-runs included",
+        "Total modeled crimes before policy",
+        "Total modeled crimes after policy",
+        "Total modeled crimes prevented",
+        "Modeled crime reduction (%)",
+        "Total children incorrectly flagged",
+        "Total children missed by risk signal",
+        "Total children receiving support",
+        "Total children exposed to harmful intervention",
+    ]
+    display_table = display_table[[column for column in ordered_columns if column in display_table.columns]]
+
+    count_columns = [
+        "Total modeled crimes before policy",
+        "Total modeled crimes after policy",
+        "Total modeled crimes prevented",
+        "Total children incorrectly flagged",
+        "Total children missed by risk signal",
+        "Total children receiving support",
+        "Total children exposed to harmful intervention",
+    ]
+    for column in count_columns:
+        if column in display_table.columns:
+            display_table[column] = display_table[column].map(
+                lambda value: "Not applicable" if pd.isna(value) else f"{value:,.0f}"
+            )
+    if "Modeled crime reduction (%)" in display_table.columns:
+        display_table["Modeled crime reduction (%)"] = display_table[
+            "Modeled crime reduction (%)"
+        ].map(lambda value: "Not applicable" if pd.isna(value) else f"{value:,.1f}%")
+
+    return display_table
+
+
+def display_combined_policy_totals_table(run_results):
+    st.dataframe(combined_policy_totals_table(run_results), use_container_width=True, hide_index=True)
 
 
 def glossary_markdown(items):
@@ -323,7 +350,7 @@ def district_summary_table(district_results):
         district_results.groupby(group_columns, as_index=False)
         .agg(
             false_positives=("false_positives", "mean"),
-            harm=("harm", "mean"),
+            children_harmed=("children_harmed", "mean"),
             crimes=("crimes", "mean"),
         )
         .sort_values(group_columns)
@@ -339,13 +366,19 @@ def render_charts(run_results, district_results):
                 run_results,
                 "run",
                 "crimes_prevented",
-                "Crimes prevented by run",
-                "Crimes prevented",
+                "Modeled crimes prevented by run",
+                "Modeled crimes prevented",
             ),
             clear_figure=True,
         )
         st.pyplot(
-            line_chart(run_results, "run", "total_harm", "Total harm by run", "Total harm"),
+            line_chart(
+                run_results,
+                "run",
+                "children_helped",
+                "Children receiving support by run",
+                "Children receiving support",
+            ),
             clear_figure=True,
         )
 
@@ -355,8 +388,8 @@ def render_charts(run_results, district_results):
                 run_results,
                 "run",
                 "false_positives",
-                "False positives by run",
-                "False positives",
+                "Incorrectly flagged children by run",
+                "Children incorrectly flagged",
             ),
             clear_figure=True,
         )
@@ -364,9 +397,9 @@ def render_charts(run_results, district_results):
             line_chart(
                 run_results,
                 "run",
-                "total_cost",
-                "Total cost by run",
-                "Total cost",
+                "children_harmed",
+                "Children exposed to harmful intervention by run",
+                "Children exposed",
             ),
             clear_figure=True,
         )
@@ -381,16 +414,16 @@ def render_charts(run_results, district_results):
                 "district",
                 "false_positives",
                 "llm_model",
-                "Average false positives by district and model",
-                "False positives",
+                "Average incorrectly flagged children by district and model",
+                "Children incorrectly flagged",
             )
         else:
             false_positive_chart = bar_chart(
                 district_summary,
                 "district",
                 "false_positives",
-                "Average false positives by district",
-                "False positives",
+                "Average incorrectly flagged children by district",
+                "Children incorrectly flagged",
             )
         st.pyplot(false_positive_chart, clear_figure=True)
 
@@ -399,18 +432,18 @@ def render_charts(run_results, district_results):
             harm_chart = grouped_bar_chart(
                 district_summary,
                 "district",
-                "harm",
+                "children_harmed",
                 "llm_model",
-                "Average harm by district and model",
-                "Intervention harm",
+                "Average children exposed by district and model",
+                "Children exposed",
             )
         else:
             harm_chart = bar_chart(
                 district_summary,
                 "district",
-                "harm",
-                "Average harm by district",
-                "Intervention harm",
+                "children_harmed",
+                "Average children exposed by district",
+                "Children exposed",
             )
         st.pyplot(harm_chart, clear_figure=True)
 
@@ -419,17 +452,17 @@ def render_charts(run_results, district_results):
         columns={
             "llm_model": "Model",
             "district": "District",
-            "false_positives": "False positives",
-            "harm": "Harm",
-            "crimes": "Crimes after policy",
+            "false_positives": "Children incorrectly flagged",
+            "children_harmed": "Children exposed to harmful intervention",
+            "crimes": "Modeled crimes after policy",
         }
     )
     st.dataframe(
         district_display.style.format(
             {
-                "False positives": "{:.3f}",
-                "Harm": "{:.3f}",
-                "Crimes after policy": "{:.3f}",
+                "Children incorrectly flagged": "{:.3f}",
+                "Children exposed to harmful intervention": "{:.3f}",
+                "Modeled crimes after policy": "{:.3f}",
             }
         ),
         use_container_width=True,
@@ -438,11 +471,11 @@ def render_charts(run_results, district_results):
 
 
 def render_interpretation(policy, average_table, bias_against_district_c):
-    values = dict(zip(average_table["Metric"], average_table["Average across runs"]))
-    crimes_prevented = values.get("Crimes prevented", 0.0)
-    false_positives = values.get("False positives", 0.0)
-    total_harm = values.get("Total harm", 0.0)
-    total_cost = values.get("Total cost", 0.0)
+    values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
+    crimes_prevented = values.get("Modeled crimes prevented", 0.0)
+    false_positives = values.get("Children incorrectly flagged", 0.0)
+    children_helped = values.get("Children receiving support", 0.0)
+    children_harmed = values.get("Children exposed to harmful intervention", 0.0)
 
     st.subheader("Interpretation")
     st.write(
@@ -452,35 +485,28 @@ def render_interpretation(policy, average_table, bias_against_district_c):
 
     if policy == "Coercive preventive intervention for high-risk children":
         st.warning(
-            "Any modeled crime reduction under this policy is achieved by imposing high harm on children. "
+            "Any modeled crime reduction under this policy comes with coercive restriction before any act. "
             f"The model flags an average of {false_positives:.1f} children per run who would not have "
-            "committed the modeled offense in the baseline outcome."
+            "committed the modeled offense in the baseline outcome, and "
+            f"{children_harmed:.1f} children are counted as harmed by the intervention."
         )
-    elif policy in [
-        "Universal support",
-        "Targeted support for high-risk children",
-        "Rights-preserving targeted support",
-    ]:
+    elif policy == "Targeted support for high-risk children":
         st.info(
             f"This support-oriented policy prevents an average of {crimes_prevented:.1f} crimes per run "
-            f"under the selected assumptions, with an average total cost of {total_cost:.1f}. "
-            "The trade-off is between broader help, narrower targeting, cost, and prediction error."
+            f"under the selected assumptions and reaches {children_helped:.1f} children. "
+            "Resource burden is intentionally not shown as a numeric score because it would depend on real "
+            "program design, prices, institutions, and local context."
         )
     elif policy == "Surveillance of high-risk children":
         st.warning(
-            f"Surveillance adds an average total harm of {total_harm:.1f} while relying on imperfect "
-            "classification. False positives matter because flagged children may be harmed even when the "
-            "baseline outcome would not include a crime."
-        )
-    else:
-        st.info(
-            "No action is the baseline comparison. It avoids intervention harm and cost, but it also "
-            "does not reduce modeled crime risk."
+            f"Surveillance counts {children_harmed:.1f} children per run as harmed by monitoring while "
+            "relying on imperfect classification. False positives matter because flagged children may be "
+            "monitored even when the baseline outcome would not include a crime."
         )
 
     if bias_against_district_c >= 0.05:
         st.warning(
-            "The selected bias against District C can create uneven false positives and harm. "
+            "The selected bias against District C can create uneven false positives and harmful exposure. "
             "Districts A, B, and C are abstract labels, so this illustrates structural sensitivity rather "
             "than any claim about real people or places."
         )
@@ -508,8 +534,6 @@ def compact_aggregate_metrics(run_results):
         "false_negatives",
         "children_helped",
         "children_harmed",
-        "total_harm",
-        "total_cost",
     ]
     averages = run_results[metric_columns].mean(numeric_only=True)
     return {column: metric_value(averages[column]) for column in metric_columns}
@@ -523,9 +547,7 @@ def compact_parameter_summary(settings):
         f"prediction_noise={settings['prediction_noise']:.2f}; "
         f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
         f"bias_against_district_c={settings['bias_against_district_c']:.2f}; "
-        f"policy_effect_strength={settings['policy_effect_strength']}; "
-        f"intervention_harm_level={settings['intervention_harm_level']}; "
-        f"intervention_cost_level={settings['intervention_cost_level']}"
+        f"policy_effect_strength={settings['policy_effect_strength']}"
     )
 
 
@@ -535,25 +557,11 @@ def llm_assumptions(settings):
         "high_risk_threshold": metric_value(settings["high_risk_threshold"]),
         "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
         "policy_effect_strength": settings["policy_effect_strength"],
-        "intervention_harm_level": settings["intervention_harm_level"],
-        "intervention_cost_level": settings["intervention_cost_level"],
     }
 
 
 def policy_uses_effect(policy):
-    return policy != "No action"
-
-
-def policy_uses_harm(policy):
-    return policy in [
-        "Surveillance of high-risk children",
-        "Coercive preventive intervention for high-risk children",
-        "Rights-preserving targeted support",
-    ]
-
-
-def policy_uses_cost(policy):
-    return policy != "No action"
+    return True
 
 
 def build_llm_simulation_prompt(settings):
@@ -590,35 +598,21 @@ def build_llm_simulation_prompt(settings):
         "- Districts A, B, and C are abstract labels; they are not demographic groups, neighborhoods, "
         "protected classes, or proxies for real places.\n\n"
         "Policy definitions and required metric behavior:\n"
-        "- No action: The society takes no action on the prediction. This is the pure baseline. "
-        "crimes_after_policy equals baseline_crimes. crimes_prevented, false_positives, false_negatives, "
-        "children_helped, children_harmed, total_harm, and total_cost must all be exactly 0.\n\n"
-        "- Universal support: Every synthetic child receives voluntary, non-punitive developmental support "
-        "regardless of flag status. children_helped is approximately equal to population_size. "
-        "children_harmed is 0 (support causes no direct harm). Crime reduction is spread across the "
-        "whole population and is not dependent on flagging accuracy. total_cost is high because all "
-        "children are covered. false_positives and false_negatives still exist as prediction errors "
-        "but do not determine who gets help.\n\n"
         "- Targeted support for high-risk children: Only flagged synthetic children receive voluntary "
         "support. children_helped is approximately high_risk_threshold × population_size. "
         "children_harmed is 0. Crime reduction depends on flagging accuracy: false positives receive "
-        "unnecessary support, false negatives receive none. total_cost is lower than universal support.\n\n"
+        "unnecessary support, false negatives receive none. Do not output a numeric cost score.\n\n"
         "- Surveillance of high-risk children: Flagged synthetic children are monitored without consent. "
         "This is monitoring, not support. children_helped is 0. children_harmed is greater than 0 because "
         "surveillance causes stigma and privacy harm. Crime reduction is modest: surveillance may deter "
-        "or detect but does not address underlying causes. total_harm reflects harm per monitored child. "
-        "False positives are flagged children subjected to surveillance without basis.\n\n"
+        "or detect but does not address underlying causes. False positives are flagged children subjected "
+        "to surveillance without basis. Do not output a numeric harm score.\n\n"
         "- Coercive preventive intervention for high-risk children: Flagged synthetic children face "
         "state-imposed restrictions before committing any act (e.g., mandatory programs, movement limits, "
         "or institutional placement). This is preventive restriction of liberty. children_helped is 0. "
-        "children_harmed is high because each coerced child suffers restriction of freedom. total_harm is "
-        "the highest among all policies. Crime reduction may be the strongest, but harm and cost are also "
-        "highest. False positives are children coerced without basis.\n\n"
-        "- Rights-preserving targeted support: Flagged synthetic children receive voluntary targeted "
-        "support with explicit protections against stigma and coercion built into the program design. "
-        "children_helped is approximately high_risk_threshold × population_size. children_harmed is "
-        "small (residual stigma from being flagged, not from the support itself). Crime reduction is "
-        "similar to targeted support. total_harm is low.\n\n"
+        "children_harmed is high because each coerced child suffers restriction of freedom. Crime reduction "
+        "may be the strongest among the three policies. False positives are children coerced without basis. "
+        "Do not output a numeric harm or cost score.\n\n"
         "How to translate parameters into numbers:\n"
         "- population_size: total synthetic children; all counts are fractions of this.\n"
         "- high_risk_threshold (0.01–0.70): share of population flagged. At 0.25, roughly 25% are flagged "
@@ -628,15 +622,14 @@ def build_llm_simulation_prompt(settings):
         "- policy_effect_strength (Low/Medium/High/None): scales crimes_prevented among those reached. "
         "Approximate share of baseline_crimes prevented — Low ≈ 5%, Medium ≈ 15%, High ≈ 25–30%. "
         "None means 0 crimes prevented.\n"
-        "- intervention_harm_level (Low/Medium/High/None): scales total_harm and children_harmed per "
-        "exposed child. Low = minor stigma; High = substantial restriction harm. None = 0.\n"
-        "- intervention_cost_level (Low/Medium/High/None): scales total_cost per child covered. None = 0.\n"
-        "- bias_against_district_c (0.0–0.30): inflates false_positives and harm in District C by "
+        "- bias_against_district_c (0.0–0.30): inflates false_positives and children_harmed in District C by "
         "approximately this fraction above the baseline rate. Districts A and B remain comparable.\n\n"
         "Metric constraints:\n"
         "- All counts must be non-negative integers; no count may exceed population_size.\n"
         "- crimes_prevented must equal baseline_crimes minus crimes_after_policy.\n"
         "- children_helped and children_harmed are separate; a child cannot be both in the same scenario.\n"
+        "- Do not include total_harm, total_cost, dollar values, utility scores, welfare scores, or any other "
+        "aggregate harm/cost scale. These are deliberately omitted because they would be falsely precise.\n"
         "- Across runs, vary numbers by small random amounts (roughly ±5–10%) to model natural variation. "
         "Do not change the qualitative pattern run-to-run.\n\n"
         "Fairness:\n"
@@ -649,13 +642,14 @@ def build_llm_simulation_prompt(settings):
         "- run_results: one object per run, every field in required_run_metric_columns, numeric values only, "
         "no extra fields.\n"
         "- district_results: one row per run per district with fields run, district, false_positives, "
-        "harm, crimes (crimes = crimes after policy is applied in that district).\n"
+        "children_harmed, crimes (crimes = crimes after policy is applied in that district).\n"
         "- representative_agents: abstract synthetic children only; no names, no protected attributes, "
         "no diagnoses, no family details, no real-world identifiers.\n"
         f"- debrief_text: no more than {DEFAULT_DEBRIEF_WORD_LIMIT} words covering exactly: "
         "(1) average crimes prevented, (2) false positives and what they mean for the flagged children, "
-        "(3) total harm and cost, (4) the trade-off between harm and crime reduction, "
-        "and (5) District C differences if bias_against_district_c is greater than 0. "
+        "(3) children helped and children harmed, (4) the trade-off between crime reduction and exposing "
+        "children to support, surveillance, or coercion, and (5) District C differences if "
+        "bias_against_district_c is greater than 0. "
         "Do not declare any policy morally correct or incorrect.\n\n"
         f"Simulation request:\n{json.dumps(prompt_payload, indent=2)}"
     )
@@ -718,7 +712,7 @@ def clean_llm_district_results(raw_rows):
                 "run": row.get("run"),
                 "district": district,
                 "false_positives": row.get("false_positives"),
-                "harm": row.get("harm"),
+                "children_harmed": row.get("children_harmed"),
                 "crimes": row.get("crimes"),
             }
         )
@@ -726,7 +720,7 @@ def clean_llm_district_results(raw_rows):
     district_results = pd.DataFrame(rows)
     if district_results.empty:
         return pd.DataFrame(columns=DISTRICT_METRIC_COLUMNS)
-    for column in ["run", "false_positives", "harm", "crimes"]:
+    for column in ["run", "false_positives", "children_harmed", "crimes"]:
         district_results[column] = pd.to_numeric(district_results[column], errors="coerce")
     district_results["run"] = district_results["run"].astype("Int64")
     return district_results
@@ -771,12 +765,10 @@ def normalize_llm_metrics(run_results, district_results, settings):
         lower=0,
         upper=population_size,
     )
-    run_results[RUN_TOTAL_COLUMNS] = run_results[RUN_TOTAL_COLUMNS].clip(lower=0)
     district_results[DISTRICT_COUNT_COLUMNS] = district_results[DISTRICT_COUNT_COLUMNS].clip(
         lower=0,
         upper=population_size,
     )
-    district_results[DISTRICT_TOTAL_COLUMNS] = district_results[DISTRICT_TOTAL_COLUMNS].clip(lower=0)
 
     run_results["crimes_after_policy"] = np.minimum(
         run_results["crimes_after_policy"],
@@ -791,18 +783,14 @@ def normalize_llm_metrics(run_results, district_results, settings):
         run_results["crimes_prevented"] = 0
         run_results["children_helped"] = 0
         run_results["children_harmed"] = 0
-        run_results["total_harm"] = 0
-        run_results["total_cost"] = 0
-        district_results["harm"] = 0
+        district_results["children_harmed"] = 0
     elif policy == "Universal support":
         run_results["children_helped"] = population_size
         run_results["children_harmed"] = 0
-        run_results["total_harm"] = 0
-        district_results["harm"] = 0
+        district_results["children_harmed"] = 0
     elif policy == "Targeted support for high-risk children":
         run_results["children_harmed"] = 0
-        run_results["total_harm"] = 0
-        district_results["harm"] = 0
+        district_results["children_harmed"] = 0
 
     return run_results, district_results
 
@@ -877,8 +865,6 @@ def render_llm_run_log(max_entries):
                 "false_negatives": metrics.get("false_negatives"),
                 "children_helped": metrics.get("children_helped"),
                 "children_harmed": metrics.get("children_harmed"),
-                "total_harm": metrics.get("total_harm"),
-                "total_cost": metrics.get("total_cost"),
                 "debrief_text": entry["debrief_text"],
             }
         )
@@ -898,6 +884,19 @@ def render_llm_run_log(max_entries):
             st.write(entry["debrief_text"])
             st.caption(entry["parameter_summary"])
             st.json(entry["aggregate_metrics"])
+
+
+def latest_result_has_current_schema(latest_result):
+    run_results = latest_result.get("run_results")
+    district_results = latest_result.get("district_results")
+    if run_results is None or district_results is None:
+        return False
+
+    required_run_columns = set(RUN_METRIC_COLUMNS + ["policy", "llm_model"])
+    required_district_columns = set(DISTRICT_METRIC_COLUMNS + ["policy", "llm_model"])
+    return required_run_columns.issubset(run_results.columns) and required_district_columns.issubset(
+        district_results.columns
+    )
 
 
 def friendly_llm_error(error):
@@ -949,10 +948,6 @@ def render_llm_agent_section(settings):
                     policy_settings["policy"] = policy
                     if not policy_uses_effect(policy):
                         policy_settings["policy_effect_strength"] = "None"
-                    if not policy_uses_harm(policy):
-                        policy_settings["intervention_harm_level"] = "None"
-                    if not policy_uses_cost(policy):
-                        policy_settings["intervention_cost_level"] = "None"
 
                     user_prompt = build_llm_simulation_prompt(policy_settings)
                     try:
@@ -1039,11 +1034,23 @@ def render_llm_agent_section(settings):
                 st.success("LLM-agent simulation generated.")
 
     latest_result = st.session_state.get("llm_agent_latest_result")
+    if latest_result and not latest_result_has_current_schema(latest_result):
+        st.session_state.pop("llm_agent_latest_result", None)
+        latest_result = None
+        st.info("Previous in-session results used an older metric schema. Run the simulation again.")
+
     if latest_result:
         latest_run_results = latest_result["run_results"]
         latest_district_results = latest_result["district_results"]
 
-        st.subheader("Policy comparison (by model)")
+        st.subheader("Combined totals across selected model agents")
+        st.caption(
+            "These totals sum all selected model agents and all synthetic runs. They are useful for "
+            "side-by-side comparison, not real-world population estimates."
+        )
+        display_combined_policy_totals_table(latest_run_results)
+
+        st.subheader("Policy comparison (average per model agent)")
         display_policy_model_comparison_table(latest_run_results)
 
         policy_tabs = st.tabs(POLICY_ORDER)
@@ -1133,18 +1140,6 @@ def sidebar_inputs():
         value="Medium",
         help=SETTING_DESCRIPTIONS["Policy effect strength"],
     )
-    settings["intervention_harm_level"] = st.sidebar.select_slider(
-        "Intervention harm level",
-        options=["Low", "Medium", "High"],
-        value="Medium",
-        help=SETTING_DESCRIPTIONS["Intervention harm level"],
-    )
-    settings["intervention_cost_level"] = st.sidebar.select_slider(
-        "Intervention cost level",
-        options=["Low", "Medium", "High"],
-        value="Medium",
-        help=SETTING_DESCRIPTIONS["Intervention cost level"],
-    )
 
     st.sidebar.subheader("LLM-agent settings")
     settings["llm_simulation_runs"] = st.sidebar.slider(
@@ -1162,7 +1157,7 @@ def sidebar_inputs():
         default=default_llm_agent_models(model_options),
         help=SETTING_DESCRIPTIONS["LLM model agents"],
     )
-    st.sidebar.caption("Each selected model makes one OpenAI API call when you run the simulation.")
+    st.sidebar.caption("Each selected model makes one OpenAI API call per policy when you run the simulation.")
     settings["llm_representative_agents"] = st.sidebar.slider(
         "LLM representative agents",
         1,
