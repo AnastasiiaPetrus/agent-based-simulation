@@ -100,7 +100,8 @@ def display_average_table(average_table):
 
 def line_chart(data, x_column, y_column, title, y_label):
     fig, ax = plt.subplots(figsize=(7, 3.6))
-    ax.plot(data[x_column], data[y_column], linewidth=1.8)
+    plot_data = data[[x_column, y_column]].dropna()
+    ax.plot(plot_data[x_column], plot_data[y_column], linewidth=1.8)
     ax.set_title(title)
     ax.set_xlabel("Synthetic run")
     ax.set_ylabel(y_label)
@@ -373,7 +374,7 @@ def build_llm_simulation_prompt(settings):
         "representative_agents, debrief_text.\n"
         "run_results must contain one object per run and every required_run_metric_columns field. "
         "district_results must contain one row for each run and each district with fields run, district, "
-        "false_positives, harm, crimes. representative_agents must contain up to 3 abstract synthetic "
+        "false_positives, harm, crimes (crimes after policy is applied). representative_agents must contain up to 3 abstract synthetic "
         "children with no names and no protected attributes.\n"
         "Use numeric values only for metric fields. If crimes_prevented is 0 or negative, set "
         "harm_per_crime_prevented and cost_per_crime_prevented to null.\n"
@@ -383,7 +384,7 @@ def build_llm_simulation_prompt(settings):
     )
 
 
-def run_openai_json(prompt, max_tokens=4000):
+def run_openai_json(prompt, max_tokens=8000):
     from openai import OpenAI
 
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -422,6 +423,21 @@ def clean_llm_run_results(raw_rows):
     for column in RUN_METRIC_COLUMNS:
         run_results[column] = pd.to_numeric(run_results[column], errors="coerce")
     run_results["run"] = run_results["run"].astype("Int64")
+    run_results = run_results.sort_values("run").reset_index(drop=True)
+
+    # Re-derive dependent metrics so LLM inconsistencies don't propagate to charts.
+    run_results["crimes_prevented"] = (
+        run_results["baseline_crimes"] - run_results["crimes_after_policy"]
+    )
+    flagged = run_results["true_positives"] + run_results["false_positives"]
+    run_results["high_risk_flagged"] = flagged
+    run_results["precision"] = run_results["true_positives"] / flagged
+    denominator_recall = run_results["true_positives"] + run_results["false_negatives"]
+    run_results["recall"] = run_results["true_positives"] / denominator_recall
+    safe_cp = run_results["crimes_prevented"].replace(0, np.nan)
+    run_results["harm_per_crime_prevented"] = run_results["total_harm"] / safe_cp
+    run_results["cost_per_crime_prevented"] = run_results["total_cost"] / safe_cp
+
     return run_results
 
 
@@ -586,6 +602,12 @@ def render_llm_agent_section(settings):
         latest_district_results = latest_result["district_results"]
         display_average_table(average_results_table(latest_run_results))
         render_charts(latest_run_results, latest_district_results)
+
+        render_interpretation(
+            settings["policy"],
+            average_results_table(latest_run_results),
+            settings["bias_against_district_c"],
+        )
 
         st.markdown("**Latest LLM-agent explanation**")
         st.write(latest_result["debrief_text"])
