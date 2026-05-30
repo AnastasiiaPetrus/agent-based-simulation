@@ -32,7 +32,7 @@ POLICY_DESCRIPTIONS = {
 SETTING_DESCRIPTIONS = {
     "Prediction error / noise": "How unreliable the risk signal is (0 = perfect, 0.35 = very noisy).",
     "High-risk threshold": "Share of population flagged as high-risk (e.g. 0.25 = 25%).",
-    "Policy effect strength": "How strongly the policy may change modeled crime (Low / Medium / High).",
+    "Intervention strength": "How intensively society acts on the prediction (Low / Medium / High).",
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
@@ -1035,10 +1035,10 @@ def sidebar_inputs():
         ),
         "bias_against_district_c": 0.0,
         "policy_effect_strength": st.sidebar.select_slider(
-            "Policy effect strength",
+            "Intervention strength",
             options=["Low", "Medium", "High"],
             value="Medium",
-            help=SETTING_DESCRIPTIONS["Policy effect strength"],
+            help=SETTING_DESCRIPTIONS["Intervention strength"],
         ),
         "llm_simulation_runs": 5,
         "llm_representative_agents": 2,
