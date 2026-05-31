@@ -142,9 +142,9 @@ def render_population_view_overview(settings):
   <div class="population-legend">
     <span class="population-legend-item"><span class="population-legend-dot is-safe"></span>Not flagged &middot; safe</span>
     <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; offense prevented</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged true positive &middot; high-risk child</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed by prediction (false negative)</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged (false positive)</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged true positive &middot; still violent or harmed</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed high-risk child (false negative)</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged low-risk child (false positive)</span>
   </div>
 </section>
         """
@@ -406,9 +406,9 @@ h3 {
 .hero-question {
   margin: 0;
   color: var(--text);
-  font-size: 1.8rem;
+  font-size: 4.05rem;
   font-weight: 750;
-  line-height: 1.12;
+  line-height: 1.06;
   letter-spacing: 0;
 }
 
@@ -1234,8 +1234,8 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   }
 
   .hero-question {
-    font-size: 1.3rem;
-    line-height: 1.12;
+    font-size: 2.55rem;
+    line-height: 1.08;
   }
 
   .hero-subtitle {
@@ -1258,7 +1258,7 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   }
 
   .hero-question {
-    font-size: 1rem;
+    font-size: 1.95rem;
   }
 
   .achievement-toast {
