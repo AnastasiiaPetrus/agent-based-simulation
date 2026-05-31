@@ -124,7 +124,7 @@ def render_hero_statement():
     <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will become a violent criminal by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
-    What should we <em>do</em> with that information?<br>Run a synthetic population of 1,000 children through three policies &mdash;<br>and watch what a few percentage points of error actually cost.
+    <em>What should we do with that information?<br>Run a synthetic population of 1,000 children through three policies &mdash;<br>and watch what a few percentage points of error actually cost.</em>
   </p>
 </section>
         """
@@ -1840,6 +1840,62 @@ def render_llm_run_log(max_entries):
             st.json(entry["aggregate_metrics"])
 
 
+def render_terminal_progress(slot, completed: int, total: int, status: str = ""):
+    pct = int(completed / max(total, 1) * 100)
+    bar_width = 30
+    filled = int(completed / max(total, 1) * bar_width)
+    empty = bar_width - filled
+    fill_str = "█" * filled
+    empty_str = "░" * empty
+    sub = f"&gt; {status} — {pct}%" if status else f"&gt; {pct}%"
+    slot.html(f"""<div class="term-prog">
+  <div class="term-prog-title">RUNNING_SIMULATION</div>
+  <div class="term-prog-row">
+    <span class="term-prog-bracket">[</span><span class="term-prog-fill">{fill_str}</span><span class="term-prog-empty">{empty_str}</span><span class="term-prog-bracket">]</span>
+    <span class="term-prog-pct">{pct}%</span>
+  </div>
+  <div class="term-prog-sub">{sub}</div>
+</div>
+<style>
+.term-prog {{
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line, #d6e1db);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  margin: 0.25rem 0;
+}}
+.term-prog-title {{
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted, #48616a);
+  margin-bottom: 0.5rem;
+}}
+.term-prog-row {{
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}}
+.term-prog-bracket {{ color: var(--text-muted, #48616a); font-size: 0.9rem; }}
+.term-prog-fill {{ color: #00a757; font-size: 0.9rem; letter-spacing: 0.02em; }}
+.term-prog-empty {{ color: var(--line, #d6e1db); font-size: 0.9rem; letter-spacing: 0.02em; }}
+.term-prog-pct {{
+  color: #00a757;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 3.5ch;
+}}
+.term-prog-sub {{
+  font-size: 0.72rem;
+  color: var(--text-muted, #48616a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}}
+</style>""")
+
+
 def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None):
     initialize_llm_state()
     st.subheader("Simulation")
@@ -1960,9 +2016,8 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         model_errors = []
         completion_notices = []
         completed_calls = 0
-        progress_bar = progress_slot.progress(0.0)
+        render_terminal_progress(progress_slot, 0, total_calls, f"Running {len(POLICIES)} policies × {len(selected_models)} model(s)...")
         scroll_to_anchor("simulation-progress-anchor")
-        live_status.write("Starting LLM-agent simulation...")
         children, _ = baseline_children(settings)
         render_population_animation(
             live_population,
@@ -1978,7 +2033,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                 policy_settings = dict(settings)
                 policy_settings["policy"] = policy
 
-                live_status.write(f"Running **{model}** on **{policy}**...")
+                render_terminal_progress(progress_slot, completed_calls, total_calls, f"Running {model} on {policy}...")
                 user_prompt = build_llm_simulation_prompt(policy_settings)
                 try:
                     raw_result = run_openai_json(system_prompt, user_prompt, model=model)
@@ -2004,8 +2059,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                     )
                     debrief_text = str(raw_result.get("debrief_text", "")).strip()
                     completed_calls += 1
-                    progress_bar.progress(completed_calls / max(total_calls, 1))
-                    live_status.write(f"Received **{model}** result for **{policy}**.")
+                    render_terminal_progress(progress_slot, completed_calls, total_calls, f"Received {model} / {policy}.")
                     aggregate_metrics = compact_aggregate_metrics(run_results)
                     run_frames.append(run_results)
                     district_frames.append(district_results)
@@ -2028,8 +2082,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                         live_debrief.info(f"{model} | {policy}: {debrief_text}")
                 except Exception as error:
                     completed_calls += 1
-                    progress_bar.progress(completed_calls / max(total_calls, 1))
-                    live_status.write(f"Could not generate **{model}** result for **{policy}**.")
+                    render_terminal_progress(progress_slot, completed_calls, total_calls, f"Error: {model} / {policy}.")
                     model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
         progress_slot.empty()
