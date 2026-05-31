@@ -1126,6 +1126,61 @@ h3 {
   border-color: #b0bfba !important;
   box-shadow: none !important;
   opacity: 1 !important;
+  cursor: not-allowed !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled:hover,
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled:active {
+  background: #c8d4cf !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* ── Disabled state (simulation running) ──── */
+.st-key-simulation_params_panel:has(input:disabled) .settings-field-head {
+  opacity: 0.45;
+}
+
+.st-key-simulation_params_panel:has(input:disabled) .settings-field-copy {
+  opacity: 0.38;
+}
+
+[data-testid="stSidebar"] [data-testid="stSlider"]:has(input:disabled) [role="slider"] {
+  background: #c8d4cf !important;
+  border-color: #b0bfba !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stSlider"]:has(input:disabled) > div > div {
+  background: rgba(200, 212, 207, 0.55) !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stSegmentedControl"] label:has(input:disabled) > div {
+  background: rgba(53, 88, 72, 0.03) !important;
+  box-shadow: inset 0 0 0 1px rgba(53, 88, 72, 0.12) !important;
+  color: rgba(72, 97, 106, 0.42) !important;
+  cursor: not-allowed !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stSegmentedControl"] label:has(input:disabled:checked) > div {
+  background: rgba(53, 88, 72, 0.06) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(53, 88, 72, 0.20) !important;
+  color: rgba(72, 97, 106, 0.60) !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="select"] > div {
+  background: rgba(53, 88, 72, 0.03) !important;
+  border-color: rgba(53, 88, 72, 0.12) !important;
+  cursor: not-allowed !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="tag"] {
+  background: rgba(200, 212, 207, 0.50) !important;
+  opacity: 0.70;
 }
 
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
@@ -1946,19 +2001,19 @@ def render_interpretation(policy, average_table, bias_against_district_c):
     children_harmed = values.get("Harmed by intervention", 0.0)
 
     if policy == "Coercive preventive intervention for high-risk children":
-        st.warning(
+        st.info(
             f"On average, {crimes_prevented:.0f} offenses are prevented per run — "
             f"but {children_harmed:.0f} children are restricted before committing any offense, "
             f"including {false_positives:.0f} who would not have offended at all."
         )
     elif policy == "Targeted support for high-risk children":
-        st.write(
+        st.info(
             f"On average, {crimes_prevented:.0f} offenses are prevented per run "
             f"and {children_helped:.0f} children receive help. "
             f"Of those, {false_positives:.0f} are wrongly flagged and receive unnecessary support."
         )
     elif policy == "Surveillance of high-risk children":
-        st.warning(
+        st.info(
             f"On average, {crimes_prevented:.0f} offenses are prevented per run, "
             f"but {children_harmed:.0f} children are monitored — including {false_positives:.0f} "
             "who would not have offended and have no basis to be watched."
