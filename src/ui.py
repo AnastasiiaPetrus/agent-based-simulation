@@ -1109,6 +1109,15 @@ h3 {
   background: #00a757;
   border-color: #008846;
   box-shadow: 0 8px 18px rgba(0, 136, 70, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10);
+  transition: none !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover:not(:disabled),
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:active:not(:disabled),
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:focus:not(:disabled) {
+  background: #00a757 !important;
+  box-shadow: 0 8px 18px rgba(0, 136, 70, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
+  transform: none !important;
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"] > div {
