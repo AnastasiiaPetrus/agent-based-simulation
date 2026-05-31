@@ -400,10 +400,6 @@ def glossary_markdown(items):
     return "\n".join(lines)
 
 
-def render_user_summary():
-    pass
-
-
 def render_reference_guide():
     with st.expander("Guide: policies, inputs, and metrics", expanded=False):
         st.markdown("### Policies compared")
@@ -605,10 +601,6 @@ def llm_assumptions(settings):
         "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
         "policy_effect_strength": settings["policy_effect_strength"],
     }
-
-
-def policy_uses_effect(policy):
-    return True
 
 
 def build_llm_simulation_prompt(settings):
@@ -833,7 +825,7 @@ def validate_llm_tables(run_results, district_results, settings):
         raise ValueError("The model returned missing district-level metric values.")
 
 
-def reconcile_district_column(district_results, run_results, run_column, district_column):
+def reconcile_district_column(district_results, run_results, run_column, district_column, maximum):
     district_results = district_results.copy()
     targets = run_results.set_index("run")[run_column]
 
@@ -842,7 +834,7 @@ def reconcile_district_column(district_results, run_results, run_column, distric
         if not mask.any() or pd.isna(target):
             continue
 
-        target_total = clamp_count(target, int(run_results[run_column].max()))
+        target_total = clamp_count(target, maximum)
         current_values = district_results.loc[mask, district_column].astype(float).clip(lower=0)
         current_total = current_values.sum()
         if target <= 0:
@@ -909,24 +901,32 @@ def normalize_llm_metrics(run_results, district_results, settings):
         run_results["children_helped"] = 0
         run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_limit)
 
+    for column in RUN_COUNT_COLUMNS:
+        run_results[column] = run_results[column].round().astype(int)
+
     district_results = reconcile_district_column(
         district_results,
         run_results,
         "false_positives",
         "false_positives",
+        population_size,
     )
     district_results = reconcile_district_column(
         district_results,
         run_results,
         "children_harmed",
         "children_harmed",
+        population_size,
     )
     district_results = reconcile_district_column(
         district_results,
         run_results,
         "crimes_after_policy",
         "crimes",
+        population_size,
     )
+    for column in DISTRICT_COUNT_COLUMNS:
+        district_results[column] = district_results[column].round().astype(int)
 
     return run_results, district_results
 
@@ -1104,8 +1104,6 @@ def render_llm_agent_section(settings):
                 for policy in POLICY_ORDER:
                     policy_settings = dict(settings)
                     policy_settings["policy"] = policy
-                    if not policy_uses_effect(policy):
-                        policy_settings["policy_effect_strength"] = "None"
 
                     live_status.write(f"Running **{model}** on **{policy}**...")
                     user_prompt = build_llm_simulation_prompt(policy_settings)
@@ -1262,9 +1260,6 @@ def render_llm_agent_section(settings):
         if representative_agents:
             with st.expander("Representative LLM synthetic agents used", expanded=False):
                 st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
-    else:
-        pass
-
     render_llm_run_log(MAX_RUN_LOG_SIZE)
 
 
@@ -1315,7 +1310,7 @@ def render_app():
     settings = sidebar_inputs()
     render_llm_agent_section(settings)
     latest_result = st.session_state.get("llm_agent_latest_result")
-    if latest_result:
+    if latest_result and latest_result_has_current_schema(latest_result):
         csv_buffer = StringIO()
         latest_result["run_results"].to_csv(csv_buffer, index=False)
         st.download_button(
