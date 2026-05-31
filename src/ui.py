@@ -1226,15 +1226,57 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 /* ── Alerts ───────────────────────────────── */
 [data-testid="stAlert"] {
   border-radius: var(--radius);
-  border: 1px solid rgba(53, 88, 72, 0.16);
   box-shadow: var(--shadow-xs);
   font-size: 0.9rem;
 }
 
+[data-testid="stAlert"][kind="info"],
 [data-testid="stAlert"] [kind="info"],
 [data-baseweb="notification"][kind="info"] {
   background: rgba(0, 167, 87, 0.08) !important;
   border-color: rgba(0, 167, 87, 0.22) !important;
+}
+
+[data-testid="stAlert"][kind="success"],
+[data-testid="stAlert"] [kind="success"],
+[data-baseweb="notification"][kind="positive"] {
+  background: rgba(0, 167, 87, 0.08) !important;
+  border-color: rgba(0, 167, 87, 0.22) !important;
+}
+
+[data-testid="stAlert"][kind="warning"],
+[data-testid="stAlert"] [kind="warning"],
+[data-baseweb="notification"][kind="warning"] {
+  background: rgba(240, 138, 0, 0.07) !important;
+  border-color: rgba(240, 138, 0, 0.28) !important;
+}
+
+[data-testid="stAlert"][kind="error"],
+[data-testid="stAlert"] [kind="error"],
+[data-baseweb="notification"][kind="negative"] {
+  background: rgba(221, 37, 56, 0.06) !important;
+  border-color: rgba(221, 37, 56, 0.22) !important;
+}
+
+/* ── Results panel (Policy comparison + Averages card) ── */
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel {
+  overflow: hidden;
+  border: 1px solid rgba(53, 88, 72, 0.16) !important;
+  border-radius: var(--radius) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
+  padding: 1.5rem 1.75rem;
+}
+
+.st-key-results_panel [data-testid="stVerticalBlock"] {
+  gap: 0.75rem;
+}
+
+.st-key-results_panel h3 {
+  margin-top: 0 !important;
 }
 
 /* ── Charts ───────────────────────────────── */
@@ -1879,31 +1921,33 @@ def render_results_fragment(settings):
     latest_run_results = latest_result["run_results"]
     latest_district_results = latest_result["district_results"]
 
-    st.subheader("Policy comparison")
-    st.caption("Average outcomes per run. Use this to compare policies side by side.")
-    display_combined_policy_totals_table(latest_run_results, settings["population_size"])
+    with st.container(border=True, key="results_panel"):
+        st.subheader("Policy comparison")
+        st.caption("Average outcomes per run. Use this to compare policies side by side.")
+        display_combined_policy_totals_table(latest_run_results, settings["population_size"])
 
-    selected_policy = st.segmented_control(
-        "Policy",
-        options=POLICY_ORDER,
-        default=POLICY_ORDER[0],
-        label_visibility="collapsed",
-        width="stretch",
-    )
-    if selected_policy:
-        policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
-        policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
-        if policy_runs.empty or policy_districts.empty:
-            st.caption("No results for this policy in the current session.")
-        else:
-            st.subheader("Averages")
-            display_average_table(average_results_table(policy_runs))
-            render_charts(policy_runs, policy_districts)
-            render_interpretation(
-                selected_policy,
-                average_results_table(policy_runs),
-                settings["bias_against_district_c"],
-            )
+        selected_policy = st.segmented_control(
+            "Policy",
+            options=POLICY_ORDER,
+            default=POLICY_ORDER[0],
+            label_visibility="collapsed",
+            width="stretch",
+        )
+        if selected_policy:
+            policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
+            policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
+            if policy_runs.empty or policy_districts.empty:
+                st.caption("No results for this policy in the current session.")
+            else:
+                st.divider()
+                st.subheader("Averages")
+                display_average_table(average_results_table(policy_runs))
+                render_charts(policy_runs, policy_districts)
+                render_interpretation(
+                    selected_policy,
+                    average_results_table(policy_runs),
+                    settings["bias_against_district_c"],
+                )
 
     st.subheader("Latest LLM-agent explanations")
     model_results = latest_result.get("model_results", [])
