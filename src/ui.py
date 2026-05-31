@@ -437,6 +437,20 @@ def render_population_update(update_slot, root_id, policy, panel_index, children
         st.html(script, unsafe_allow_javascript=True)
 
 
+def scroll_to_anchor(anchor_id):
+    st.html(
+        f"""<script>
+setTimeout(function() {{
+  var target = document.getElementById({json.dumps(anchor_id)});
+  if (target) {{
+    target.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+  }}
+}}, 100);
+</script>""",
+        unsafe_allow_javascript=True,
+    )
+
+
 def render_sidebar_achievements():
     earned = st.session_state.get("earned_achievements", set())
     count = len(earned)
@@ -575,8 +589,6 @@ def render_llm_agent_section(settings):
         )
 
     selected_models = settings["llm_agent_models"]
-    if not selected_models:
-        st.warning("Select at least one LLM model agent in the sidebar.")
 
     parameter_summary = compact_parameter_summary(settings)
     system_prompt = DEFAULT_SYSTEM_PROMPT
@@ -597,6 +609,7 @@ def render_llm_agent_section(settings):
         "initial",
         root_id=_LIVE_GRID_ID,
     )
+    st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
     progress_slot = st.empty()
     live_status = st.empty()
     live_debrief = st.empty()
@@ -607,25 +620,66 @@ def render_llm_agent_section(settings):
         f"synthetic run(s) over {int(settings['population_size']):,} synthetic children."
     )
     settings_invalid = settings["true_high_risk_rate"] == 0
+    if not selected_models:
+        st.sidebar.warning("Select at least one LLM model agent.")
     if settings_invalid:
         st.sidebar.warning("Set 'Percentage of true high-risk children' above 0% to run a meaningful simulation.")
 
-    run_requested = st.sidebar.button(
-        "Run simulation",
-        disabled=not bool(api_key) or not selected_models or settings_invalid,
-        type="primary",
-        use_container_width=True,
-    )
+    run_disabled = not bool(api_key) or not selected_models or settings_invalid
+    run_button_slot = st.sidebar.empty()
+    if st.session_state.get("simulation_running", False):
+        with run_button_slot:
+            st.button(
+                "Run simulation",
+                key="run_simulation_running",
+                disabled=True,
+                type="primary",
+                use_container_width=True,
+            )
+        run_requested = False
+    else:
+        with run_button_slot:
+            run_requested = st.button(
+                "Run simulation",
+                key="run_simulation_start",
+                disabled=run_disabled,
+                type="primary",
+                use_container_width=True,
+            )
 
     if run_requested:
+        st.session_state["simulation_running"] = True
+        st.session_state["simulation_pending"] = True
+        st.rerun()
+
+    for level, message in st.session_state.pop("last_run_notices", []):
+        if level == "error":
+            st.error(message)
+        elif level == "warning":
+            st.warning(message)
+        else:
+            st.success(message)
+
+    execute_run = st.session_state.pop("simulation_pending", False)
+    if execute_run:
+        with run_button_slot:
+            st.button(
+                "Run simulation",
+                key="run_simulation_active",
+                disabled=True,
+                type="primary",
+                use_container_width=True,
+            )
         run_frames = []
         district_frames = []
         model_summaries = []
         all_representative_agents = []
         debrief_parts = []
         model_errors = []
+        completion_notices = []
         completed_calls = 0
         progress_bar = progress_slot.progress(0.0)
+        scroll_to_anchor("simulation-progress-anchor")
         live_status.write("Starting LLM-agent simulation...")
         children, _ = baseline_children(settings)
         render_population_animation(
@@ -702,7 +756,7 @@ def render_llm_agent_section(settings):
         live_debrief.empty()
 
         for error_label, error_message in model_errors:
-            st.error(f"{error_label}: {error_message}")
+            completion_notices.append(("error", f"{error_label}: {error_message}"))
 
         if run_frames:
             combined_run_results = pd.concat(run_frames, ignore_index=True, copy=False)
@@ -740,15 +794,21 @@ def render_llm_agent_section(settings):
             st.session_state["earned_achievements"] = previously_earned | newly_earned
             for ach_id in newly_earned - previously_earned:
                 ach = ACHIEVEMENT_INDEX[ach_id]
-                st.success(f"🏆 Achievement unlocked: {ach['icon']} **{ach['name']}** — {ach['description']}")
+                completion_notices.append(
+                    ("success", f"🏆 Achievement unlocked: {ach['icon']} **{ach['name']}** — {ach['description']}")
+                )
 
             if model_errors:
-                st.warning("LLM-agent simulation generated for the successful model agents.")
+                completion_notices.append(("warning", "LLM-agent simulation generated for the successful model agents."))
             else:
-                st.success("LLM-agent simulation generated.")
+                completion_notices.append(("success", "LLM-agent simulation generated."))
             del run_frames, district_frames
         elif model_errors:
-            st.warning("No LLM-agent simulation results were generated.")
+            completion_notices.append(("warning", "No LLM-agent simulation results were generated."))
+
+        st.session_state["last_run_notices"] = completion_notices
+        st.session_state["simulation_running"] = False
+        st.rerun()
 
     latest_result = st.session_state.get("llm_agent_latest_result")
     if latest_result and not latest_result_has_current_schema(latest_result):

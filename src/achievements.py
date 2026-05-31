@@ -31,7 +31,7 @@ ACHIEVEMENTS = [
         "id": "tinkerer",
         "icon": "🔬",
         "name": "Tinkerer",
-        "description": "Run 3 or more simulations in a single session.",
+        "description": "Run 7 or more simulations in a single session.",
     },
     {
         "id": "crime_preventer",
@@ -116,7 +116,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if avg_fp > avg_prevented:
         earned.add("false_alarm")
 
-    if simulation_count >= 3:
+    if simulation_count >= 7:
         earned.add("tinkerer")
 
     policy_avg_prevented = (
