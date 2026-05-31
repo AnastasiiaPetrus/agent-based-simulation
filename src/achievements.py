@@ -84,8 +84,8 @@ ACHIEVEMENTS = [
     {
         "id": "night_owl",
         "icon": "🦉",
-        "name": "Night Owl",
-        "description": "Run a simulation between midnight and 6 AM.",
+        "name": "It's not an owl",
+        "description": "Run a simulation at exactly the right moment.",
     },
 ]
 
@@ -159,7 +159,8 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if float(settings["true_high_risk_rate"]) >= 0.30:
         earned.add("high_risk_world")
 
-    if datetime.now().hour < 6:
+    now = datetime.now()
+    if now.hour == 3 and 30 <= now.minute <= 36:
         earned.add("night_owl")
 
     return earned
