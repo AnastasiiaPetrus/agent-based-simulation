@@ -334,9 +334,9 @@ def population_animation_html(run_results, settings, title):
   --overshoot-scale: 1.16;
   --pulse-scale: 1.08;
   animation:
-    colorGrowLifeDot 1.65s cubic-bezier(.2,.75,.25,1) forwards,
+    colorGrowLifeDot 3.2s cubic-bezier(.34,.01,.18,1) forwards,
     breatheLifeDot 2.8s ease-in-out infinite;
-  animation-delay: var(--delay), calc(var(--delay) + 1.65s);
+  animation-delay: var(--delay), calc(var(--delay) + 3.2s);
 }}
 .risk-low {{
   --target-color: #25a55f;
@@ -358,8 +358,10 @@ def population_animation_html(run_results, settings, title):
 }}
 @keyframes colorGrowLifeDot {{
   0% {{ transform: scale(0.35); opacity: 0.25; background: #d7dbe4; }}
-  45% {{ transform: scale(0.72); opacity: 0.72; background: #cfd5df; }}
-  72% {{ transform: scale(var(--overshoot-scale)); opacity: 1; background: var(--target-color); }}
+  24% {{ transform: scale(0.48); opacity: 0.44; background: #d7dbe4; }}
+  48% {{ transform: scale(0.68); opacity: 0.70; background: #cfd5df; }}
+  78% {{ transform: scale(0.92); opacity: 0.94; background: var(--target-color); }}
+  90% {{ transform: scale(var(--overshoot-scale)); opacity: 1; background: var(--target-color); }}
   100% {{ transform: scale(var(--target-scale)); opacity: 1; background: var(--target-color); }}
 }}
 @keyframes breatheLifeDot {{
