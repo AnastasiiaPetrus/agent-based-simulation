@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from src.achievements import ACHIEVEMENT_INDEX, ACHIEVEMENTS, check_achievements
 from src.charts import line_chart
 from src.constants import (
     CHECK_DESCRIPTIONS,
@@ -435,6 +436,19 @@ def render_population_update(update_slot, root_id, policy, panel_index, children
         st.html(script, unsafe_allow_javascript=True)
 
 
+def render_sidebar_achievements():
+    earned = st.session_state.get("earned_achievements", set())
+    count = len(earned)
+    label = f"🏆 Achievements  {count} / {len(ACHIEVEMENTS)}"
+    with st.expander(label, expanded=False):
+        for ach in ACHIEVEMENTS:
+            if ach["id"] in earned:
+                st.markdown(f"{ach['icon']} **{ach['name']}**")
+                st.caption(ach["description"])
+            else:
+                st.caption(f"🔒 {ach['name']}")
+
+
 def render_reference_guide():
     with st.expander("How this works", expanded=False):
         st.markdown("### Three policies")
@@ -739,6 +753,14 @@ def render_llm_agent_section(settings):
                 "debrief_text": debrief_text,
             }
             add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
+
+            newly_earned = check_achievements(combined_run_results, settings)
+            previously_earned = st.session_state.get("earned_achievements", set())
+            st.session_state["earned_achievements"] = previously_earned | newly_earned
+            for ach_id in newly_earned - previously_earned:
+                ach = ACHIEVEMENT_INDEX[ach_id]
+                st.success(f"🏆 Achievement unlocked: {ach['icon']} **{ach['name']}** — {ach['description']}")
+
             if model_errors:
                 st.warning("LLM-agent simulation generated for the successful model agents.")
             else:
@@ -851,5 +873,8 @@ def render_app():
     )
     render_reference_guide()
 
+    achievements_slot = st.sidebar.container()
     settings = sidebar_inputs()
     render_llm_agent_section(settings)
+    with achievements_slot:
+        render_sidebar_achievements()
