@@ -98,7 +98,7 @@ def render_hero_summary(settings):
     cards = [
         ("Synthetic population", f"{population_size:,}", "Children in each run", ""),
         ("True high-risk children", f"{true_high_risk_count:,}", "Without intervention", "primary"),
-        ("Prediction errors", f"{false_positives + false_negatives:,}", "False positives + false negatives", "warning"),
+        ("Prediction error", f"{false_positives + false_negatives:,}", "False positives + false negatives", "warning"),
         ("Flagged by prediction", f"{flagged_count:,}", "Policy action group", ""),
     ]
     card_html = []
@@ -141,7 +141,7 @@ def render_population_view_overview(settings):
   <div class="population-overview-heading">{population_size:,} synthetic children &middot; {policy_count} parallel policies</div>
   <div class="population-legend">
     <span class="population-legend-item"><span class="population-legend-dot is-safe"></span>Not flagged &middot; safe</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; offense prevented</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; offenses prevented</span>
     <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged and high-risk</span>
     <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed by prediction (false negative)</span>
     <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged (false positive)</span>
@@ -1898,6 +1898,19 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
     if run_button_slot is None:
         run_button_slot = st.sidebar.empty()
     if st.session_state.get("simulation_running", False):
+        st.html("""
+<style>
+[data-testid="stSidebar"] .stButton > button,
+[data-testid="stSidebar"] .stButton > button:disabled,
+[data-testid="stSidebar"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled {
+  background: #f08a00 !important;
+  border-color: #c97000 !important;
+  box-shadow: 0 8px 18px rgba(240, 138, 0, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
+  opacity: 1 !important;
+}
+</style>
+""")
         with run_button_slot:
             st.button(
                 "▶ Run simulation",
@@ -1961,65 +1974,64 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
             root_id=_LIVE_GRID_ID,
         )
 
-        with st.spinner(f"Running {len(POLICIES)} policy(ies) × {len(selected_models)} model agent(s)..."):
-            for model in selected_models:
-                for policy in POLICY_ORDER:
-                    policy_settings = dict(settings)
-                    policy_settings["policy"] = policy
+        for model in selected_models:
+            for policy in POLICY_ORDER:
+                policy_settings = dict(settings)
+                policy_settings["policy"] = policy
 
-                    live_status.write(f"Running **{model}** on **{policy}**...")
-                    user_prompt = build_llm_simulation_prompt(policy_settings)
-                    try:
-                        raw_result = run_openai_json(system_prompt, user_prompt, model=model)
-                        run_results = clean_llm_run_results(raw_result.get("run_results", []))
-                        district_results = clean_llm_district_results(raw_result.get("district_results", []))
-                        validate_llm_tables(run_results, district_results, policy_settings)
-                        run_results, district_results = normalize_llm_metrics(
-                            run_results,
-                            district_results,
-                            policy_settings,
-                        )
-                        run_results, district_results = attach_model_label(
-                            run_results, district_results, model
-                        )
-                        run_results, district_results = attach_policy_label(
-                            run_results, district_results, policy
-                        )
-                        representative_agents = normalize_representative_agents(
-                            raw_result.get("representative_agents", [])[
-                                : int(settings["llm_representative_agents"])
-                            ],
-                            model,
-                        )
-                        debrief_text = str(raw_result.get("debrief_text", "")).strip()
-                        completed_calls += 1
-                        progress_bar.progress(completed_calls / max(total_calls, 1))
-                        live_status.write(f"Received **{model}** result for **{policy}**.")
-                        aggregate_metrics = compact_aggregate_metrics(run_results)
-                        run_frames.append(run_results)
-                        district_frames.append(district_results)
-                        all_representative_agents.extend(representative_agents)
-                        if debrief_text:
-                            debrief_parts.append(f"{model} | {policy}: {debrief_text}")
-                        model_summaries.append(
-                            {
-                                "llm_model": model,
-                                "policy": policy,
-                                "aggregate_metrics": aggregate_metrics,
-                                "debrief_text": debrief_text,
-                            }
-                        )
-                        metrics = policy_transition_metrics(run_results, policy, settings)
-                        render_population_update(
-                            update_slot, _LIVE_GRID_ID, policy, POLICY_ORDER.index(policy), children, metrics
-                        )
-                        if debrief_text:
-                            live_debrief.info(f"{model} | {policy}: {debrief_text}")
-                    except Exception as error:
-                        completed_calls += 1
-                        progress_bar.progress(completed_calls / max(total_calls, 1))
-                        live_status.write(f"Could not generate **{model}** result for **{policy}**.")
-                        model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
+                live_status.write(f"Running **{model}** on **{policy}**...")
+                user_prompt = build_llm_simulation_prompt(policy_settings)
+                try:
+                    raw_result = run_openai_json(system_prompt, user_prompt, model=model)
+                    run_results = clean_llm_run_results(raw_result.get("run_results", []))
+                    district_results = clean_llm_district_results(raw_result.get("district_results", []))
+                    validate_llm_tables(run_results, district_results, policy_settings)
+                    run_results, district_results = normalize_llm_metrics(
+                        run_results,
+                        district_results,
+                        policy_settings,
+                    )
+                    run_results, district_results = attach_model_label(
+                        run_results, district_results, model
+                    )
+                    run_results, district_results = attach_policy_label(
+                        run_results, district_results, policy
+                    )
+                    representative_agents = normalize_representative_agents(
+                        raw_result.get("representative_agents", [])[
+                            : int(settings["llm_representative_agents"])
+                        ],
+                        model,
+                    )
+                    debrief_text = str(raw_result.get("debrief_text", "")).strip()
+                    completed_calls += 1
+                    progress_bar.progress(completed_calls / max(total_calls, 1))
+                    live_status.write(f"Received **{model}** result for **{policy}**.")
+                    aggregate_metrics = compact_aggregate_metrics(run_results)
+                    run_frames.append(run_results)
+                    district_frames.append(district_results)
+                    all_representative_agents.extend(representative_agents)
+                    if debrief_text:
+                        debrief_parts.append(f"{model} | {policy}: {debrief_text}")
+                    model_summaries.append(
+                        {
+                            "llm_model": model,
+                            "policy": policy,
+                            "aggregate_metrics": aggregate_metrics,
+                            "debrief_text": debrief_text,
+                        }
+                    )
+                    metrics = policy_transition_metrics(run_results, policy, settings)
+                    render_population_update(
+                        update_slot, _LIVE_GRID_ID, policy, POLICY_ORDER.index(policy), children, metrics
+                    )
+                    if debrief_text:
+                        live_debrief.info(f"{model} | {policy}: {debrief_text}")
+                except Exception as error:
+                    completed_calls += 1
+                    progress_bar.progress(completed_calls / max(total_calls, 1))
+                    live_status.write(f"Could not generate **{model}** result for **{policy}**.")
+                    model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
         progress_slot.empty()
         live_status.empty()
