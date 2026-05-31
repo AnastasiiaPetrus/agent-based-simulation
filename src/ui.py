@@ -236,7 +236,6 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   padding: 14px 16px;
   margin: 10px 0 16px;
   background: #ffffff;
-  overflow-x: auto;
 }}
 .life-course-header {{
   margin-bottom: 10px;
@@ -246,10 +245,9 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   color: #2d3142;
 }}
 .policy-panels {{
-  display: grid;
-  grid-template-columns: repeat(3, minmax(660px, 1fr));
-  gap: 18px;
-  min-width: 2100px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }}
 .policy-panel {{
   border: 1px solid #edf0f6;
@@ -258,14 +256,13 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   background: #fbfcfe;
 }}
 .policy-panel-title {{
-  min-height: 42px;
   color: #2d3142;
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.25;
+  margin-bottom: 2px;
 }}
 .policy-panel-summary {{
-  min-height: 34px;
   color: #697287;
   font-size: 0.78rem;
   line-height: 1.25;
@@ -415,7 +412,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
     var rafId = null;
     var curX = -220, curY = -220;
     var tgtX = -220, tgtY = -220;
-    var LERP = 0.13;
+    var LERP = 0.25;
 
     function step() {{
       var dx = tgtX - curX;
