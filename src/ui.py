@@ -150,9 +150,12 @@ def policy_panel_html(children, policy, metrics, panel_index):
 
     has_result = metrics is not None
     prevented = min(metrics["prevented"], len(high_flagged)) if has_result else 0
-    harmed = min(metrics["harmed"], len(low_flagged)) if has_result else 0
     prevented_indices = seeded_subset(high_flagged, prevented, f"{policy}-prevented")
-    harmed_indices = seeded_subset(low_flagged, harmed, f"{policy}-harmed")
+    # harmed pool = all flagged children not already counted as prevented
+    high_flagged_remaining = [i for i in high_flagged if i not in prevented_indices]
+    harmed_pool = low_flagged + high_flagged_remaining
+    harmed = min(metrics["harmed"], len(harmed_pool)) if has_result else 0
+    harmed_indices = seeded_subset(harmed_pool, harmed, f"{policy}-harmed")
 
     dots = []
     final_high = 0
@@ -185,8 +188,12 @@ def policy_panel_html(children, policy, metrics, panel_index):
         )
 
     if has_result:
+        harmed_fp = sum(1 for i in harmed_indices if i in set(low_flagged))
+        harmed_tp = len(harmed_indices) - harmed_fp
         summary = (
-            f"{prevented} red to green prevented; {harmed} green to orange harmed; "
+            f"{prevented} prevented (red→green); "
+            f"{harmed_fp} wrongly flagged & harmed (green→orange); "
+            f"{harmed_tp} flagged & harmed (red→orange); "
             f"{final_high} red remain."
         )
         ready = "true"
@@ -339,14 +346,14 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   position: absolute;
   top: 0;
   left: 0;
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 44%, transparent 72%);
+  background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.10) 38%, transparent 68%);
   pointer-events: none;
   opacity: 0;
   transform: translate3d(-220px, -220px, 0);
-  transition: opacity 0.08s ease;
+  transition: opacity 0.18s ease;
   will-change: transform, opacity;
   z-index: 2;
 }}
@@ -406,20 +413,32 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   root.querySelectorAll('.policy-grid').forEach(function(grid) {{
     var spot = grid.querySelector('.lc-spotlight');
     var rafId = null;
-    var nextX = -220;
-    var nextY = -220;
+    var curX = -220, curY = -220;
+    var tgtX = -220, tgtY = -220;
+    var LERP = 0.13;
 
-    function drawSpot() {{
-      rafId = null;
-      spot.style.transform = 'translate3d(' + (nextX - 90) + 'px,' + (nextY - 90) + 'px,0)';
+    function step() {{
+      var dx = tgtX - curX;
+      var dy = tgtY - curY;
+      curX += dx * LERP;
+      curY += dy * LERP;
+      var speed = Math.sqrt(dx * dx + dy * dy);
+      var scale = 1 + Math.min(speed * 0.005, 0.45);
+      spot.style.transform = 'translate3d(' + (curX - 100) + 'px,' + (curY - 100) + 'px,0) scale(' + scale + ')';
+      if (speed > 0.5) {{
+        rafId = requestAnimationFrame(step);
+      }} else {{
+        spot.style.transform = 'translate3d(' + (tgtX - 100) + 'px,' + (tgtY - 100) + 'px,0) scale(1)';
+        rafId = null;
+      }}
     }}
 
     grid.addEventListener('pointermove', function(e) {{
       var r = grid.getBoundingClientRect();
-      nextX = e.clientX - r.left;
-      nextY = e.clientY - r.top;
+      tgtX = e.clientX - r.left;
+      tgtY = e.clientY - r.top;
       spot.style.opacity = '1';
-      if (!rafId) rafId = requestAnimationFrame(drawSpot);
+      if (!rafId) rafId = requestAnimationFrame(step);
     }}, {{ passive: true }});
     grid.addEventListener('pointerleave', function() {{
       spot.style.opacity = '0';
@@ -580,7 +599,7 @@ def render_llm_agent_section(settings):
     initialize_llm_state()
     st.subheader("Simulation")
     total_calls = len(settings["llm_agent_models"]) * len(POLICIES)
-    st.caption(f"{total_calls} LLM call(s) — one per policy.")
+    st.caption(f"{total_calls} LLM call(s) — one per policy × model.")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -711,8 +730,8 @@ def render_llm_agent_section(settings):
         live_status.empty()
         live_debrief.empty()
 
-        for model, error_message in model_errors:
-            st.error(f"{model}: {error_message}")
+        for error_label, error_message in model_errors:
+            st.error(f"{error_label}: {error_message}")
 
         if model_results:
             combined_run_results = pd.concat(
@@ -850,7 +869,11 @@ def sidebar_inputs():
     settings["high_risk_threshold"] = flagged_count / population_size
 
     model_options = llm_model_options()
-    settings["llm_agent_models"] = default_llm_agent_models(model_options)
+    settings["llm_agent_models"] = st.sidebar.multiselect(
+        "LLM model agent(s)",
+        options=model_options,
+        default=default_llm_agent_models(model_options),
+    )
 
     return settings
 

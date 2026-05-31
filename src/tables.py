@@ -63,19 +63,3 @@ def combined_policy_totals_table(run_results, population_size):
                 lambda v: "N/A" if pd.isna(v) else f"{v:.1f}"
             )
     return display_table
-
-
-def district_summary_table(district_results):
-    group_columns = ["district"]
-    if "llm_model" in district_results.columns:
-        group_columns.insert(0, "llm_model")
-
-    return (
-        district_results.groupby(group_columns, as_index=False)
-        .agg(
-            false_positives=("false_positives", "mean"),
-            children_harmed=("children_harmed", "mean"),
-            crimes=("crimes", "mean"),
-        )
-        .sort_values(group_columns)
-    )
