@@ -114,6 +114,7 @@ def render_hero_statement():
 <div class="hero-badges">
   <span class="badge-chip badge-live">Thought Experiment</span>
   <span class="badge-chip">Statistical</span>
+  <span class="badge-chip">LLM</span>
   <span class="badge-chip">Agentic AI</span>
 </div>
 <section class="hero-copy">
@@ -442,11 +443,19 @@ h3 {
   color: var(--primary);
 }
 
+.section-gap {
+  height: 1.6rem;
+}
+
+.section-gap-lg {
+  height: 2.2rem;
+}
+
 .hero-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.85rem;
-  margin: 2.35rem 0 0.85rem;
+  margin: 2.35rem 0 1.4rem;
 }
 
 .hero-stat-card {
@@ -496,7 +505,7 @@ h3 {
 }
 
 .population-overview {
-  margin: 1.6rem 0 1.05rem;
+  margin: 1.2rem 0 1.05rem;
   padding: 1.35rem 1.55rem 1.45rem;
   border: 1px solid rgba(53, 88, 72, 0.16);
   border-radius: 8px;
@@ -649,6 +658,122 @@ h3 {
     opacity: 0;
     transform: translateY(10px) scale(0.98);
   }
+}
+
+/* ── Terminal progress ────────────────────── */
+.terminal-progress-card {
+  margin: 0.5rem 0 1.65rem;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border: 1px solid rgba(0, 167, 87, 0.28);
+  border-radius: 8px;
+  background: rgba(248, 255, 252, 0.82);
+  box-shadow: var(--shadow-xs);
+}
+
+.terminal-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+  color: var(--primary);
+  font-family: var(--mono);
+}
+
+.terminal-progress-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.62rem;
+  min-width: 0;
+}
+
+.terminal-progress-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #74d3ad;
+}
+
+.terminal-progress-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.terminal-progress-pct {
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.terminal-progress-track {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(0, 167, 87, 0.28);
+  border-radius: 8px;
+  background: rgba(230, 255, 246, 0.44);
+}
+
+.terminal-progress-bracket {
+  color: #21bd89;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.terminal-progress-blocks {
+  display: grid;
+  grid-template-columns: repeat(32, minmax(0, 1fr));
+  gap: 0.25rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.terminal-progress-block {
+  height: 0.9rem;
+  border-radius: 3px;
+  background: rgba(0, 167, 87, 0.13);
+}
+
+.terminal-progress-block.is-filled {
+  background: #16b985;
+}
+
+.terminal-progress-block.is-active {
+  box-shadow: 0 0 14px rgba(22, 185, 133, 0.55);
+}
+
+.terminal-progress-status {
+  margin-top: 0.9rem;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.terminal-progress-prompt {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.terminal-progress-cursor {
+  display: inline-block;
+  width: 0.52rem;
+  height: 0.92rem;
+  margin-left: 0.25rem;
+  background: rgba(0, 167, 87, 0.40);
+  vertical-align: -0.12rem;
+  animation: terminalCursorBlink 1s steps(2, jump-none) infinite;
+}
+
+@keyframes terminalCursorBlink {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
 }
 
 .achievement-shell {
@@ -1338,6 +1463,8 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 /* ── Results panel (Policy comparison + Averages card) ── */
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel {
   overflow: hidden;
+  margin-top: 0.5rem;
+  margin-bottom: 1.75rem;
   border: 1px solid rgba(53, 88, 72, 0.16) !important;
   border-radius: var(--radius) !important;
   background: rgba(255, 255, 255, 0.92) !important;
@@ -1421,6 +1548,28 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
 
   .population-overview-heading {
     font-size: 1.25rem;
+  }
+
+  .terminal-progress-card {
+    padding: 1rem;
+  }
+
+  .terminal-progress-header {
+    align-items: flex-start;
+  }
+
+  .terminal-progress-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+  }
+
+  .terminal-progress-track {
+    padding: 0.7rem;
+  }
+
+  .terminal-progress-blocks {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    gap: 0.22rem;
   }
 }
 
@@ -2119,60 +2268,40 @@ def render_llm_run_log(max_entries):
             st.json(entry["aggregate_metrics"])
 
 
-def render_terminal_progress(slot, completed: int, total: int, status: str = ""):
+def render_terminal_progress(slot, completed: int, total: int, status: str = "", title: str | None = None):
     pct = int(completed / max(total, 1) * 100)
-    bar_width = 30
-    filled = int(completed / max(total, 1) * bar_width)
-    empty = bar_width - filled
-    fill_str = "█" * filled
-    empty_str = "░" * empty
-    sub = status if status else ""
-    slot.html(f"""<div class="term-prog">
-  <div class="term-prog-title">RUNNING_SIMULATION</div>
-  <div class="term-prog-row">
-    <span class="term-prog-bracket">[</span><span class="term-prog-fill">{fill_str}</span><span class="term-prog-empty">{empty_str}</span><span class="term-prog-bracket">]</span>
-    <span class="term-prog-pct">{pct}%</span>
+    block_count = 32
+    filled = min(block_count, int(completed / max(total, 1) * block_count))
+    label = title or ("LAST_RUN_COMPLETE" if pct >= 100 else "RUNNING_SIMULATION")
+    status_text = status or "Simulation status live"
+    blocks = []
+    for index in range(block_count):
+        block_class = "terminal-progress-block"
+        if index < filled:
+            block_class += " is-filled"
+        if index == filled - 1 and filled > 0:
+            block_class += " is-active"
+        blocks.append(f'<span class="{block_class}"></span>')
+
+    slot.html(
+        f"""
+<div class="terminal-progress-card">
+  <div class="terminal-progress-header">
+    <div class="terminal-progress-title-wrap">
+      <span class="terminal-progress-dot"></span>
+      <span class="terminal-progress-title">{escape(label)}</span>
+    </div>
+    <span class="terminal-progress-pct">{pct}%</span>
   </div>
-  <div class="term-prog-sub">{sub}</div>
+  <div class="terminal-progress-track">
+    <span class="terminal-progress-bracket">[</span>
+    <span class="terminal-progress-blocks">{''.join(blocks)}</span>
+    <span class="terminal-progress-bracket">]</span>
+  </div>
+  <div class="terminal-progress-status"><span class="terminal-progress-prompt">&gt;</span> {escape(status_text)}<span class="terminal-progress-cursor"></span></div>
 </div>
-<style>
-.term-prog {{
-  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--line, #d6e1db);
-  border-radius: 8px;
-  background: var(--surface, #fff);
-  margin: 0.25rem 0;
-}}
-.term-prog-title {{
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  color: var(--text-muted, #48616a);
-  margin-bottom: 0.5rem;
-}}
-.term-prog-row {{
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.35rem;
-}}
-.term-prog-bracket {{ color: var(--text-muted, #48616a); font-size: 0.9rem; }}
-.term-prog-fill {{ color: #00a757; font-size: 0.9rem; letter-spacing: 0.02em; }}
-.term-prog-empty {{ color: var(--line, #d6e1db); font-size: 0.9rem; letter-spacing: 0.02em; }}
-.term-prog-pct {{
-  color: #00a757;
-  font-size: 0.85rem;
-  font-weight: 600;
-  min-width: 3.5ch;
-}}
-.term-prog-sub {{
-  font-size: 0.72rem;
-  color: var(--text-muted, #48616a);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}}
-</style>""")
+        """
+    )
 
 
 def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None):
@@ -2199,6 +2328,18 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         initial_population_results = latest_result["run_results"]
         initial_population_title = "Latest synthetic population view"
 
+    st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
+    progress_slot = st.empty()
+    if initial_population_results is not None:
+        completed_total = max(total_calls, 1)
+        render_terminal_progress(
+            progress_slot,
+            completed_total,
+            completed_total,
+            f"{len(POLICIES)} policies simulated · results live below",
+            title="LAST_RUN_COMPLETE",
+        )
+
     render_population_view_overview(settings)
     live_population = st.empty()
     update_slot = st.empty()
@@ -2210,8 +2351,6 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         "initial",
         root_id=_LIVE_GRID_ID,
     )
-    st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
-    progress_slot = st.empty()
     live_status = st.empty()
     live_debrief = st.empty()
 
@@ -2364,7 +2503,8 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                     render_terminal_progress(progress_slot, completed_calls, total_calls, f"Error: {model} / {policy}.")
                     model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
-        progress_slot.empty()
+        if not run_frames:
+            progress_slot.empty()
         live_status.empty()
         live_debrief.empty()
 
@@ -2433,6 +2573,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         st.session_state.pop("llm_agent_latest_result", None)
         st.write("Previous in-session results used an older metric schema. Run the simulation again.")
     else:
+        st.html('<div class="section-gap"></div>')
         render_results_fragment(settings)
     render_llm_run_log(MAX_RUN_LOG_SIZE)
 
@@ -2549,6 +2690,7 @@ def render_app():
     render_hero_statement()
     render_hero_summary(settings)
     render_reference_guide()
+    st.html('<div class="section-gap section-gap-lg"></div>')
 
     render_llm_agent_section(settings, run_info_slot, run_button_slot)
     with achievements_slot:
