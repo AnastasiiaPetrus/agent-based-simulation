@@ -20,7 +20,7 @@ def combined_policy_totals_table(run_results, population_size):
         "children_helped": "Receiving support",
         "children_harmed": "Harmed by intervention",
     }
-    required_metric_columns = [*avg_metric_labels, "crimes_prevented"]
+    required_metric_columns = [*avg_metric_labels, "crimes_prevented", "children_flagged"]
     metric_columns = [column for column in required_metric_columns if column in run_results.columns]
     table = (
         run_results.groupby("policy", as_index=False)[metric_columns].mean(numeric_only=True)
@@ -30,20 +30,27 @@ def combined_policy_totals_table(run_results, population_size):
     table["crime_reduction_pct"] = (
         table["crimes_prevented"] / table["baseline_crimes"].replace(0, np.nan)
     ) * 100
-    table["harmed_pct"] = (table["children_harmed"] / max(int(population_size), 1)) * 100
+    flagged_denominator = (
+        table["children_flagged"].replace(0, np.nan)
+        if "children_flagged" in table.columns
+        else max(int(population_size), 1)
+    )
+    table["harmed_pct"] = (table["children_harmed"] / flagged_denominator) * 100
 
     display_table = table.rename(
         columns={
             "policy": "Policy",
             "crime_reduction_pct": "Offense reduction (%)",
-            "harmed_pct": "Harmed by intervention (%)",
+            "harmed_pct": "Harmed (% of flagged)",
             **avg_metric_labels,
         }
     )
+    if "children_flagged" in display_table.columns:
+        display_table = display_table.drop(columns="children_flagged")
     ordered_columns = [
         "Policy",
         "Offense reduction (%)",
-        "Harmed by intervention (%)",
+        "Harmed (% of flagged)",
         "Would offend without policy",
         "Wrongly flagged",
         "Missed by prediction",
@@ -54,7 +61,7 @@ def combined_policy_totals_table(run_results, population_size):
     for column in display_table.columns:
         if column == "Policy":
             continue
-        if column in {"Offense reduction (%)", "Harmed by intervention (%)"}:
+        if column in {"Offense reduction (%)", "Harmed (% of flagged)"}:
             display_table[column] = display_table[column].map(
                 lambda v: "N/A" if pd.isna(v) else f"{v:.1f}%"
             )

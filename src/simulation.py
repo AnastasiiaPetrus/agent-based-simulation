@@ -25,7 +25,9 @@ def baseline_count_for_run(run_number, run_numbers, settings):
     if len(sorted_runs) <= 1:
         return clamp_count(target, population_size)
 
-    rng = np.random.default_rng(seed=int(run_number))
+    # Include settings in the seed so different scenarios produce independent variation patterns.
+    settings_fingerprint = int(settings["true_high_risk_rate"] * 1000) * 7 + int(float(settings["prediction_noise"]) * 100) * 13
+    rng = np.random.default_rng(seed=int(run_number) + settings_fingerprint)
     variation = rng.uniform(-0.06, 0.06)
     return clamp_count(target * (1 + variation), population_size)
 
@@ -226,6 +228,7 @@ def normalize_llm_metrics(run_results, district_results, settings):
         run_results["baseline_crimes"] - run_results["crimes_prevented"]
     ).clip(lower=0, upper=population_size)
 
+    # baseline_crimes = children who would offend without intervention = true_high_risk_count.
     risk_signal_results = run_results["baseline_crimes"].apply(
         lambda baseline_count: risk_signal_counts(int(baseline_count), settings)
     )
