@@ -80,15 +80,7 @@ def render_app_header():
 
 
 def render_hero_badges():
-    st.html(
-        """
-<div class="hero-badges">
-  <span class="badge-chip badge-live">Thought Experiment</span>
-  <span class="badge-chip">Statistical</span>
-  <span class="badge-chip">Agentic AI</span>
-</div>
-        """
-    )
+    pass
 
 
 def render_hero_summary(settings):
@@ -119,6 +111,11 @@ def render_hero_summary(settings):
 def render_hero_statement():
     st.html(
         """
+<div class="hero-badges">
+  <span class="badge-chip badge-live">Thought Experiment</span>
+  <span class="badge-chip">Statistical</span>
+  <span class="badge-chip">Agentic AI</span>
+</div>
 <section class="hero-copy">
   <h1 class="hero-question">
     <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will become a violent criminal by age <span class="hero-accent">30</span></span>.
@@ -394,19 +391,16 @@ h3 {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.55rem;
-}
-
-.hero-badges {
-  margin: 0.5rem 0 -0.4rem;
+  margin: 0 0 0.85rem;
 }
 
 .hero-copy {
   max-width: 980px;
-  margin-top: 1.25rem;
+  margin-top: 0;
 }
 
 .hero-question {
-  margin: 0;
+  margin: 0 0 0;
   color: var(--text);
   font-size: clamp(1.4rem, 3.2vw, 2.8rem);
   font-weight: 750;
@@ -424,7 +418,7 @@ h3 {
 
 .hero-subtitle {
   max-width: 760px;
-  margin: 2rem 0 0;
+  margin: 0.85rem 0 0;
   color: var(--text-muted);
   font-size: 1.28rem;
   line-height: 1.55;
