@@ -37,12 +37,13 @@ SETTING_DESCRIPTIONS = {
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Children who would offend (no intervention)": "Count of synthetic children whose simulated life trajectory leads to a violent offense when no policy is applied — the baseline against which all policies are compared.",
-    "Offenses prevented by policy": "Difference between baseline offenses and offenses remaining after the policy. Derived directly from the two counts above.",
-    "Children incorrectly flagged": "Flagged children who would NOT have committed the offense — false positives. They bear the cost of the policy without any benefit.",
-    "Children missed by risk signal": "Unflagged children who WOULD have committed the offense — false negatives. They receive no intervention regardless of policy.",
-    "Children receiving support": "Children reached by voluntary support. Non-zero only under the targeted support policy.",
-    "Children exposed to harmful intervention": "Children whose simulated trajectory is adversely affected by surveillance (stigma, trust loss) or coercive restriction (liberty, opportunity). Zero under targeted support.",
+    "Children who would offend (no intervention)": "Baseline count — synthetic children whose trajectory leads to a violent offense with no policy applied. All other metrics are relative to this.",
+    "Children flagged by risk signal": "Total children identified as high-risk by the signal (true positives + false positives). This is the denominator for interpreting the two error metrics below.",
+    "Children incorrectly flagged (false positives)": "Subset of flagged children who would NOT have offended. They bear the full cost of the policy with no corresponding benefit.",
+    "Children missed by risk signal (false negatives)": "Children who WOULD have offended but were not flagged. They receive no intervention under any targeted policy.",
+    "Offenses prevented by policy": "Baseline offenses minus offenses remaining after the policy. Derived from the LLM's simulated reduction rate applied to the baseline.",
+    "Children receiving support": "Children offered voluntary support under the targeted support policy. Equals the total flagged count — includes both true and false positives.",
+    "Children exposed to harmful intervention": "Children whose trajectory is adversely affected by surveillance (stigma, eroded trust) or coercive restriction (loss of liberty and opportunity). Always zero under targeted support.",
 }
 
 CHECK_DESCRIPTIONS = {
@@ -86,17 +87,18 @@ DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
 NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
 DEFAULT_TRUE_HIGH_RISK_RATE = 0.125
-POPULATION_DOT_ANIMATION_SECONDS = 0.9
+POPULATION_DOT_ANIMATION_SECONDS = 0.35
 POPULATION_DOT_PULSE_SECONDS = 2.6
-POPULATION_DOT_STAGGER_GROUP = 50
-POPULATION_DOT_STAGGER_SECONDS = 0.004
+POPULATION_DOT_STAGGER_GROUP = 24
+POPULATION_DOT_STAGGER_SECONDS = 0.0015
 POLICY_EFFECT_REDUCTION_RATES = {"Low": 0.05, "Medium": 0.15, "High": 0.28}
 
 RUN_METRIC_LABELS = {
     "baseline_crimes": "Children who would offend (no intervention)",
+    "children_flagged": "Children flagged by risk signal",
+    "false_positives": "Children incorrectly flagged (false positives)",
+    "false_negatives": "Children missed by risk signal (false negatives)",
     "crimes_prevented": "Offenses prevented by policy",
-    "false_positives": "Children incorrectly flagged",
-    "false_negatives": "Children missed by risk signal",
     "children_helped": "Children receiving support",
     "children_harmed": "Children exposed to harmful intervention",
 }
@@ -254,8 +256,8 @@ def baseline_count_for_run(run_number, run_numbers, settings):
     if len(sorted_runs) <= 1:
         return clamp_count(target, population_size)
 
-    run_index = sorted_runs.index(int(run_number))
-    variation = np.linspace(-0.06, 0.06, len(sorted_runs))[run_index]
+    rng = np.random.default_rng(seed=int(run_number))
+    variation = rng.uniform(-0.06, 0.06)
     return clamp_count(target * (1 + variation), population_size)
 
 
@@ -396,9 +398,9 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --soft-color: #dde3ec;
   --mid-color: #b7c0ce;
   animation:
-    {reveal_animation_name} {POPULATION_DOT_ANIMATION_SECONDS:.1f}s cubic-bezier(.22,.61,.19,1) forwards,
+    {reveal_animation_name} {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards,
     {pulse_animation_name} {POPULATION_DOT_PULSE_SECONDS:.1f}s ease-in-out infinite;
-  animation-delay: var(--delay), calc(var(--delay) + {POPULATION_DOT_ANIMATION_SECONDS:.1f}s);
+  animation-delay: var(--delay), calc(var(--delay) + {POPULATION_DOT_ANIMATION_SECONDS:.2f}s);
 }}
 .risk-low {{
   --target-color: #25a55f;
@@ -1025,6 +1027,8 @@ def normalize_llm_metrics(run_results, district_results, settings):
         [counts[2] for counts in risk_signal_results],
         index=run_results.index,
     )
+
+    run_results["children_flagged"] = flagged_counts.round().astype(int)
 
     if policy == "Targeted support for high-risk children":
         run_results["children_helped"] = flagged_counts
