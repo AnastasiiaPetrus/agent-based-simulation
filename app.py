@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from html import escape
 from io import StringIO
+from time import sleep
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,7 +32,8 @@ POLICY_DESCRIPTIONS = {
 }
 
 SETTING_DESCRIPTIONS = {
-    "Risk signal error rate (%)": "How often the prediction is wrong. 0% = perfect signal; 35% = highly unreliable.",
+    "Baseline offense rate (%)": "Share of the 1 000 synthetic children whose life trajectory would include the modeled offense if no policy existed. 12.5% = 125 children.",
+    "Prediction error rate (%)": "How noisy the risk signal is. It increases missed would-offend cases and randomly flagged children whose baseline trajectory would not include the offense.",
     "Children flagged as high-risk (%)": "Share of the 1 000 synthetic children identified by the risk signal. 25% = 250 children flagged.",
     "Intervention strength": "How intensively the chosen policy is applied — scales the simulated effect on offenses, support reach, and harm.",
 }
@@ -85,10 +87,12 @@ RUN_COUNT_COLUMNS = [
 DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
 NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
-POPULATION_DOT_ANIMATION_SECONDS = 5.4
-POPULATION_DOT_PULSE_SECONDS = 3.6
-POPULATION_DOT_STAGGER_GROUP = 90
-POPULATION_DOT_STAGGER_SECONDS = 0.022
+POPULATION_DOT_ANIMATION_SECONDS = 3.0
+POPULATION_DOT_PULSE_SECONDS = 3.2
+POPULATION_DOT_STAGGER_GROUP = 80
+POPULATION_DOT_STAGGER_SECONDS = 0.012
+POPULATION_REPAINT_PAUSE_SECONDS = 0.25
+POLICY_EFFECT_REDUCTION_RATES = {"Low": 0.05, "Medium": 0.15, "High": 0.28}
 
 RUN_METRIC_LABELS = {
     "baseline_crimes": "Children who would offend (no intervention)",
@@ -245,14 +249,44 @@ def clamp_count(value, maximum):
     return int(max(0, min(maximum, round(float(value)))))
 
 
+def baseline_count_for_run(run_number, run_numbers, settings):
+    population_size = int(settings["population_size"])
+    target = float(settings["baseline_offense_rate"]) * population_size
+    sorted_runs = sorted(set(int(run) for run in run_numbers))
+    if len(sorted_runs) <= 1:
+        return clamp_count(target, population_size)
+
+    run_index = sorted_runs.index(int(run_number))
+    variation = np.linspace(-0.06, 0.06, len(sorted_runs))[run_index]
+    return clamp_count(target * (1 + variation), population_size)
+
+
+def risk_signal_error_counts(baseline_count, settings):
+    population_size = int(settings["population_size"])
+    flagged_count = clamp_count(settings["high_risk_threshold"] * population_size, population_size)
+    signal_error_rate = float(settings["prediction_noise"])
+
+    desired_false_negatives = clamp_count(baseline_count * signal_error_rate, baseline_count)
+    true_positive_capacity = max(0, baseline_count - desired_false_negatives)
+    true_positives = min(flagged_count, true_positive_capacity)
+    false_negatives = max(0, baseline_count - true_positives)
+    false_positives = max(0, flagged_count - true_positives)
+    return false_positives, false_negatives
+
+
 def population_risk_counts(run_results, settings):
     population_size = int(settings["population_size"])
+    flagged = clamp_count(settings["high_risk_threshold"] * population_size, population_size)
     if run_results is None or run_results.empty:
+        baseline = clamp_count(settings["baseline_offense_rate"] * population_size, population_size)
+        high = min(baseline, population_size)
+        medium = min(flagged, population_size - high)
+        low = population_size - high - medium
         return {
-            "low": population_size,
-            "medium": 0,
-            "high": 0,
-            "baseline": 0,
+            "low": low,
+            "medium": medium,
+            "high": high,
+            "baseline": baseline,
             "prevented": 0,
             "harmed": 0,
             "false_positive": 0,
@@ -266,7 +300,7 @@ def population_risk_counts(run_results, settings):
     missed = clamp_count(averages.get("false_negatives"), population_size)
 
     high = max(harmed, baseline - prevented, missed)
-    medium = max(false_positive, clamp_count(settings["high_risk_threshold"] * population_size, population_size))
+    medium = max(false_positive, flagged)
     high = min(high, population_size)
     medium = min(medium, population_size - high)
     low = population_size - high - medium
@@ -282,7 +316,7 @@ def population_risk_counts(run_results, settings):
     }
 
 
-def population_animation_html(run_results, settings, title):
+def population_animation_html(run_results, settings, title, animation_key=""):
     population_size = int(settings["population_size"])
     counts = population_risk_counts(run_results, settings)
     risk_classes = (
@@ -290,7 +324,11 @@ def population_animation_html(run_results, settings, title):
         + ["risk-medium"] * counts["medium"]
         + ["risk-low"] * counts["low"]
     )
-    seed = sum(ord(char) for char in title) + counts["high"] * 7 + counts["medium"] * 13
+    seed_text = f"{title}-{animation_key}"
+    seed = sum(ord(char) for char in seed_text) + counts["high"] * 7 + counts["medium"] * 13
+    animation_id = abs(seed + population_size * 17 + counts["low"] * 23) % 100000
+    reveal_animation_name = f"revealRiskDot{animation_id}"
+    pulse_animation_name = f"pulseRiskDot{animation_id}"
     rng = np.random.default_rng(seed)
     rng.shuffle(risk_classes)
 
@@ -319,65 +357,104 @@ def population_animation_html(run_results, settings, title):
 }}
 .life-course-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(18px, 1fr));
+  grid-auto-rows: 18px;
   gap: 5px;
   align-items: center;
+  justify-items: center;
   width: 100%;
   padding: 8px 0;
 }}
 .life-dot {{
-  width: 10px;
-  height: 10px;
+  width: 4px;
+  height: 4px;
   border-radius: 999px;
   display: inline-block;
   justify-self: center;
-  transform: scale(0.35);
-  opacity: 0.25;
-  background: #edf1f7;
-  --target-scale: 1;
-  --overshoot-scale: 1.16;
-  --pulse-scale: 1.08;
+  box-sizing: border-box;
+  opacity: 0.12;
+  background: #f1f4f8;
+  --target-size: 10px;
+  --approach-size: 8px;
+  --overshoot-size: 12px;
+  --pulse-scale: 1.06;
   --soft-color: #dde3ec;
   --mid-color: #b7c0ce;
   animation:
-    colorGrowLifeDot {POPULATION_DOT_ANIMATION_SECONDS:.1f}s cubic-bezier(.22,.61,.19,1) forwards,
-    breatheLifeDot {POPULATION_DOT_PULSE_SECONDS:.1f}s ease-in-out infinite;
+    {reveal_animation_name} {POPULATION_DOT_ANIMATION_SECONDS:.1f}s cubic-bezier(.22,.61,.19,1) forwards,
+    {pulse_animation_name} {POPULATION_DOT_PULSE_SECONDS:.1f}s ease-in-out infinite;
   animation-delay: var(--delay), calc(var(--delay) + {POPULATION_DOT_ANIMATION_SECONDS:.1f}s);
 }}
 .risk-low {{
   --target-color: #25a55f;
   --soft-color: #d8eee3;
   --mid-color: #7ed2a1;
-  --target-scale: 0.92;
-  --overshoot-scale: 1.04;
-  --pulse-scale: 1.0;
+  --target-size: 8px;
+  --approach-size: 7px;
+  --overshoot-size: 9px;
+  --pulse-scale: 1.03;
 }}
 .risk-medium {{
   --target-color: #f2b705;
   --soft-color: #fff0c6;
   --mid-color: #ffd15a;
-  --target-scale: 1.08;
-  --overshoot-scale: 1.24;
-  --pulse-scale: 1.16;
+  --target-size: 12px;
+  --approach-size: 10px;
+  --overshoot-size: 14px;
+  --pulse-scale: 1.10;
 }}
 .risk-high {{
   --target-color: #d64b3c;
   --soft-color: #f6d9d6;
   --mid-color: #eb8d82;
-  --target-scale: 1.24;
-  --overshoot-scale: 1.42;
-  --pulse-scale: 1.32;
+  --target-size: 15px;
+  --approach-size: 12px;
+  --overshoot-size: 18px;
+  --pulse-scale: 1.14;
 }}
-@keyframes colorGrowLifeDot {{
-  0% {{ transform: scale(0.32); opacity: 0.18; background: #edf1f7; }}
-  18% {{ transform: scale(0.42); opacity: 0.36; background: #edf1f7; }}
-  42% {{ transform: scale(0.58); opacity: 0.58; background: var(--soft-color); }}
-  68% {{ transform: scale(0.82); opacity: 0.82; background: var(--mid-color); }}
-  88% {{ transform: scale(var(--overshoot-scale)); opacity: 1; background: var(--target-color); }}
-  100% {{ transform: scale(var(--target-scale)); opacity: 1; background: var(--target-color); }}
+@keyframes {reveal_animation_name} {{
+  0% {{
+    width: 4px;
+    height: 4px;
+    opacity: 0.12;
+    background: #f1f4f8;
+    box-shadow: 0 0 0 0 rgba(45, 49, 66, 0);
+  }}
+  24% {{
+    width: 5px;
+    height: 5px;
+    opacity: 0.30;
+    background: #edf1f7;
+  }}
+  48% {{
+    width: 7px;
+    height: 7px;
+    opacity: 0.55;
+    background: var(--soft-color);
+  }}
+  72% {{
+    width: var(--approach-size);
+    height: var(--approach-size);
+    opacity: 0.82;
+    background: var(--mid-color);
+  }}
+  90% {{
+    width: var(--overshoot-size);
+    height: var(--overshoot-size);
+    opacity: 1;
+    background: var(--target-color);
+    box-shadow: 0 0 0 4px rgba(45, 49, 66, 0.08);
+  }}
+  100% {{
+    width: var(--target-size);
+    height: var(--target-size);
+    opacity: 1;
+    background: var(--target-color);
+    box-shadow: 0 0 0 0 rgba(45, 49, 66, 0);
+  }}
 }}
-@keyframes breatheLifeDot {{
-  0%, 100% {{ transform: scale(var(--target-scale)); filter: brightness(1); }}
+@keyframes {pulse_animation_name} {{
+  0%, 100% {{ transform: scale(1); filter: brightness(1); }}
   50% {{ transform: scale(var(--pulse-scale)); filter: brightness(1.12); }}
 }}
 .life-course-legend {{
@@ -408,11 +485,18 @@ def population_animation_html(run_results, settings, title):
   <div class="life-course-grid">{''.join(dots)}</div>
   <div class="life-course-legend">
     <span class="legend-item"><span class="legend-dot risk-low"></span>green: lower modeled risk/support path ({counts['low']})</span>
-    <span class="legend-item"><span class="legend-dot risk-medium"></span>yellow: flagged or error-sensitive path ({counts['medium']})</span>
-    <span class="legend-item"><span class="legend-dot risk-high"></span>red: offense or harmful intervention path ({counts['high']})</span>
+    <span class="legend-item"><span class="legend-dot risk-medium"></span>yellow: flagged by the risk signal ({counts['medium']})</span>
+    <span class="legend-item"><span class="legend-dot risk-high"></span>red: modeled offense or harmful intervention path ({counts['high']})</span>
   </div>
 </div>
 """
+
+
+def render_population_animation(container, run_results, settings, title, animation_key=""):
+    container.markdown(
+        population_animation_html(run_results, settings, title, animation_key),
+        unsafe_allow_html=True,
+    )
 
 
 def glossary_markdown(items):
@@ -609,6 +693,7 @@ def compact_parameter_summary(settings):
         f"population_size={int(settings['population_size'])}; "
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
         f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
+        f"baseline_offense_rate={settings['baseline_offense_rate']:.3f}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
         f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
         f"bias_against_district_c={settings['bias_against_district_c']:.2f}; "
@@ -618,6 +703,7 @@ def compact_parameter_summary(settings):
 
 def llm_assumptions(settings):
     return {
+        "baseline_offense_rate": metric_value(settings["baseline_offense_rate"]),
         "prediction_noise": metric_value(settings["prediction_noise"]),
         "high_risk_threshold": metric_value(settings["high_risk_threshold"]),
         "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
@@ -721,13 +807,20 @@ def build_llm_simulation_prompt(settings):
 
         "Parameter guidance:\n"
         "- population_size: total synthetic children; all counts are fractions of this\n"
+        "- baseline_offense_rate: share of children whose no-intervention trajectory would include "
+        "the modeled offense by age 30; baseline_crimes should be centered on "
+        "baseline_offense_rate × population_size\n"
         "- high_risk_threshold: share of population flagged (0.25 → ~25% flagged)\n"
-        "- prediction_noise: error rate (0.0 = accurate; 0.35 = many false positives and false negatives)\n"
+        "- prediction_noise: signal error rate; it creates false negatives among children whose "
+        "baseline trajectory includes the offense and false positives among flagged children whose "
+        "baseline trajectory does not\n"
         "- policy_effect_strength: scale of crime reduction among those reached — "
         "Low ≈ 5%, Medium ≈ 15%, High ≈ 25–30% of baseline_crimes\n\n"
 
         "Metric constraints:\n"
         "- All counts: non-negative integers, none exceeding population_size\n"
+        "- baseline_crimes must stay close to baseline_offense_rate × population_size, with only "
+        "small run-to-run variation\n"
         "- crimes_prevented must equal baseline_crimes minus crimes_after_policy\n"
         "- children_helped and children_harmed are separate\n"
         "- Do not output cost scores, dollar values, or utility scores\n"
@@ -896,24 +989,32 @@ def normalize_llm_metrics(run_results, district_results, settings):
         upper=population_size,
     )
 
-    run_results["crimes_after_policy"] = np.minimum(
-        run_results["crimes_after_policy"],
-        run_results["baseline_crimes"],
-    )
+    fallback_reduction_rate = POLICY_EFFECT_REDUCTION_RATES[settings["policy_effect_strength"]]
+    reduction_rate = (
+        run_results["crimes_prevented"] / run_results["baseline_crimes"].replace(0, np.nan)
+    ).clip(lower=0, upper=1)
+    reduction_rate = reduction_rate.fillna(fallback_reduction_rate)
+
+    run_numbers = run_results["run"].astype(int).tolist()
+    run_results["baseline_crimes"] = [
+        baseline_count_for_run(run_number, run_numbers, settings)
+        for run_number in run_numbers
+    ]
     run_results["crimes_prevented"] = (
-        run_results["baseline_crimes"] - run_results["crimes_after_policy"]
+        run_results["baseline_crimes"] * reduction_rate
+    ).round().clip(lower=0, upper=population_size)
+    run_results["crimes_after_policy"] = (
+        run_results["baseline_crimes"] - run_results["crimes_prevented"]
     ).clip(lower=0, upper=population_size)
-    run_results["false_positives"] = np.minimum(
-        run_results["false_positives"],
-        flagged_limit,
+
+    risk_error_counts = run_results["baseline_crimes"].apply(
+        lambda baseline_count: risk_signal_error_counts(int(baseline_count), settings)
     )
-    run_results["false_negatives"] = np.minimum(
-        run_results["false_negatives"],
-        run_results["baseline_crimes"],
-    )
+    run_results["false_positives"] = [counts[0] for counts in risk_error_counts]
+    run_results["false_negatives"] = [counts[1] for counts in risk_error_counts]
 
     if policy == "Targeted support for high-risk children":
-        run_results["children_helped"] = np.minimum(run_results["children_helped"], flagged_limit)
+        run_results["children_helped"] = flagged_limit
         run_results["children_harmed"] = 0
         district_results["children_harmed"] = 0
     elif policy == "Surveillance of high-risk children":
@@ -1093,28 +1194,43 @@ def render_llm_agent_section(settings):
         initial_population_title = "Latest synthetic population view"
 
     live_population = st.empty()
-    live_population.markdown(
-        population_animation_html(initial_population_results, settings, initial_population_title),
-        unsafe_allow_html=True,
+    render_population_animation(
+        live_population,
+        initial_population_results,
+        settings,
+        initial_population_title,
+        "initial",
     )
     progress_slot = st.empty()
     live_status = st.empty()
     live_debrief = st.empty()
 
-    if st.button(
+    st.sidebar.caption(
+        f"Current run: {len(POLICIES)} policies × {len(selected_models)} model agent(s) = "
+        f"{total_calls} LLM call(s). Each call generates {int(settings['llm_simulation_runs'])} "
+        f"synthetic run(s) over {int(settings['population_size']):,} synthetic children."
+    )
+    run_requested = st.sidebar.button(
         "Run simulation",
         disabled=not bool(api_key) or not selected_models,
         type="primary",
-    ):
+        use_container_width=True,
+    )
+
+    if run_requested:
         model_results = []
         model_errors = []
         completed_calls = 0
         progress_bar = progress_slot.progress(0.0)
         live_status.write("Starting LLM-agent simulation...")
-        live_population.markdown(
-            population_animation_html(None, settings, "Waiting for the first LLM-agent result"),
-            unsafe_allow_html=True,
+        render_population_animation(
+            live_population,
+            None,
+            settings,
+            "Waiting for the first LLM-agent result",
+            "waiting",
         )
+        sleep(POPULATION_REPAINT_PAUSE_SECONDS)
 
         with st.spinner(f"Running {len(POLICIES)} policy(ies) × {len(selected_models)} model agent(s)..."):
             for model in selected_models:
@@ -1150,14 +1266,14 @@ def render_llm_agent_section(settings):
                         completed_calls += 1
                         progress_bar.progress(completed_calls / max(total_calls, 1))
                         live_status.write(f"Received **{model}** result for **{policy}**.")
-                        live_population.markdown(
-                            population_animation_html(
-                                run_results,
-                                policy_settings,
-                                f"{model} | {policy}",
-                            ),
-                            unsafe_allow_html=True,
+                        render_population_animation(
+                            live_population,
+                            run_results,
+                            policy_settings,
+                            f"{model} | {policy}",
+                            f"result-{completed_calls}",
                         )
+                        sleep(POPULATION_REPAINT_PAUSE_SECONDS)
                         if debrief_text:
                             live_debrief.info(f"{model} | {policy}: {debrief_text}")
 
@@ -1176,6 +1292,7 @@ def render_llm_agent_section(settings):
                         completed_calls += 1
                         progress_bar.progress(completed_calls / max(total_calls, 1))
                         live_status.write(f"Could not generate **{model}** result for **{policy}**.")
+                        sleep(POPULATION_REPAINT_PAUSE_SECONDS)
                         model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
         progress_slot.empty()
@@ -1211,13 +1328,12 @@ def render_llm_agent_section(settings):
                 "representative_agents": all_representative_agents,
                 "debrief_text": debrief_text,
             }
-            live_population.markdown(
-                population_animation_html(
-                    combined_run_results,
-                    settings,
-                    "Latest synthetic population view",
-                ),
-                unsafe_allow_html=True,
+            render_population_animation(
+                live_population,
+                combined_run_results,
+                settings,
+                "Latest synthetic population view",
+                f"final-{datetime.now().timestamp()}",
             )
 
             entry = {
@@ -1297,10 +1413,15 @@ def sidebar_inputs():
     st.sidebar.caption("Synthetic population: **1 000 children** (fixed).")
     settings = {
         "population_size": 1000,
+        "baseline_offense_rate": st.sidebar.slider(
+            "Children who would offend without intervention (%)",
+            1.0, 40.0, 12.5, step=0.5,
+            help=SETTING_DESCRIPTIONS["Baseline offense rate (%)"],
+        ) / 100,
         "prediction_noise": st.sidebar.slider(
-            "Risk signal error rate (%)",
+            "Prediction error rate (%)",
             0, 35, 10, step=1,
-            help=SETTING_DESCRIPTIONS["Risk signal error rate (%)"],
+            help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
         ) / 100,
         "high_risk_threshold": st.sidebar.slider(
             "Children flagged as high-risk (%)",

@@ -40,7 +40,8 @@ There is no user-selected policy dropdown. The point is comparison across all po
 The sidebar intentionally keeps only the main assumptions:
 
 - **Synthetic population**: fixed at 1,000 children.
-- **Risk signal error rate (%)**: how often the prediction is wrong.
+- **Children who would offend without intervention (%)**: baseline share whose no-policy life trajectory would include the modeled offense.
+- **Prediction error rate (%)**: how noisy the risk signal is, creating false positives and false negatives.
 - **Children flagged as high-risk (%)**: share of the population flagged by the risk signal.
 - **Intervention strength**: low, medium, or high scenario assumption for how strongly the policy may affect modeled offenses.
 
