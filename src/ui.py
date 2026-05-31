@@ -266,15 +266,74 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   var spot = document.getElementById('{spotlight_id}');
   if (!grid || !spot) return;
 
+  var WAVE_RADIUS = 90;
+  var WAVE_BOOST  = 0.55;
+  var dots = [];
+  var rafId = null;
+  var mx = -9999, my = -9999;
+  var ready = false;
+
+  /* After reveal animation finishes, freeze each dot so JS can drive the transform. */
+  var freezeMs = ({POPULATION_DOT_ANIMATION_SECONDS:.3f} + 0.06) * 1000;
+  setTimeout(function() {{
+    var all = grid.querySelectorAll('.life-dot');
+    var gridR = grid.getBoundingClientRect();
+    for (var i = 0; i < all.length; i++) {{
+      var d = all[i];
+      var cs = getComputedStyle(d);
+      var base = parseFloat(cs.getPropertyValue('--target-scale')) || 1;
+      var col  = cs.getPropertyValue('--target-color').trim();
+      d.style.animation  = 'none';
+      d.style.opacity    = '1';
+      d.style.background = col;
+      d.style.transform  = 'scale(' + base + ')';
+      d.style.transition = 'transform 0.09s ease, filter 0.09s ease';
+      var r = d.getBoundingClientRect();
+      dots.push({{
+        el: d,
+        base: base,
+        x: r.left - gridR.left + r.width  / 2,
+        y: r.top  - gridR.top  + r.height / 2,
+        inWave: false
+      }});
+    }}
+    ready = true;
+  }}, freezeMs);
+
+  function applyWave() {{
+    rafId = null;
+    if (!ready) return;
+    for (var i = 0; i < dots.length; i++) {{
+      var p = dots[i];
+      var dx = mx - p.x, dy = my - p.y;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < WAVE_RADIUS) {{
+        var t = 1 - dist / WAVE_RADIUS;
+        p.el.style.transform = 'scale(' + (p.base * (1 + WAVE_BOOST * t * t)).toFixed(3) + ')';
+        p.el.style.filter    = 'brightness(' + (1 + 0.4 * t).toFixed(2) + ')';
+        p.inWave = true;
+      }} else if (p.inWave) {{
+        p.el.style.transform = 'scale(' + p.base.toFixed(3) + ')';
+        p.el.style.filter    = '';
+        p.inWave = false;
+      }}
+    }}
+  }}
+
   grid.addEventListener('mousemove', function(e) {{
     var r = grid.getBoundingClientRect();
-    spot.style.setProperty('--sx', (e.clientX - r.left) + 'px');
-    spot.style.setProperty('--sy', (e.clientY - r.top) + 'px');
+    mx = e.clientX - r.left;
+    my = e.clientY - r.top;
+    spot.style.setProperty('--sx', mx + 'px');
+    spot.style.setProperty('--sy', my + 'px');
     spot.style.opacity = '1';
+    if (!rafId) rafId = requestAnimationFrame(applyWave);
   }});
 
   grid.addEventListener('mouseleave', function() {{
+    mx = -9999; my = -9999;
     spot.style.opacity = '0';
+    if (!rafId) rafId = requestAnimationFrame(applyWave);
   }});
 
   grid.addEventListener('click', function(e) {{
