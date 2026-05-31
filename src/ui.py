@@ -176,6 +176,11 @@ h3 {
   color: #ffffff;
 }
 
+.stButton > button[kind="primary"] *,
+.stButton > button[kind="primary"] p {
+  color: #ffffff !important;
+}
+
 .stButton > button[kind="primary"]:hover:not(:disabled) {
   border-color: var(--primary-strong);
   box-shadow: 0 10px 24px rgba(20, 92, 88, 0.25);
