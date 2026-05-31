@@ -121,7 +121,7 @@ def render_hero_statement():
         """
 <section class="hero-copy">
   <h1 class="hero-question">
-    Suppose we could reliably predict, <span class="hero-nowrap">at age <span class="hero-accent">10</span></span>,<br>who will become a violent criminal <span class="hero-nowrap">by age <span class="hero-accent">30</span></span>.
+    <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will become a violent criminal by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
     What should we <em>do</em> with that information? Run a synthetic population of 1,000 children through three policies &mdash; and watch what a few percentage points of error actually cost.
@@ -142,9 +142,9 @@ def render_population_view_overview(settings):
   <div class="population-legend">
     <span class="population-legend-item"><span class="population-legend-dot is-safe"></span>Not flagged &middot; safe</span>
     <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; offense prevented</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged true positive &middot; still violent or harmed</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed high-risk child (false negative)</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged low-risk child (false positive)</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged and high-risk</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed by prediction (false negative)</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged (false positive)</span>
   </div>
 </section>
         """
@@ -406,9 +406,9 @@ h3 {
 .hero-question {
   margin: 0;
   color: var(--text);
-  font-size: 4.05rem;
+  font-size: clamp(1.4rem, 3.2vw, 2.8rem);
   font-weight: 750;
-  line-height: 1.06;
+  line-height: 1.12;
   letter-spacing: 0;
 }
 
