@@ -1558,7 +1558,13 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
 </script>"""
 
 
-def population_animation_html(run_results, settings, title, animation_key="", root_id=None):
+@st.cache_data(show_spinner=False)
+def population_animation_html(run_results, true_high_risk_rate, prediction_noise, population_size, title, animation_key="", root_id=None):
+    settings = {
+        "population_size": population_size,
+        "true_high_risk_rate": true_high_risk_rate,
+        "prediction_noise": prediction_noise,
+    }
     children, baseline_counts = baseline_children(settings)
     if root_id is None:
         seed_text = f"{title}-{animation_key}"
@@ -1630,6 +1636,9 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   border-radius: 6px;
   background: rgba(247,252,249,0.72);
   border: 1px solid rgba(53,88,72,0.12);
+  contain: layout style paint;
+  content-visibility: auto;
+  contain-intrinsic-block-size: 200px;
 }}
 .life-dot {{
   width: 10px;
@@ -1713,19 +1722,62 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   var root = document.getElementById('{root_id}');
   if (!root) return;
 
-  setTimeout(function() {{
-    root.querySelectorAll('.policy-panel[data-ready="true"]').forEach(function(panel) {{
-      panel.classList.add('show-final');
-    }});
-  }}, 420);
+  var grids = root.querySelectorAll('.policy-grid');
 
+  // Start dots paused; IntersectionObserver unpauses them when the grid is visible.
+  grids.forEach(function(grid) {{
+    grid.querySelectorAll('.life-dot').forEach(function(d) {{
+      d.style.animationPlayState = 'paused';
+    }});
+  }});
+
+  var revealed = new Set();
+  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(entries) {{
+    entries.forEach(function(entry) {{
+      if (!entry.isIntersecting || revealed.has(entry.target)) return;
+      revealed.add(entry.target);
+      io.unobserve(entry.target);
+      entry.target.querySelectorAll('.life-dot').forEach(function(d) {{
+        d.style.animationPlayState = 'running';
+      }});
+      // After dots reveal, transition panels with results to their final state.
+      setTimeout(function() {{
+        var panel = entry.target.closest('.policy-panel');
+        if (panel && panel.dataset.ready === 'true') panel.classList.add('show-final');
+      }}, 420);
+    }});
+  }}, {{ threshold: 0.05 }}) : null;
+
+  grids.forEach(function(grid) {{
+    if (io) {{
+      io.observe(grid);
+    }} else {{
+      // Fallback for browsers without IntersectionObserver.
+      grid.querySelectorAll('.life-dot').forEach(function(d) {{
+        d.style.animationPlayState = 'running';
+      }});
+      setTimeout(function() {{
+        root.querySelectorAll('.policy-panel[data-ready="true"]').forEach(function(p) {{
+          p.classList.add('show-final');
+        }});
+      }}, 420);
+    }}
+  }});
 }})();
 </script>
 """
 
 
 def render_population_animation(container, run_results, settings, title, animation_key="", root_id=None):
-    html = population_animation_html(run_results, settings, title, animation_key, root_id=root_id)
+    html = population_animation_html(
+        run_results,
+        settings["true_high_risk_rate"],
+        settings["prediction_noise"],
+        settings["population_size"],
+        title,
+        animation_key,
+        root_id=root_id,
+    )
     with container:
         st.html(html, unsafe_allow_javascript=True)
 
