@@ -375,7 +375,7 @@ h3 {
 .hero-question {
   margin: 0;
   color: var(--text);
-  font-size: 4.25rem;
+  font-size: 4.05rem;
   font-weight: 750;
   line-height: 1.06;
   letter-spacing: 0;
@@ -1199,7 +1199,7 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   }
 
   .hero-question {
-    font-size: 2.65rem;
+    font-size: 2.55rem;
     line-height: 1.08;
   }
 
@@ -1223,7 +1223,7 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   }
 
   .hero-question {
-    font-size: 2rem;
+    font-size: 1.95rem;
   }
 
   .achievement-toast {
