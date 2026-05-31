@@ -173,10 +173,10 @@ def _panel_changes(children, policy, metrics):
         1 for i, c in enumerate(children)
         if c["base"] == "high" and i not in prevented_indices and i not in harmed_indices
     )
+    harmed_total = harmed_fp + harmed_tp
     summary = (
         f"{len(prevented_indices)} prevented (red→green); "
-        f"{harmed_fp} wrongly flagged & harmed (green→orange); "
-        f"{harmed_tp} flagged & harmed (red→orange); "
+        f"{harmed_total} harmed by intervention (→red, outlined); "
         f"{final_high} red remain."
     )
     return prevented_indices, harmed_indices, summary, True
@@ -195,7 +195,7 @@ def policy_panel_html(children, policy, metrics, panel_index):
             final_class = "final-low"
             change_class = "changed-prevented"
         elif index in harmed_indices:
-            final_class = "final-harmed"
+            final_class = "final-high"
             change_class = "changed-harmed"
         flagged_class = " flagged-dot" if child["flagged"] else ""
         dots.append(
@@ -236,8 +236,8 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
   }});
   {json.dumps(sorted(harmed_indices))}.forEach(function(i) {{
     if (!dots[i]) return;
-    dots[i].classList.remove('final-high','final-low');
-    dots[i].classList.add('final-harmed','changed-harmed');
+    dots[i].classList.remove('final-low');
+    dots[i].classList.add('final-high','changed-harmed');
   }});
   var el = panel.querySelector('.policy-panel-summary');
   if (el) el.textContent = {json.dumps(summary)};
@@ -351,10 +351,6 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   --final-color: #d64b3c;
   --final-scale: 1.28;
 }}
-.final-harmed {{
-  --final-color: #e57c23;
-  --final-scale: 1.12;
-}}
 .flagged-dot {{
   outline: 3px solid #f2b705;
   outline-offset: 1px;
@@ -371,7 +367,7 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   box-shadow: 0 0 0 3px rgba(37,165,95,0.22);
 }}
 .policy-panel.show-final .life-dot.changed-harmed {{
-  box-shadow: 0 0 0 3px rgba(229,124,35,0.24);
+  box-shadow: 0 0 0 3px rgba(214,75,60,0.30);
 }}
 .life-course-legend {{
   display: flex;
@@ -399,7 +395,6 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
 }}
 .legend-low {{ --legend-color: #25a55f; }}
 .legend-high {{ --legend-color: #d64b3c; }}
-.legend-harmed {{ --legend-color: #e57c23; }}
 </style>
 <div class="life-course-card" id="{root_id}">
   <div class="life-course-header">
@@ -409,9 +404,8 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
     {''.join(panels)}
   </div>
   <div class="life-course-legend">
-    <span class="legend-item"><span class="legend-dot legend-low"></span>green: no modeled offense / prevented</span>
-    <span class="legend-item"><span class="legend-dot legend-high"></span>red: true high-risk / offense remains</span>
-    <span class="legend-item"><span class="legend-dot legend-harmed"></span>orange: wrongly flagged and harmed</span>
+    <span class="legend-item"><span class="legend-dot legend-low"></span>green: low-risk / offense prevented</span>
+    <span class="legend-item"><span class="legend-dot legend-high"></span>red: high-risk / offense remains or harmed by intervention</span>
     <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by prediction ({baseline_counts['flagged']})</span>
   </div>
 </div>
