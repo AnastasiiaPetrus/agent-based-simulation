@@ -124,7 +124,7 @@ def render_hero_statement():
     Suppose we could reliably predict, <span class="hero-nowrap">at age <span class="hero-accent">10</span></span>,<br>who will become a violent criminal <span class="hero-nowrap">by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
-    <em>What should we do with that information?</em> Run a synthetic population of 1,000 children through three policies &mdash; and watch what a few percentage points of error actually cost.
+    What should we <em>do</em> with that information? Run a synthetic population of 1,000 children through three policies &mdash; and watch what a few percentage points of error actually cost.
   </p>
 </section>
         """
@@ -421,7 +421,7 @@ h3 {
 }
 
 .hero-subtitle {
-  max-width: none;
+  max-width: 760px;
   margin: 2rem 0 0;
   color: var(--text-muted);
   font-size: 1.28rem;
