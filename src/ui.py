@@ -444,7 +444,6 @@ def render_sidebar_achievements():
         for ach in ACHIEVEMENTS:
             if ach["id"] in earned:
                 st.markdown(f"{ach['icon']} **{ach['name']}**")
-                st.caption(ach["description"])
             else:
                 st.caption(f"🔒 {ach['name']}")
 
