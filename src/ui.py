@@ -2,7 +2,6 @@ import json
 import os
 from datetime import datetime
 from html import escape
-from io import StringIO
 
 import numpy as np
 import pandas as pd
@@ -559,15 +558,6 @@ def render_llm_run_log(max_entries):
             }
         )
 
-    csv_buffer = StringIO()
-    pd.DataFrame(log_for_csv).to_csv(csv_buffer, index=False)
-    st.download_button(
-        "Download LLM-agent run log as CSV",
-        data=csv_buffer.getvalue(),
-        file_name="llm_agent_run_log.csv",
-        mime="text/csv",
-    )
-
     for entry in run_log:
         title = f"{entry['timestamp']} | {entry['policy_summary']} | {entry['llm_model']}"
         with st.expander(title):
@@ -863,13 +853,3 @@ def render_app():
 
     settings = sidebar_inputs()
     render_llm_agent_section(settings)
-    latest_result = st.session_state.get("llm_agent_latest_result")
-    if latest_result and latest_result_has_current_schema(latest_result):
-        csv_buffer = StringIO()
-        latest_result["run_results"].to_csv(csv_buffer, index=False)
-        st.download_button(
-            "Download LLM-agent results as CSV",
-            data=csv_buffer.getvalue(),
-            file_name="llm_agent_simulation_results.csv",
-            mime="text/csv",
-        )
