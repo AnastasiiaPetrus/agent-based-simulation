@@ -14,10 +14,10 @@ def average_results_table(run_results):
 
 def combined_policy_totals_table(run_results, population_size):
     avg_metric_labels = {
-        "baseline_crimes": "Would offend without policy",
+        "baseline_crimes": "Would offend without intervention",
         "false_positives": "Wrongly flagged",
         "false_negatives": "Missed by prediction",
-        "children_helped": "Receiving support",
+        "children_helped": "Received support",
         "children_harmed": "Harmed by intervention",
     }
     required_metric_columns = [*avg_metric_labels, "crimes_prevented", "children_flagged"]
@@ -51,10 +51,10 @@ def combined_policy_totals_table(run_results, population_size):
         "Policy",
         "Offense reduction (%)",
         "Harmed (% of flagged)",
-        "Would offend without policy",
+        "Would offend without intervention",
         "Wrongly flagged",
         "Missed by prediction",
-        "Receiving support",
+        "Received support",
         "Harmed by intervention",
     ]
     display_table = display_table[[c for c in ordered_columns if c in display_table.columns]]
