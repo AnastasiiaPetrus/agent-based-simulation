@@ -40,16 +40,17 @@ There is no user-selected policy dropdown. The point is comparison across all po
 The sidebar intentionally keeps only the main assumptions:
 
 - **Synthetic population**: fixed at 1,000 children.
+- **Percentage of true high-risk children (%)**: share of the population whose no-policy trajectory would include the modeled offense.
 - **Prediction error rate (%)**: how noisy the risk signal is, creating false positives and false negatives.
-- **Children flagged as high-risk (%)**: share of the population flagged by the risk signal.
 - **Intervention strength**: low, medium, or high scenario assumption for how strongly the policy may affect modeled offenses.
+
+The number of children flagged by the prediction is calculated from population size, true high-risk percentage, and prediction error rate.
 
 The app currently uses fixed simulation settings:
 
 - `llm_simulation_runs = 5`
 - `llm_representative_agents = 2`
 - `bias_against_district_c = 0.0`
-- `baseline_offense_rate = 12.5%`
 
 ## Models
 

@@ -31,8 +31,8 @@ POLICY_DESCRIPTIONS = {
 }
 
 SETTING_DESCRIPTIONS = {
-    "Prediction error rate (%)": "How noisy the risk signal is. It increases missed would-offend cases and randomly flagged children whose baseline trajectory would not include the offense.",
-    "Children flagged as high-risk (%)": "Share of the 1 000 synthetic children identified by the risk signal. 25% = 250 children flagged.",
+    "Percentage of true high-risk children (%)": "Share of the 1 000 synthetic children whose no-intervention trajectory would include the modeled offense.",
+    "Prediction error rate (%)": "How noisy the risk signal is. It creates missed true high-risk children and incorrectly flagged children outside the true high-risk group.",
     "Intervention strength": "How intensively the chosen policy is applied — scales the simulated effect on offenses, support reach, and harm.",
 }
 
@@ -85,7 +85,7 @@ RUN_COUNT_COLUMNS = [
 DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
 NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
-DEFAULT_BASELINE_OFFENSE_RATE = 0.125
+DEFAULT_TRUE_HIGH_RISK_RATE = 0.125
 POPULATION_DOT_ANIMATION_SECONDS = 0.9
 POPULATION_DOT_PULSE_SECONDS = 2.6
 POPULATION_DOT_STAGGER_GROUP = 50
@@ -249,7 +249,7 @@ def clamp_count(value, maximum):
 
 def baseline_count_for_run(run_number, run_numbers, settings):
     population_size = int(settings["population_size"])
-    target = float(settings["baseline_offense_rate"]) * population_size
+    target = float(settings["true_high_risk_rate"]) * population_size
     sorted_runs = sorted(set(int(run) for run in run_numbers))
     if len(sorted_runs) <= 1:
         return clamp_count(target, population_size)
@@ -259,31 +259,40 @@ def baseline_count_for_run(run_number, run_numbers, settings):
     return clamp_count(target * (1 + variation), population_size)
 
 
-def risk_signal_error_counts(baseline_count, settings):
+def risk_signal_counts(true_high_risk_count, settings):
     population_size = int(settings["population_size"])
-    flagged_count = clamp_count(settings["high_risk_threshold"] * population_size, population_size)
     signal_error_rate = float(settings["prediction_noise"])
+    true_high_risk_count = clamp_count(true_high_risk_count, population_size)
+    not_true_high_risk_count = population_size - true_high_risk_count
 
-    desired_false_negatives = clamp_count(baseline_count * signal_error_rate, baseline_count)
-    true_positive_capacity = max(0, baseline_count - desired_false_negatives)
-    true_positives = min(flagged_count, true_positive_capacity)
-    false_negatives = max(0, baseline_count - true_positives)
-    false_positives = max(0, flagged_count - true_positives)
-    return false_positives, false_negatives
+    false_negatives = clamp_count(true_high_risk_count * signal_error_rate, true_high_risk_count)
+    false_positives = clamp_count(not_true_high_risk_count * signal_error_rate, not_true_high_risk_count)
+    true_positives = true_high_risk_count - false_negatives
+    flagged_count = true_positives + false_positives
+    return false_positives, false_negatives, flagged_count
+
+
+def derived_flagged_count(settings):
+    population_size = int(settings["population_size"])
+    true_high_risk_count = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
+    return risk_signal_counts(true_high_risk_count, settings)[2]
 
 
 def population_risk_counts(run_results, settings):
     population_size = int(settings["population_size"])
-    flagged = clamp_count(settings["high_risk_threshold"] * population_size, population_size)
     if run_results is None or run_results.empty:
-        baseline = clamp_count(settings["baseline_offense_rate"] * population_size, population_size)
+        baseline = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
+        false_positive, missed, flagged = risk_signal_counts(baseline, settings)
+        true_positive = max(0, flagged - false_positive)
         high = min(baseline, population_size)
-        medium = min(flagged, population_size - high)
-        low = population_size - high - medium
+        low = population_size - high
         return {
             "low": low,
-            "medium": medium,
+            "medium": 0,
             "high": high,
+            "flagged": flagged,
+            "flagged_high": min(true_positive, high),
+            "flagged_low": false_positive,
             "baseline": baseline,
             "prevented": 0,
             "harmed": 0,
@@ -296,17 +305,21 @@ def population_risk_counts(run_results, settings):
     harmed = clamp_count(averages.get("children_harmed"), population_size)
     false_positive = clamp_count(averages.get("false_positives"), population_size)
     missed = clamp_count(averages.get("false_negatives"), population_size)
+    flagged = clamp_count(baseline - missed + false_positive, population_size)
 
     high = max(harmed, baseline - prevented, missed)
-    medium = max(false_positive, flagged)
     high = min(high, population_size)
-    medium = min(medium, population_size - high)
-    low = population_size - high - medium
+    low = population_size - high
+    flagged_high = min(max(0, baseline - missed), high, flagged)
+    flagged_low = min(false_positive, low, max(0, flagged - flagged_high))
 
     return {
         "low": low,
-        "medium": medium,
+        "medium": 0,
         "high": high,
+        "flagged": flagged,
+        "flagged_high": flagged_high,
+        "flagged_low": flagged_low,
         "baseline": baseline,
         "prevented": prevented,
         "harmed": harmed,
@@ -317,13 +330,16 @@ def population_risk_counts(run_results, settings):
 def population_animation_html(run_results, settings, title, animation_key=""):
     population_size = int(settings["population_size"])
     counts = population_risk_counts(run_results, settings)
+    flagged_high = min(counts["flagged_high"], counts["high"])
+    flagged_low = min(counts["flagged_low"], counts["low"])
     risk_classes = (
-        ["risk-high"] * counts["high"]
-        + ["risk-medium"] * counts["medium"]
-        + ["risk-low"] * counts["low"]
+        ["risk-high flagged-dot"] * flagged_high
+        + ["risk-high"] * max(0, counts["high"] - flagged_high)
+        + ["risk-low flagged-dot"] * flagged_low
+        + ["risk-low"] * max(0, counts["low"] - flagged_low)
     )
     seed_text = f"{title}-{animation_key}"
-    seed = sum(ord(char) for char in seed_text) + counts["high"] * 7 + counts["medium"] * 13
+    seed = sum(ord(char) for char in seed_text) + counts["high"] * 7 + counts["flagged"] * 13
     animation_id = abs(seed + population_size * 17 + counts["low"] * 23) % 100000
     reveal_animation_name = f"revealRiskDot{animation_id}"
     pulse_animation_name = f"pulseRiskDot{animation_id}"
@@ -408,6 +424,10 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --overshoot-scale: 1.38;
   --pulse-scale: 1.30;
 }}
+.flagged-dot {{
+  outline: 3px solid #f2b705;
+  outline-offset: 1px;
+}}
 @keyframes {reveal_animation_name} {{
   0% {{
     opacity: 0;
@@ -462,6 +482,10 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   display: inline-block;
   background: var(--target-color);
 }}
+.legend-dot.flagged-dot {{
+  background: transparent;
+  outline-width: 2px;
+}}
 </style>
 <div class="life-course-card">
   <div class="life-course-header">
@@ -470,7 +494,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   <div class="life-course-grid">{''.join(dots)}</div>
   <div class="life-course-legend">
     <span class="legend-item"><span class="legend-dot risk-low"></span>green: lower modeled risk/support path ({counts['low']})</span>
-    <span class="legend-item"><span class="legend-dot risk-medium"></span>yellow: flagged by the risk signal ({counts['medium']})</span>
+    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by the prediction ({counts['flagged']})</span>
     <span class="legend-item"><span class="legend-dot risk-high"></span>red: modeled offense or harmful intervention path ({counts['high']})</span>
   </div>
 </div>
@@ -678,9 +702,9 @@ def compact_parameter_summary(settings):
         f"population_size={int(settings['population_size'])}; "
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
         f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
-        f"baseline_offense_rate={settings['baseline_offense_rate']:.3f}; "
+        f"true_high_risk_rate={settings['true_high_risk_rate']:.3f}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
-        f"high_risk_threshold={settings['high_risk_threshold']:.2f}; "
+        f"derived_flagged_rate={settings['high_risk_threshold']:.2f}; "
         f"bias_against_district_c={settings['bias_against_district_c']:.2f}; "
         f"policy_effect_strength={settings['policy_effect_strength']}"
     )
@@ -688,9 +712,9 @@ def compact_parameter_summary(settings):
 
 def llm_assumptions(settings):
     return {
-        "baseline_offense_rate": metric_value(settings["baseline_offense_rate"]),
+        "true_high_risk_rate": metric_value(settings["true_high_risk_rate"]),
         "prediction_noise": metric_value(settings["prediction_noise"]),
-        "high_risk_threshold": metric_value(settings["high_risk_threshold"]),
+        "derived_flagged_rate": metric_value(settings["high_risk_threshold"]),
         "bias_against_district_c": metric_value(settings["bias_against_district_c"]),
         "policy_effect_strength": settings["policy_effect_strength"],
     }
@@ -778,7 +802,7 @@ def build_llm_simulation_prompt(settings):
         "- Targeted support for high-risk children:\n"
         "  Flagged children receive voluntary developmental support. Some build on it; some resent "
         "the label; false positives receive unnecessary intervention; false negatives receive nothing.\n"
-        "  children_helped ≈ high_risk_threshold × population_size. children_harmed = 0.\n\n"
+        "  children_helped ≈ derived_flagged_rate × population_size. children_harmed = 0.\n\n"
         "- Surveillance of high-risk children:\n"
         "  Flagged children are monitored without consent. Deterrence is possible for some. "
         "For others, surveillance causes stigma, distrust, and disengagement from school and institutions. "
@@ -792,10 +816,11 @@ def build_llm_simulation_prompt(settings):
 
         "Parameter guidance:\n"
         "- population_size: total synthetic children; all counts are fractions of this\n"
-        "- baseline_offense_rate: share of children whose no-intervention trajectory would include "
+        "- true_high_risk_rate: share of children whose no-intervention trajectory would include "
         "the modeled offense by age 30; baseline_crimes should be centered on "
-        "baseline_offense_rate × population_size\n"
-        "- high_risk_threshold: share of population flagged (0.25 → ~25% flagged)\n"
+        "true_high_risk_rate × population_size\n"
+        "- derived_flagged_rate: calculated share of population flagged by the risk signal; it is "
+        "derived from true_high_risk_rate, prediction_noise, and population_size\n"
         "- prediction_noise: signal error rate; it creates false negatives among children whose "
         "baseline trajectory includes the offense and false positives among flagged children whose "
         "baseline trajectory does not\n"
@@ -804,7 +829,7 @@ def build_llm_simulation_prompt(settings):
 
         "Metric constraints:\n"
         "- All counts: non-negative integers, none exceeding population_size\n"
-        "- baseline_crimes must stay close to baseline_offense_rate × population_size, with only "
+        "- baseline_crimes must stay close to true_high_risk_rate × population_size, with only "
         "small run-to-run variation\n"
         "- crimes_prevented must equal baseline_crimes minus crimes_after_policy\n"
         "- children_helped and children_harmed are separate\n"
@@ -963,7 +988,6 @@ def normalize_llm_metrics(run_results, district_results, settings):
     district_results = district_results.copy()
     population_size = int(settings["population_size"])
     policy = settings["policy"]
-    flagged_limit = int(round(float(settings["high_risk_threshold"]) * population_size))
 
     run_results[RUN_COUNT_COLUMNS] = run_results[RUN_COUNT_COLUMNS].clip(
         lower=0,
@@ -992,22 +1016,26 @@ def normalize_llm_metrics(run_results, district_results, settings):
         run_results["baseline_crimes"] - run_results["crimes_prevented"]
     ).clip(lower=0, upper=population_size)
 
-    risk_error_counts = run_results["baseline_crimes"].apply(
-        lambda baseline_count: risk_signal_error_counts(int(baseline_count), settings)
+    risk_signal_results = run_results["baseline_crimes"].apply(
+        lambda baseline_count: risk_signal_counts(int(baseline_count), settings)
     )
-    run_results["false_positives"] = [counts[0] for counts in risk_error_counts]
-    run_results["false_negatives"] = [counts[1] for counts in risk_error_counts]
+    run_results["false_positives"] = [counts[0] for counts in risk_signal_results]
+    run_results["false_negatives"] = [counts[1] for counts in risk_signal_results]
+    flagged_counts = pd.Series(
+        [counts[2] for counts in risk_signal_results],
+        index=run_results.index,
+    )
 
     if policy == "Targeted support for high-risk children":
-        run_results["children_helped"] = flagged_limit
+        run_results["children_helped"] = flagged_counts
         run_results["children_harmed"] = 0
         district_results["children_harmed"] = 0
     elif policy == "Surveillance of high-risk children":
         run_results["children_helped"] = 0
-        run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_limit)
+        run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_counts)
     elif policy == "Coercive preventive intervention for high-risk children":
         run_results["children_helped"] = 0
-        run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_limit)
+        run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_counts)
 
     for column in RUN_COUNT_COLUMNS:
         run_results[column] = run_results[column].round().astype(int)
@@ -1393,19 +1421,21 @@ def render_llm_agent_section(settings):
 def sidebar_inputs():
     st.sidebar.header("Simulation settings")
     st.sidebar.caption("Synthetic population: **1 000 children** (fixed).")
+    population_size = 1000
+    true_high_risk_rate = st.sidebar.slider(
+        "Percentage of true high-risk children (%)",
+        1.0, 40.0, DEFAULT_TRUE_HIGH_RISK_RATE * 100, step=0.5,
+        help=SETTING_DESCRIPTIONS["Percentage of true high-risk children (%)"],
+    ) / 100
+    prediction_noise = st.sidebar.slider(
+        "Prediction error rate (%)",
+        0, 35, 10, step=1,
+        help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
+    ) / 100
     settings = {
-        "population_size": 1000,
-        "baseline_offense_rate": DEFAULT_BASELINE_OFFENSE_RATE,
-        "prediction_noise": st.sidebar.slider(
-            "Prediction error rate (%)",
-            0, 35, 10, step=1,
-            help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
-        ) / 100,
-        "high_risk_threshold": st.sidebar.slider(
-            "Children flagged as high-risk (%)",
-            1, 70, 25, step=1,
-            help=SETTING_DESCRIPTIONS["Children flagged as high-risk (%)"],
-        ) / 100,
+        "population_size": population_size,
+        "true_high_risk_rate": true_high_risk_rate,
+        "prediction_noise": prediction_noise,
         "bias_against_district_c": 0.0,
         "policy_effect_strength": st.sidebar.select_slider(
             "Intervention strength",
@@ -1416,6 +1446,11 @@ def sidebar_inputs():
         "llm_simulation_runs": 5,
         "llm_representative_agents": 2,
     }
+    settings["high_risk_threshold"] = derived_flagged_count(settings) / population_size
+    st.sidebar.caption(
+        f"Calculated flagged by prediction: **{derived_flagged_count(settings)} children** "
+        f"({settings['high_risk_threshold'] * 100:.1f}%)."
+    )
 
     model_options = llm_model_options()
     settings["llm_agent_models"] = default_llm_agent_models(model_options)
