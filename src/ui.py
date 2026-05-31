@@ -2130,7 +2130,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                         update_slot, _LIVE_GRID_ID, policy, POLICY_ORDER.index(policy), children, metrics
                     )
                     if debrief_text:
-                        live_debrief.info(f"{model} | {policy}: {debrief_text}")
+                        live_debrief.success(f"{model} | {policy}: {debrief_text}")
                 except Exception as error:
                     completed_calls += 1
                     render_terminal_progress(progress_slot, completed_calls, total_calls, f"Error: {model} / {policy}.")
