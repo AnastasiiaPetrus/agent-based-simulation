@@ -482,8 +482,12 @@ def display_average_table(average_table):
     st.dataframe(display_table, use_container_width=True, hide_index=True)
 
 
-def display_combined_policy_totals_table(run_results):
-    st.dataframe(combined_policy_totals_table(run_results), use_container_width=True, hide_index=True)
+def display_combined_policy_totals_table(run_results, population_size):
+    st.dataframe(
+        combined_policy_totals_table(run_results, population_size),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 def render_charts(run_results, district_results):
@@ -501,29 +505,18 @@ def render_charts(run_results, district_results):
             clear_figure=True,
         )
 
-    with chart_right:
-        st.pyplot(
-            line_chart(
-                run_results,
-                "run",
-                "false_positives",
-                "Incorrectly flagged children by run",
-                "Children incorrectly flagged",
-            ),
-            clear_figure=True,
-        )
-
     if "children_harmed" in run_results.columns and run_results["children_harmed"].sum() > 0:
-        st.pyplot(
-            line_chart(
-                run_results,
-                "run",
-                "children_harmed",
-                "Children exposed to harmful intervention by run",
-                "Children exposed",
-            ),
-            clear_figure=True,
-        )
+        with chart_right:
+            st.pyplot(
+                line_chart(
+                    run_results,
+                    "run",
+                    "children_harmed",
+                    "Children exposed to harmful intervention by run",
+                    "Children exposed",
+                ),
+                clear_figure=True,
+            )
 
 
 def render_interpretation(policy, average_table, bias_against_district_c):
@@ -801,7 +794,7 @@ def render_llm_agent_section(settings):
 
         st.subheader("Policy comparison")
         st.caption("Average outcomes per run. Use this to compare policies side by side.")
-        display_combined_policy_totals_table(latest_run_results)
+        display_combined_policy_totals_table(latest_run_results, settings["population_size"])
 
         policy_tabs = st.tabs(POLICY_ORDER)
         for policy, tab in zip(POLICY_ORDER, policy_tabs):
