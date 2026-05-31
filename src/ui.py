@@ -1162,6 +1162,44 @@ h3 {
   box-shadow: inset 0 0 0 1px rgba(0, 167, 87, 0.36);
 }
 
+/* ── Policy segmented control (main content) ─ */
+[data-testid="stMain"] [data-testid="stSegmentedControl"] [role="radiogroup"] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  border: 0 !important;
+}
+
+[data-testid="stMain"] [data-testid="stSegmentedControl"] label {
+  width: 100%;
+}
+
+[data-testid="stMain"] [data-testid="stSegmentedControl"] label > div {
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 0 !important;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+[data-testid="stMain"] [data-testid="stSegmentedControl"] label:has(input:checked) > div {
+  background: rgba(0, 167, 87, 0.08);
+  box-shadow: inset 0 0 0 1.5px var(--primary);
+  color: var(--primary);
+}
+
 /* ── Metric cards ─────────────────────────── */
 div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]) {
   background: rgba(255, 255, 255, 0.80);
@@ -2176,22 +2214,24 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         st.caption("Average outcomes per run. Use this to compare policies side by side.")
         display_combined_policy_totals_table(latest_run_results, settings["population_size"])
 
-        policy_tabs = st.tabs(POLICY_ORDER)
-        for policy, tab in zip(POLICY_ORDER, policy_tabs):
-            with tab:
-                policy_runs = latest_run_results[latest_run_results["policy"] == policy]
-                policy_districts = latest_district_results[latest_district_results["policy"] == policy]
-                if policy_runs.empty or policy_districts.empty:
-                    st.caption("No results for this policy in the current session.")
-                    continue
-
+        selected_policy = st.segmented_control(
+            "Policy",
+            options=POLICY_ORDER,
+            default=POLICY_ORDER[0],
+            label_visibility="collapsed",
+            width="stretch",
+        )
+        if selected_policy:
+            policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
+            policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
+            if policy_runs.empty or policy_districts.empty:
+                st.caption("No results for this policy in the current session.")
+            else:
                 st.subheader("Averages")
                 display_average_table(average_results_table(policy_runs))
                 render_charts(policy_runs, policy_districts)
-
-                # Interpretation uses per-run averages across selected models for this policy.
                 render_interpretation(
-                    policy,
+                    selected_policy,
                     average_results_table(policy_runs),
                     settings["bias_against_district_c"],
                 )
