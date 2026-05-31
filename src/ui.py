@@ -655,7 +655,7 @@ def sidebar_inputs():
     population_size = 1000
     true_high_risk_rate = st.sidebar.slider(
         "Percentage of true high-risk children (%)",
-        1.0, 40.0, DEFAULT_TRUE_HIGH_RISK_RATE * 100, step=0.5,
+        0, 100, int(DEFAULT_TRUE_HIGH_RISK_RATE * 100), step=1,
         help=SETTING_DESCRIPTIONS["Percentage of true high-risk children (%)"],
     ) / 100
     prediction_noise = st.sidebar.slider(
