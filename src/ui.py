@@ -1355,7 +1355,7 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
 }
 
 .st-key-results_panel [data-testid="stVerticalBlock"] {
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .st-key-results_panel h3 {
@@ -2067,6 +2067,7 @@ def render_results_fragment(settings):
             default=POLICY_ORDER[0],
             label_visibility="collapsed",
             width="stretch",
+            key="policy_selector",
         )
         if selected_policy:
             policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
@@ -2074,7 +2075,6 @@ def render_results_fragment(settings):
             if policy_runs.empty or policy_districts.empty:
                 st.caption("No results for this policy in the current session.")
             else:
-                st.divider()
                 st.subheader("Averages")
                 display_average_table(average_results_table(policy_runs))
                 render_charts(policy_runs, policy_districts)

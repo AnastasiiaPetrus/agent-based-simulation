@@ -5,7 +5,6 @@ import streamlit as st
 from src.constants import POLICY_ORDER, RUN_METRIC_LABELS
 
 
-@st.cache_data
 def average_results_table(run_results):
     metric_order = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
     averages = run_results[metric_order].mean(numeric_only=True)
