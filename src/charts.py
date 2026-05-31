@@ -9,7 +9,7 @@ def line_chart(data, x_column, y_column, title, y_label):
 
     plot_data = data[columns].dropna()
     if "llm_model" in plot_data.columns and plot_data["llm_model"].nunique() > 1:
-        for llm_model, model_data in plot_data.groupby("llm_model"):
+        for llm_model, model_data in plot_data.groupby("llm_model", observed=True):
             ax.plot(model_data[x_column], model_data[y_column], linewidth=1.8, label=llm_model)
         ax.legend(fontsize=8)
     else:

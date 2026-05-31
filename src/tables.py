@@ -23,7 +23,7 @@ def combined_policy_totals_table(run_results, population_size):
     required_metric_columns = [*avg_metric_labels, "crimes_prevented", "children_flagged"]
     metric_columns = [column for column in required_metric_columns if column in run_results.columns]
     table = (
-        run_results.groupby("policy", as_index=False)[metric_columns].mean(numeric_only=True)
+        run_results.groupby("policy", as_index=False, observed=True)[metric_columns].mean(numeric_only=True)
     )
     table["policy_sort"] = table["policy"].map({policy: index for index, policy in enumerate(POLICY_ORDER)})
     table = table.sort_values("policy_sort").drop(columns="policy_sort")

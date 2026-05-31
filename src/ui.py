@@ -39,6 +39,7 @@ from src.simulation import (
     clean_llm_run_results,
     compact_aggregate_metrics,
     normalize_llm_metrics,
+    optimize_result_frames,
     risk_signal_counts,
     validate_llm_tables,
 )
@@ -552,25 +553,6 @@ def render_llm_run_log(max_entries):
         st.write("LLM-agent run log cleared for this session.")
         return
 
-    log_for_csv = []
-    for entry in run_log:
-        metrics = entry["aggregate_metrics"]
-        log_for_csv.append(
-            {
-                "timestamp": entry["timestamp"],
-                "policy_summary": entry.get("policy_summary", ""),
-                "parameter_summary": entry["parameter_summary"],
-                "representative_agent_count": entry["representative_agent_count"],
-                "llm_model": entry["llm_model"],
-                "crimes_prevented": metrics.get("crimes_prevented"),
-                "false_positives": metrics.get("false_positives"),
-                "false_negatives": metrics.get("false_negatives"),
-                "children_helped": metrics.get("children_helped"),
-                "children_harmed": metrics.get("children_harmed"),
-                "debrief_text": entry["debrief_text"],
-            }
-        )
-
     for entry in run_log:
         title = f"{entry['timestamp']} | {entry['policy_summary']} | {entry['llm_model']}"
         with st.expander(title):
@@ -636,7 +618,11 @@ def render_llm_agent_section(settings):
     )
 
     if run_requested:
-        model_results = []
+        run_frames = []
+        district_frames = []
+        model_summaries = []
+        all_representative_agents = []
+        debrief_parts = []
         model_errors = []
         completed_calls = 0
         progress_bar = progress_slot.progress(0.0)
@@ -685,20 +671,23 @@ def render_llm_agent_section(settings):
                         completed_calls += 1
                         progress_bar.progress(completed_calls / max(total_calls, 1))
                         live_status.write(f"Received **{model}** result for **{policy}**.")
-                        result_entry = {
-                            "llm_model": model,
-                            "policy": policy,
-                            "run_results": run_results,
-                            "district_results": district_results,
-                            "representative_agents": representative_agents,
-                            "aggregate_metrics": compact_aggregate_metrics(run_results),
-                            "debrief_text": debrief_text,
-                        }
-                        model_results.append(result_entry)
-                        panel_index = POLICY_ORDER.index(policy)
+                        aggregate_metrics = compact_aggregate_metrics(run_results)
+                        run_frames.append(run_results)
+                        district_frames.append(district_results)
+                        all_representative_agents.extend(representative_agents)
+                        if debrief_text:
+                            debrief_parts.append(f"{model} | {policy}: {debrief_text}")
+                        model_summaries.append(
+                            {
+                                "llm_model": model,
+                                "policy": policy,
+                                "aggregate_metrics": aggregate_metrics,
+                                "debrief_text": debrief_text,
+                            }
+                        )
                         metrics = policy_transition_metrics(run_results, policy, settings)
                         render_population_update(
-                            update_slot, _LIVE_GRID_ID, policy, panel_index, children, metrics
+                            update_slot, _LIVE_GRID_ID, policy, POLICY_ORDER.index(policy), children, metrics
                         )
                         if debrief_text:
                             live_debrief.info(f"{model} | {policy}: {debrief_text}")
@@ -715,29 +704,20 @@ def render_llm_agent_section(settings):
         for error_label, error_message in model_errors:
             st.error(f"{error_label}: {error_message}")
 
-        if model_results:
-            combined_run_results = pd.concat(
-                [result["run_results"] for result in model_results], ignore_index=True
+        if run_frames:
+            combined_run_results = pd.concat(run_frames, ignore_index=True, copy=False)
+            combined_district_results = pd.concat(district_frames, ignore_index=True, copy=False)
+            combined_run_results, combined_district_results = optimize_result_frames(
+                combined_run_results,
+                combined_district_results,
             )
-            combined_district_results = pd.concat(
-                [result["district_results"] for result in model_results], ignore_index=True
-            )
-            all_representative_agents = [
-                agent
-                for result in model_results
-                for agent in result["representative_agents"]
-            ]
-            debrief_text = "\n\n".join(
-                f"{result['llm_model']} | {result['policy']}: {result['debrief_text']}"
-                for result in model_results
-                if result["debrief_text"]
-            )
+            debrief_text = "\n\n".join(debrief_parts)
             aggregate_metrics = compact_aggregate_metrics(combined_run_results)
 
             st.session_state["llm_agent_latest_result"] = {
                 "run_results": combined_run_results,
                 "district_results": combined_district_results,
-                "model_results": model_results,
+                "model_results": model_summaries,
                 "representative_agents": all_representative_agents,
                 "debrief_text": debrief_text,
             }
@@ -747,7 +727,7 @@ def render_llm_agent_section(settings):
                 "policy_summary": "All policies",
                 "parameter_summary": parameter_summary,
                 "representative_agent_count": len(all_representative_agents),
-                "llm_model": ", ".join(result["llm_model"] for result in model_results),
+                "llm_model": ", ".join(unique_values(summary["llm_model"] for summary in model_summaries)),
                 "aggregate_metrics": aggregate_metrics,
                 "debrief_text": debrief_text,
             }
@@ -766,6 +746,9 @@ def render_llm_agent_section(settings):
                 st.warning("LLM-agent simulation generated for the successful model agents.")
             else:
                 st.success("LLM-agent simulation generated.")
+            del run_frames, district_frames
+        elif model_errors:
+            st.warning("No LLM-agent simulation results were generated.")
 
     latest_result = st.session_state.get("llm_agent_latest_result")
     if latest_result and not latest_result_has_current_schema(latest_result):

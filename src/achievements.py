@@ -120,7 +120,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         earned.add("tinkerer")
 
     policy_avg_prevented = (
-        combined_run_results.groupby("policy")["crimes_prevented"].mean()
+        combined_run_results.groupby("policy", observed=True)["crimes_prevented"].mean()
         if has_policy_col
         else combined_run_results["crimes_prevented"].mean().__class__(
             [combined_run_results["crimes_prevented"].mean()]
@@ -130,7 +130,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         earned.add("crime_preventer")
 
     policy_avg_baseline = (
-        combined_run_results.groupby("policy")["baseline_crimes"].mean()
+        combined_run_results.groupby("policy", observed=True)["baseline_crimes"].mean()
         if has_policy_col else None
     )
     if policy_avg_baseline is not None and (policy_avg_baseline > 0).any():

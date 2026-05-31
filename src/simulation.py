@@ -79,6 +79,39 @@ def compact_aggregate_metrics(run_results):
     return {column: metric_value(averages[column]) for column in metric_columns}
 
 
+def optimize_result_frames(run_results, district_results):
+    """Downcast stored result frames to reduce Streamlit session memory."""
+    run_results = run_results.copy()
+    district_results = district_results.copy()
+
+    run_integer_columns = [
+        "run",
+        *RUN_COUNT_COLUMNS,
+        "children_flagged",
+    ]
+    district_integer_columns = [
+        "run",
+        *DISTRICT_COUNT_COLUMNS,
+    ]
+
+    for column in run_integer_columns:
+        if column in run_results.columns:
+            run_results[column] = pd.to_numeric(run_results[column], downcast="integer")
+    for column in district_integer_columns:
+        if column in district_results.columns:
+            district_results[column] = pd.to_numeric(district_results[column], downcast="integer")
+
+    for column in ["policy", "llm_model"]:
+        if column in run_results.columns:
+            run_results[column] = run_results[column].astype("category")
+        if column in district_results.columns:
+            district_results[column] = district_results[column].astype("category")
+    if "district" in district_results.columns:
+        district_results["district"] = district_results["district"].astype("category")
+
+    return run_results, district_results
+
+
 def clean_llm_run_results(raw_rows):
     rows = []
     for row in raw_rows:
