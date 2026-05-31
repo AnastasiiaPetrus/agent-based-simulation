@@ -682,16 +682,7 @@ def sidebar_inputs():
     tp = true_high_risk_count - fn
     settings["high_risk_threshold"] = flagged_count / population_size
 
-    low_risk_count = population_size - true_high_risk_count
-    error_pct = int(settings["prediction_noise"] * 100)
     fdr = fp / flagged_count if flagged_count > 0 else 0.0
-    st.sidebar.caption(
-        f"Signal errors: {error_pct}% of **{true_high_risk_count} high-risk** children missed "
-        f"= {fn} missed (false negatives). "
-        f"{error_pct}% of **{low_risk_count} low-risk** children incorrectly flagged "
-        f"= {fp} false positives. "
-        f"**Total flagged: {flagged_count}**, of which {fdr * 100:.0f}% are wrong."
-    )
 
     model_options = llm_model_options()
     settings["llm_agent_models"] = default_llm_agent_models(model_options)
