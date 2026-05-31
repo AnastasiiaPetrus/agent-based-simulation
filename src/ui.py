@@ -273,9 +273,9 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .policy-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13px, 1fr));
-  grid-auto-rows: 18px;
-  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(11px, 1fr));
+  grid-auto-rows: 15px;
+  gap: 5px;
   align-items: center;
   justify-items: center;
   padding: 12px 10px;
@@ -283,8 +283,8 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   overflow: hidden;
 }}
 .life-dot {{
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   border-radius: 999px;
   display: inline-block;
   justify-self: center;
