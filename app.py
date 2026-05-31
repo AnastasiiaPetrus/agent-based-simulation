@@ -191,11 +191,7 @@ def combined_policy_totals_table(run_results):
     metric_columns = [column for column in total_metric_labels if column in run_results.columns]
     table = (
         run_results.groupby("policy", as_index=False)
-        .agg(
-            model_runs=("run", "count"),
-            model_agents=("llm_model", "nunique"),
-            **{column: (column, "sum") for column in metric_columns},
-        )
+        .agg(**{column: (column, "sum") for column in metric_columns})
     )
     table["policy_sort"] = table["policy"].map({policy: index for index, policy in enumerate(POLICY_ORDER)})
     table = table.sort_values("policy_sort").drop(columns="policy_sort")
@@ -206,19 +202,15 @@ def combined_policy_totals_table(run_results):
     display_table = table.rename(
         columns={
             "policy": "Policy",
-            "model_runs": "Model-runs included",
-            "model_agents": "Model agents included",
             "crime_reduction_pct": "Offense reduction (%)",
             **total_metric_labels,
         }
     )
     ordered_columns = [
         "Policy",
-        "Model agents included",
-        "Model-runs included",
+        "Offense reduction (%)",
         "Total children who would offend (no intervention)",
         "Total offenses after policy",
-        "Offense reduction (%)",
         "Total children incorrectly flagged",
         "Total children missed by risk signal",
         "Total children receiving support",
@@ -302,7 +294,7 @@ def population_animation_html(run_results, settings, title):
     for index, risk_class in enumerate(risk_classes[:population_size]):
         delay = (index % 50) * 0.01
         dots.append(
-            f'<span class="life-dot {risk_class}" style="animation-delay:{delay:.2f}s"></span>'
+            f'<span class="life-dot {risk_class}" style="--delay:{delay:.2f}s"></span>'
         )
 
     return f"""
@@ -315,26 +307,18 @@ def population_animation_html(run_results, settings, title):
   background: #ffffff;
 }}
 .life-course-header {{
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: baseline;
   margin-bottom: 10px;
 }}
 .life-course-title {{
   font-weight: 700;
   color: #2d3142;
 }}
-.life-course-note {{
-  color: #687083;
-  font-size: 0.88rem;
-}}
 .life-course-grid {{
   display: grid;
-  grid-template-columns: repeat(40, 10px);
+  grid-template-columns: repeat(auto-fit, minmax(10px, 1fr));
   gap: 5px;
   align-items: center;
-  overflow-x: auto;
+  width: 100%;
   padding: 8px 0;
 }}
 .life-dot {{
@@ -342,21 +326,27 @@ def population_animation_html(run_results, settings, title):
   height: 10px;
   border-radius: 999px;
   display: inline-block;
-  transform: scale(0.42);
-  opacity: 0.45;
-  animation: growLifeDot 1.2s ease-out forwards, breatheLifeDot 2.6s ease-in-out infinite;
+  justify-self: center;
+  transform: scale(0.35);
+  opacity: 0.25;
+  background: #d7dbe4;
+  animation:
+    colorGrowLifeDot 1.65s cubic-bezier(.2,.75,.25,1) forwards,
+    breatheLifeDot 2.8s ease-in-out infinite;
+  animation-delay: var(--delay), calc(var(--delay) + 1.65s);
 }}
-.risk-low {{ background: #25a55f; }}
-.risk-medium {{ background: #f2b705; }}
-.risk-high {{ background: #d64b3c; }}
-@keyframes growLifeDot {{
-  0% {{ transform: scale(0.42); opacity: 0.42; }}
-  55% {{ transform: scale(0.75); opacity: 0.78; }}
-  100% {{ transform: scale(1.0); opacity: 1.0; }}
+.risk-low {{ --target-color: #25a55f; }}
+.risk-medium {{ --target-color: #f2b705; }}
+.risk-high {{ --target-color: #d64b3c; }}
+@keyframes colorGrowLifeDot {{
+  0% {{ transform: scale(0.35); opacity: 0.25; background: #d7dbe4; }}
+  45% {{ transform: scale(0.72); opacity: 0.72; background: #cfd5df; }}
+  72% {{ transform: scale(1.16); opacity: 1; background: var(--target-color); }}
+  100% {{ transform: scale(1.0); opacity: 1; background: var(--target-color); }}
 }}
 @keyframes breatheLifeDot {{
-  0%, 100% {{ filter: brightness(1); }}
-  50% {{ filter: brightness(1.18); }}
+  0%, 100% {{ transform: scale(1.0); filter: brightness(1); }}
+  50% {{ transform: scale(1.08); filter: brightness(1.12); }}
 }}
 .life-course-legend {{
   display: flex;
@@ -381,7 +371,6 @@ def population_animation_html(run_results, settings, title):
 <div class="life-course-card">
   <div class="life-course-header">
     <div class="life-course-title">{escape(title)}</div>
-    <div class="life-course-note">1 dot = 1 synthetic child; dots grow from age 10 toward age 30.</div>
   </div>
   <div class="life-course-grid">{''.join(dots)}</div>
   <div class="life-course-legend">
@@ -1070,11 +1059,6 @@ def render_llm_agent_section(settings):
         initial_population_results = latest_result["run_results"]
         initial_population_title = "Latest synthetic population view"
 
-    st.markdown("**Live synthetic population view**")
-    st.caption(
-        "Visible before and during the run. One dot represents one synthetic child; colors update after each "
-        "model-policy result arrives."
-    )
     live_population = st.empty()
     live_population.markdown(
         population_animation_html(initial_population_results, settings, initial_population_title),
