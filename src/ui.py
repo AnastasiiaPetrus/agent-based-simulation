@@ -207,7 +207,6 @@ def policy_panel_html(children, policy, metrics, panel_index):
       <div class="policy-panel-summary">{escape(summary)}</div>
       <div class="policy-grid" data-panel="{panel_index}">
         {''.join(dots)}
-        <div class="lc-spotlight"></div>
       </div>
     </section>
     """
@@ -293,13 +292,12 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --final-scale: 1;
   animation: revealRiskDot {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards;
   animation-delay: var(--delay);
-  transition: background 0.75s ease, transform 0.75s ease, box-shadow 0.75s ease, filter 0.15s ease;
+  transition: background 0.75s ease, transform 0.75s ease, box-shadow 0.75s ease,
+              filter 0.12s ease, scale 0.04s ease;
+  scale: var(--ws, 1);
+  filter: brightness(var(--wb, 1));
   position: relative;
   z-index: 1;
-}}
-.life-dot:hover {{
-  filter: brightness(1.25);
-  transform: scale(calc(var(--final-scale) * 1.18));
 }}
 .base-low {{
   --base-color: #25a55f;
@@ -338,21 +336,6 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .policy-panel.show-final .life-dot.changed-harmed {{
   box-shadow: 0 0 0 3px rgba(229,124,35,0.24);
-}}
-.lc-spotlight {{
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 200px;
-  height: 200px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.10) 38%, transparent 68%);
-  pointer-events: none;
-  opacity: 0;
-  transform: translate3d(-220px, -220px, 0);
-  transition: opacity 0.18s ease;
-  will-change: transform, opacity;
-  z-index: 2;
 }}
 .life-course-legend {{
   display: flex;
@@ -408,37 +391,62 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   }}, 420);
 
   root.querySelectorAll('.policy-grid').forEach(function(grid) {{
-    var spot = grid.querySelector('.lc-spotlight');
+    var dotData = null;
     var rafId = null;
-    var curX = -220, curY = -220;
-    var tgtX = -220, tgtY = -220;
-    var LERP = 0.25;
+    var mx = -9999, my = -9999;
+    var RADIUS = 110;
+    var active = new Set();
+
+    function init() {{
+      var gr = grid.getBoundingClientRect();
+      dotData = Array.from(grid.querySelectorAll('.life-dot')).map(function(el) {{
+        var r = el.getBoundingClientRect();
+        return {{
+          el: el,
+          x: r.left + r.width * 0.5 - gr.left,
+          y: r.top + r.height * 0.5 - gr.top
+        }};
+      }});
+    }}
 
     function step() {{
-      var dx = tgtX - curX;
-      var dy = tgtY - curY;
-      curX += dx * LERP;
-      curY += dy * LERP;
-      var speed = Math.sqrt(dx * dx + dy * dy);
-      var scale = 1 + Math.min(speed * 0.005, 0.45);
-      spot.style.transform = 'translate3d(' + (curX - 100) + 'px,' + (curY - 100) + 'px,0) scale(' + scale + ')';
-      if (speed > 0.5) {{
-        rafId = requestAnimationFrame(step);
-      }} else {{
-        spot.style.transform = 'translate3d(' + (tgtX - 100) + 'px,' + (tgtY - 100) + 'px,0) scale(1)';
-        rafId = null;
+      rafId = null;
+      if (!dotData) init();
+      var nextActive = new Set();
+      for (var i = 0; i < dotData.length; i++) {{
+        var d = dotData[i];
+        var dx = d.x - mx, dy = d.y - my;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < RADIUS) {{
+          var t = 1 - dist / RADIUS;
+          var e = t * t * t;
+          d.el.style.setProperty('--ws', (1 + e * 0.95).toFixed(3));
+          d.el.style.setProperty('--wb', (1 + e * 0.7).toFixed(3));
+          nextActive.add(d);
+        }}
       }}
+      active.forEach(function(d) {{
+        if (!nextActive.has(d)) {{
+          d.el.style.removeProperty('--ws');
+          d.el.style.removeProperty('--wb');
+        }}
+      }});
+      active = nextActive;
     }}
 
     grid.addEventListener('pointermove', function(e) {{
       var r = grid.getBoundingClientRect();
-      tgtX = e.clientX - r.left;
-      tgtY = e.clientY - r.top;
-      spot.style.opacity = '1';
+      mx = e.clientX - r.left;
+      my = e.clientY - r.top;
       if (!rafId) rafId = requestAnimationFrame(step);
     }}, {{ passive: true }});
     grid.addEventListener('pointerleave', function() {{
-      spot.style.opacity = '0';
+      if (rafId) {{ cancelAnimationFrame(rafId); rafId = null; }}
+      active.forEach(function(d) {{
+        d.el.style.removeProperty('--ws');
+        d.el.style.removeProperty('--wb');
+      }});
+      active = new Set();
     }});
   }});
 }})();
