@@ -126,9 +126,9 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .life-course-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12px, 1fr));
-  grid-auto-rows: 12px;
-  gap: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(16px, 1fr));
+  grid-auto-rows: 16px;
+  gap: 7px;
   align-items: center;
   justify-items: center;
   width: 100%;
@@ -137,8 +137,8 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   overflow: hidden;
 }}
 .life-dot {{
-  width: 10px;
-  height: 10px;
+  width: 13px;
+  height: 13px;
   border-radius: 999px;
   display: inline-block;
   justify-self: center;
