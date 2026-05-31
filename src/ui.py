@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime
 from html import escape
@@ -51,6 +52,9 @@ from src.state import (
     trim_llm_run_log,
 )
 from src.tables import average_results_table, combined_policy_totals_table
+
+
+_LIVE_GRID_ID = "livePopGrid"
 
 
 def unique_values(values):
@@ -144,63 +148,62 @@ def seeded_subset(indices, count, seed_text):
     return set(indices[:count])
 
 
-def policy_panel_html(children, policy, metrics, panel_index):
-    high_flagged = [index for index, child in enumerate(children) if child["base"] == "high" and child["flagged"]]
-    low_flagged = [index for index, child in enumerate(children) if child["base"] == "low" and child["flagged"]]
+def _panel_changes(children, policy, metrics):
+    """Compute which dots change state for a given policy result.
 
-    has_result = metrics is not None
-    prevented = min(metrics["prevented"], len(high_flagged)) if has_result else 0
+    Returns (prevented_indices, harmed_indices, summary, ready).
+    """
+    high_flagged = [i for i, c in enumerate(children) if c["base"] == "high" and c["flagged"]]
+    low_flagged = [i for i, c in enumerate(children) if c["base"] == "low" and c["flagged"]]
+    low_flagged_set = set(low_flagged)
+
+    if metrics is None:
+        return set(), set(), "Waiting for this policy result. Baseline is shown.", False
+
+    prevented = min(metrics["prevented"], len(high_flagged))
     prevented_indices = seeded_subset(high_flagged, prevented, f"{policy}-prevented")
-    # harmed pool = all flagged children not already counted as prevented
     high_flagged_remaining = [i for i in high_flagged if i not in prevented_indices]
     harmed_pool = low_flagged + high_flagged_remaining
-    harmed = min(metrics["harmed"], len(harmed_pool)) if has_result else 0
+    harmed = min(metrics["harmed"], len(harmed_pool))
     harmed_indices = seeded_subset(harmed_pool, harmed, f"{policy}-harmed")
 
+    harmed_fp = sum(1 for i in harmed_indices if i in low_flagged_set)
+    harmed_tp = len(harmed_indices) - harmed_fp
+    final_high = sum(
+        1 for i, c in enumerate(children)
+        if c["base"] == "high" and i not in prevented_indices and i not in harmed_indices
+    )
+    summary = (
+        f"{len(prevented_indices)} prevented (red→green); "
+        f"{harmed_fp} wrongly flagged & harmed (green→orange); "
+        f"{harmed_tp} flagged & harmed (red→orange); "
+        f"{final_high} red remain."
+    )
+    return prevented_indices, harmed_indices, summary, True
+
+
+def policy_panel_html(children, policy, metrics, panel_index):
+    prevented_indices, harmed_indices, summary, has_result = _panel_changes(children, policy, metrics)
+
     dots = []
-    final_high = 0
-    final_low = 0
-    final_harmed = 0
     for index, child in enumerate(children):
         delay = (index % POPULATION_DOT_STAGGER_GROUP) * POPULATION_DOT_STAGGER_SECONDS
         base_class = "base-high" if child["base"] == "high" else "base-low"
         final_class = base_class.replace("base-", "final-")
         change_class = ""
-
         if index in prevented_indices:
             final_class = "final-low"
             change_class = "changed-prevented"
         elif index in harmed_indices:
             final_class = "final-harmed"
             change_class = "changed-harmed"
-
-        if final_class == "final-harmed":
-            final_harmed += 1
-        elif final_class == "final-high":
-            final_high += 1
-        else:
-            final_low += 1
-
         flagged_class = " flagged-dot" if child["flagged"] else ""
         dots.append(
             f'<span class="life-dot {base_class} {final_class} {change_class}{flagged_class}" '
             f'style="--delay:{delay:.3f}s"></span>'
         )
 
-    if has_result:
-        harmed_fp = sum(1 for i in harmed_indices if i in set(low_flagged))
-        harmed_tp = len(harmed_indices) - harmed_fp
-        summary = (
-            f"{prevented} prevented (red→green); "
-            f"{harmed_fp} wrongly flagged & harmed (green→orange); "
-            f"{harmed_tp} flagged & harmed (red→orange); "
-            f"{final_high} red remain."
-        )
-        ready = "true"
-    else:
-        summary = "Waiting for this policy result. Baseline is shown."
-        ready = "false"
-
+    ready = "true" if has_result else "false"
     return f"""
     <section class="policy-panel" data-ready="{ready}">
       <div class="policy-panel-title">{escape(policy)}</div>
@@ -212,11 +215,44 @@ def policy_panel_html(children, policy, metrics, panel_index):
     """
 
 
-def population_animation_html(run_results, settings, title, animation_key=""):
+def population_update_script(root_id, policy, panel_index, children, metrics):
+    """Return a <script> snippet that updates one policy panel's dot colours in-place."""
+    prevented_indices, harmed_indices, summary, _ = _panel_changes(children, policy, metrics)
+    return f"""<script>
+(function() {{
+  var root = document.getElementById({json.dumps(root_id)});
+  if (!root) return;
+  var panel = root.querySelectorAll('.policy-panel')[{panel_index}];
+  if (!panel) return;
+  var dots = Array.from(panel.querySelectorAll('.life-dot'));
+  dots.forEach(function(dot) {{
+    dot.classList.remove('final-low','final-high','final-harmed','changed-prevented','changed-harmed');
+    dot.classList.add(dot.classList.contains('base-high') ? 'final-high' : 'final-low');
+  }});
+  {json.dumps(sorted(prevented_indices))}.forEach(function(i) {{
+    if (!dots[i]) return;
+    dots[i].classList.remove('final-high');
+    dots[i].classList.add('final-low','changed-prevented');
+  }});
+  {json.dumps(sorted(harmed_indices))}.forEach(function(i) {{
+    if (!dots[i]) return;
+    dots[i].classList.remove('final-high','final-low');
+    dots[i].classList.add('final-harmed','changed-harmed');
+  }});
+  var el = panel.querySelector('.policy-panel-summary');
+  if (el) el.textContent = {json.dumps(summary)};
+  panel.dataset.ready = 'true';
+  panel.classList.add('show-final');
+}})();
+</script>"""
+
+
+def population_animation_html(run_results, settings, title, animation_key="", root_id=None):
     children, baseline_counts = baseline_children(settings)
-    seed_text = f"{title}-{animation_key}"
-    animation_id = abs(sum(ord(char) for char in seed_text) + len(children) * 17) % 100000
-    root_id = f"policyTransition{animation_id}"
+    if root_id is None:
+        seed_text = f"{title}-{animation_key}"
+        animation_id = abs(sum(ord(char) for char in seed_text) + len(children) * 17) % 100000
+        root_id = f"policyTransition{animation_id}"
     panels = [
         policy_panel_html(
             children,
@@ -392,36 +428,37 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 
   root.querySelectorAll('.policy-grid').forEach(function(grid) {{
     var dotData = null;
+    var gridRect = null;
     var rafId = null;
     var mx = -9999, my = -9999;
-    var RADIUS = 110;
+    var RADIUS = 150;
+    var RADIUS2 = RADIUS * RADIUS;
     var active = new Set();
 
     function init() {{
-      var gr = grid.getBoundingClientRect();
+      gridRect = grid.getBoundingClientRect();
       dotData = Array.from(grid.querySelectorAll('.life-dot')).map(function(el) {{
         var r = el.getBoundingClientRect();
         return {{
           el: el,
-          x: r.left + r.width * 0.5 - gr.left,
-          y: r.top + r.height * 0.5 - gr.top
+          x: r.left + r.width * 0.5 - gridRect.left,
+          y: r.top + r.height * 0.5 - gridRect.top
         }};
       }});
     }}
 
     function step() {{
       rafId = null;
-      if (!dotData) init();
       var nextActive = new Set();
       for (var i = 0; i < dotData.length; i++) {{
         var d = dotData[i];
         var dx = d.x - mx, dy = d.y - my;
-        var dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < RADIUS) {{
-          var t = 1 - dist / RADIUS;
+        var dist2 = dx * dx + dy * dy;
+        if (dist2 < RADIUS2) {{
+          var t = 1 - Math.sqrt(dist2) / RADIUS;
           var e = t * t * t;
-          d.el.style.setProperty('--ws', (1 + e * 0.95).toFixed(3));
-          d.el.style.setProperty('--wb', (1 + e * 0.7).toFixed(3));
+          d.el.style.setProperty('--ws', (1 + e * 0.85).toFixed(3));
+          d.el.style.setProperty('--wb', (1 + e * 0.42).toFixed(3));
           nextActive.add(d);
         }}
       }}
@@ -434,10 +471,14 @@ def population_animation_html(run_results, settings, title, animation_key=""):
       active = nextActive;
     }}
 
+    window.addEventListener('scroll', function() {{ gridRect = null; }}, {{ passive: true }});
+    window.addEventListener('resize', function() {{ gridRect = null; dotData = null; }}, {{ passive: true }});
+
     grid.addEventListener('pointermove', function(e) {{
-      var r = grid.getBoundingClientRect();
-      mx = e.clientX - r.left;
-      my = e.clientY - r.top;
+      if (!gridRect) gridRect = grid.getBoundingClientRect();
+      mx = e.clientX - gridRect.left;
+      my = e.clientY - gridRect.top;
+      if (!dotData) init();
       if (!rafId) rafId = requestAnimationFrame(step);
     }}, {{ passive: true }});
     grid.addEventListener('pointerleave', function() {{
@@ -448,16 +489,28 @@ def population_animation_html(run_results, settings, title, animation_key=""):
       }});
       active = new Set();
     }});
+
+    if (window.requestIdleCallback) {{
+      requestIdleCallback(function() {{ if (!dotData) init(); }});
+    }} else {{
+      setTimeout(function() {{ if (!dotData) init(); }}, 300);
+    }}
   }});
 }})();
 </script>
 """
 
 
-def render_population_animation(container, run_results, settings, title, animation_key=""):
-    html = population_animation_html(run_results, settings, title, animation_key)
+def render_population_animation(container, run_results, settings, title, animation_key="", root_id=None):
+    html = population_animation_html(run_results, settings, title, animation_key, root_id=root_id)
     with container:
         st.html(html, unsafe_allow_javascript=True)
+
+
+def render_population_update(update_slot, root_id, policy, panel_index, children, metrics):
+    script = population_update_script(root_id, policy, panel_index, children, metrics)
+    with update_slot:
+        st.html(script, unsafe_allow_javascript=True)
 
 
 def render_reference_guide():
@@ -627,12 +680,14 @@ def render_llm_agent_section(settings):
         initial_population_title = "Latest synthetic population view"
 
     live_population = st.empty()
+    update_slot = st.empty()
     render_population_animation(
         live_population,
         initial_population_results,
         settings,
         initial_population_title,
         "initial",
+        root_id=_LIVE_GRID_ID,
     )
     progress_slot = st.empty()
     live_status = st.empty()
@@ -660,12 +715,14 @@ def render_llm_agent_section(settings):
         completed_calls = 0
         progress_bar = progress_slot.progress(0.0)
         live_status.write("Starting LLM-agent simulation...")
+        children, _ = baseline_children(settings)
         render_population_animation(
             live_population,
             None,
             settings,
-            "Waiting for the first LLM-agent result",
+            "Simulating…",
             "waiting",
+            root_id=_LIVE_GRID_ID,
         )
 
         with st.spinner(f"Running {len(POLICIES)} policy(ies) × {len(selected_models)} model agent(s)..."):
@@ -712,16 +769,10 @@ def render_llm_agent_section(settings):
                             "debrief_text": debrief_text,
                         }
                         model_results.append(result_entry)
-                        partial_run_results = pd.concat(
-                            [result["run_results"] for result in model_results],
-                            ignore_index=True,
-                        )
-                        render_population_animation(
-                            live_population,
-                            partial_run_results,
-                            settings,
-                            "Policy outcome transitions",
-                            f"result-{completed_calls}",
+                        panel_index = POLICY_ORDER.index(policy)
+                        metrics = policy_transition_metrics(run_results, policy, settings)
+                        render_population_update(
+                            update_slot, _LIVE_GRID_ID, policy, panel_index, children, metrics
                         )
                         if debrief_text:
                             live_debrief.info(f"{model} | {policy}: {debrief_text}")
@@ -764,13 +815,6 @@ def render_llm_agent_section(settings):
                 "representative_agents": all_representative_agents,
                 "debrief_text": debrief_text,
             }
-            render_population_animation(
-                live_population,
-                combined_run_results,
-                settings,
-                "Latest synthetic population view",
-                f"final-{datetime.now().timestamp()}",
-            )
 
             entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
