@@ -660,7 +660,7 @@ def sidebar_inputs():
     ) / 100
     prediction_noise = st.sidebar.slider(
         "Prediction error rate (%)",
-        0, 35, 10, step=1,
+        0, 100, 5, step=1,
         help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
     ) / 100
     settings = {
