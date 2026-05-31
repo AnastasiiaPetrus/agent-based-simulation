@@ -1219,23 +1219,28 @@ h3 {
 }
 
 /* ── Policy segmented control (main content) ─ */
+[data-testid="stMain"] [data-testid="stButtonGroup"] [data-baseweb="button-group"],
 [data-testid="stMain"] [data-testid="stSegmentedControl"] [role="radiogroup"] {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
+  width: 100%;
   border: 0 !important;
+  overflow: visible;
 }
 
 [data-testid="stMain"] [data-testid="stSegmentedControl"] label {
   width: 100%;
 }
 
+[data-testid="stMain"] [data-testid="stButtonGroup"] button[kind^="segmented_control"],
 [data-testid="stMain"] [data-testid="stSegmentedControl"] label > div {
   justify-content: center;
   text-align: center;
   width: 100%;
   min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
+  min-width: 0;
+  padding: 0.5rem 0.5rem;
   border: 0 !important;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.58);
@@ -1248,12 +1253,26 @@ h3 {
   text-transform: uppercase;
   white-space: normal;
   line-height: 1.35;
+  overflow: visible;
 }
 
+[data-testid="stMain"] [data-testid="stButtonGroup"] button[kind^="segmented_control"] p,
+[data-testid="stMain"] [data-testid="stSegmentedControl"] label > div p {
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+[data-testid="stMain"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"],
 [data-testid="stMain"] [data-testid="stSegmentedControl"] label:has(input:checked) > div {
-  background: rgba(0, 167, 87, 0.08);
-  box-shadow: inset 0 0 0 1.5px var(--primary);
-  color: var(--primary);
+  background: rgba(0, 167, 87, 0.08) !important;
+  box-shadow: inset 0 0 0 1.5px var(--primary) !important;
+  color: var(--primary) !important;
 }
 
 /* ── Metric cards ─────────────────────────── */
