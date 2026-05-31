@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 from html import escape
 from io import StringIO
-from time import sleep
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,7 +31,6 @@ POLICY_DESCRIPTIONS = {
 }
 
 SETTING_DESCRIPTIONS = {
-    "Baseline offense rate (%)": "Share of the 1 000 synthetic children whose life trajectory would include the modeled offense if no policy existed. 12.5% = 125 children.",
     "Prediction error rate (%)": "How noisy the risk signal is. It increases missed would-offend cases and randomly flagged children whose baseline trajectory would not include the offense.",
     "Children flagged as high-risk (%)": "Share of the 1 000 synthetic children identified by the risk signal. 25% = 250 children flagged.",
     "Intervention strength": "How intensively the chosen policy is applied — scales the simulated effect on offenses, support reach, and harm.",
@@ -87,11 +85,11 @@ RUN_COUNT_COLUMNS = [
 DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
 NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
-POPULATION_DOT_ANIMATION_SECONDS = 3.0
-POPULATION_DOT_PULSE_SECONDS = 3.2
-POPULATION_DOT_STAGGER_GROUP = 80
-POPULATION_DOT_STAGGER_SECONDS = 0.012
-POPULATION_REPAINT_PAUSE_SECONDS = 0.25
+DEFAULT_BASELINE_OFFENSE_RATE = 0.125
+POPULATION_DOT_ANIMATION_SECONDS = 0.9
+POPULATION_DOT_PULSE_SECONDS = 2.6
+POPULATION_DOT_STAGGER_GROUP = 50
+POPULATION_DOT_STAGGER_SECONDS = 0.004
 POLICY_EFFECT_REDUCTION_RATES = {"Low": 0.05, "Medium": 0.15, "High": 0.28}
 
 RUN_METRIC_LABELS = {
@@ -357,26 +355,27 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .life-course-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18px, 1fr));
-  grid-auto-rows: 18px;
-  gap: 5px;
+  grid-template-columns: repeat(auto-fit, minmax(12px, 1fr));
+  grid-auto-rows: 12px;
+  gap: 4px;
   align-items: center;
   justify-items: center;
   width: 100%;
   padding: 8px 0;
 }}
 .life-dot {{
-  width: 4px;
-  height: 4px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   display: inline-block;
   justify-self: center;
   box-sizing: border-box;
-  opacity: 0.12;
+  opacity: 0;
   background: #f1f4f8;
-  --target-size: 10px;
-  --approach-size: 8px;
-  --overshoot-size: 12px;
+  transform: scale(0.45);
+  will-change: transform, opacity, background-color;
+  --target-scale: 1;
+  --overshoot-scale: 1.12;
   --pulse-scale: 1.06;
   --soft-color: #dde3ec;
   --mid-color: #b7c0ce;
@@ -389,72 +388,58 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --target-color: #25a55f;
   --soft-color: #d8eee3;
   --mid-color: #7ed2a1;
-  --target-size: 8px;
-  --approach-size: 7px;
-  --overshoot-size: 9px;
-  --pulse-scale: 1.03;
+  --target-scale: 0.92;
+  --overshoot-scale: 1.02;
+  --pulse-scale: 0.98;
 }}
 .risk-medium {{
   --target-color: #f2b705;
   --soft-color: #fff0c6;
   --mid-color: #ffd15a;
-  --target-size: 12px;
-  --approach-size: 10px;
-  --overshoot-size: 14px;
+  --target-scale: 1.08;
+  --overshoot-scale: 1.18;
   --pulse-scale: 1.10;
 }}
 .risk-high {{
   --target-color: #d64b3c;
   --soft-color: #f6d9d6;
   --mid-color: #eb8d82;
-  --target-size: 15px;
-  --approach-size: 12px;
-  --overshoot-size: 18px;
-  --pulse-scale: 1.14;
+  --target-scale: 1.28;
+  --overshoot-scale: 1.38;
+  --pulse-scale: 1.30;
 }}
 @keyframes {reveal_animation_name} {{
   0% {{
-    width: 4px;
-    height: 4px;
-    opacity: 0.12;
+    opacity: 0;
+    transform: scale(0.45);
     background: #f1f4f8;
     box-shadow: 0 0 0 0 rgba(45, 49, 66, 0);
   }}
-  24% {{
-    width: 5px;
-    height: 5px;
-    opacity: 0.30;
+  28% {{
+    opacity: 0.42;
+    transform: scale(0.68);
     background: #edf1f7;
   }}
-  48% {{
-    width: 7px;
-    height: 7px;
-    opacity: 0.55;
+  55% {{
+    opacity: 0.76;
+    transform: scale(0.86);
     background: var(--soft-color);
   }}
-  72% {{
-    width: var(--approach-size);
-    height: var(--approach-size);
-    opacity: 0.82;
-    background: var(--mid-color);
-  }}
-  90% {{
-    width: var(--overshoot-size);
-    height: var(--overshoot-size);
+  78% {{
     opacity: 1;
-    background: var(--target-color);
-    box-shadow: 0 0 0 4px rgba(45, 49, 66, 0.08);
+    transform: scale(var(--overshoot-scale));
+    background: var(--mid-color);
+    box-shadow: 0 0 0 3px rgba(45, 49, 66, 0.06);
   }}
   100% {{
-    width: var(--target-size);
-    height: var(--target-size);
     opacity: 1;
+    transform: scale(var(--target-scale));
     background: var(--target-color);
     box-shadow: 0 0 0 0 rgba(45, 49, 66, 0);
   }}
 }}
 @keyframes {pulse_animation_name} {{
-  0%, 100% {{ transform: scale(1); filter: brightness(1); }}
+  0%, 100% {{ transform: scale(var(--target-scale)); filter: brightness(1); }}
   50% {{ transform: scale(var(--pulse-scale)); filter: brightness(1.12); }}
 }}
 .life-course-legend {{
@@ -1230,7 +1215,6 @@ def render_llm_agent_section(settings):
             "Waiting for the first LLM-agent result",
             "waiting",
         )
-        sleep(POPULATION_REPAINT_PAUSE_SECONDS)
 
         with st.spinner(f"Running {len(POLICIES)} policy(ies) × {len(selected_models)} model agent(s)..."):
             for model in selected_models:
@@ -1273,7 +1257,6 @@ def render_llm_agent_section(settings):
                             f"{model} | {policy}",
                             f"result-{completed_calls}",
                         )
-                        sleep(POPULATION_REPAINT_PAUSE_SECONDS)
                         if debrief_text:
                             live_debrief.info(f"{model} | {policy}: {debrief_text}")
 
@@ -1292,7 +1275,6 @@ def render_llm_agent_section(settings):
                         completed_calls += 1
                         progress_bar.progress(completed_calls / max(total_calls, 1))
                         live_status.write(f"Could not generate **{model}** result for **{policy}**.")
-                        sleep(POPULATION_REPAINT_PAUSE_SECONDS)
                         model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
         progress_slot.empty()
@@ -1413,11 +1395,7 @@ def sidebar_inputs():
     st.sidebar.caption("Synthetic population: **1 000 children** (fixed).")
     settings = {
         "population_size": 1000,
-        "baseline_offense_rate": st.sidebar.slider(
-            "Children who would offend without intervention (%)",
-            1.0, 40.0, 12.5, step=0.5,
-            help=SETTING_DESCRIPTIONS["Baseline offense rate (%)"],
-        ) / 100,
+        "baseline_offense_rate": DEFAULT_BASELINE_OFFENSE_RATE,
         "prediction_noise": st.sidebar.slider(
             "Prediction error rate (%)",
             0, 35, 10, step=1,
