@@ -228,6 +228,7 @@ html, body, .stApp {
 [data-testid="stDecoration"],
 [data-testid="stToolbarActions"],
 [data-testid="stAppDeployButton"],
+[data-testid="stStatusWidget"],
 #MainMenu {
   display: none !important;
 }
