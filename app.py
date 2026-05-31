@@ -87,10 +87,10 @@ DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
 NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
 DEFAULT_TRUE_HIGH_RISK_RATE = 0.125
-POPULATION_DOT_ANIMATION_SECONDS = 0.35
+POPULATION_DOT_ANIMATION_SECONDS = 0.18
 POPULATION_DOT_PULSE_SECONDS = 2.6
-POPULATION_DOT_STAGGER_GROUP = 24
-POPULATION_DOT_STAGGER_SECONDS = 0.0015
+POPULATION_DOT_STAGGER_GROUP = 12
+POPULATION_DOT_STAGGER_SECONDS = 0.0005
 POLICY_EFFECT_REDUCTION_RATES = {"Low": 0.05, "Medium": 0.15, "High": 0.28}
 
 RUN_METRIC_LABELS = {
@@ -637,7 +637,7 @@ def render_charts(run_results, district_results):
 def render_interpretation(policy, average_table, bias_against_district_c):
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
     crimes_prevented = values.get("Offenses prevented by policy", 0.0)
-    false_positives = values.get("Children incorrectly flagged", 0.0)
+    false_positives = values.get("Children incorrectly flagged (false positives)", 0.0)
     children_helped = values.get("Children receiving support", 0.0)
     children_harmed = values.get("Children exposed to harmful intervention", 0.0)
 
