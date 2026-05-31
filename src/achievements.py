@@ -20,10 +20,10 @@ ACHIEVEMENTS = [
         "description": "Compare all three policies in a single session.",
     },
     {
-        "id": "heavy_hand",
-        "icon": "⛓️",
-        "name": "Heavy Hand",
-        "description": "100+ children harmed on average under Coercive intervention.",
+        "id": "tinkerer",
+        "icon": "🔬",
+        "name": "Tinkerer",
+        "description": "Run 3 or more simulations in a single session.",
     },
     {
         "id": "crime_preventer",
@@ -66,7 +66,7 @@ ACHIEVEMENTS = [
 ACHIEVEMENT_INDEX = {a["id"]: a for a in ACHIEVEMENTS}
 
 
-def check_achievements(combined_run_results, settings):
+def check_achievements(combined_run_results, settings, simulation_count=1):
     """Return set of achievement IDs earned in this simulation result."""
     earned = {"first_run"}
 
@@ -79,10 +79,6 @@ def check_achievements(combined_run_results, settings):
         combined_run_results[combined_run_results["policy"] == "Targeted support for high-risk children"]
         if has_policy_col else combined_run_results.iloc[0:0]
     )
-    coercive = (
-        combined_run_results[combined_run_results["policy"] == "Coercive preventive intervention for high-risk children"]
-        if has_policy_col else combined_run_results.iloc[0:0]
-    )
 
     if set(POLICIES).issubset(policies_present):
         earned.add("full_comparison")
@@ -90,8 +86,8 @@ def check_achievements(combined_run_results, settings):
     if not targeted.empty and targeted["children_harmed"].mean() == 0:
         earned.add("do_no_harm")
 
-    if not coercive.empty and coercive["children_harmed"].mean() >= 100:
-        earned.add("heavy_hand")
+    if simulation_count >= 3:
+        earned.add("tinkerer")
 
     policy_avg_prevented = (
         combined_run_results.groupby("policy")["crimes_prevented"].mean()

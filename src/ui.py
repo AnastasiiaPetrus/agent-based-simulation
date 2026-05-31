@@ -754,7 +754,9 @@ def render_llm_agent_section(settings):
             }
             add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
 
-            newly_earned = check_achievements(combined_run_results, settings)
+            simulation_count = st.session_state.get("simulation_run_count", 0) + 1
+            st.session_state["simulation_run_count"] = simulation_count
+            newly_earned = check_achievements(combined_run_results, settings, simulation_count)
             previously_earned = st.session_state.get("earned_achievements", set())
             st.session_state["earned_achievements"] = previously_earned | newly_earned
             for ach_id in newly_earned - previously_earned:
