@@ -1,6 +1,6 @@
-# Predictive Justice Simulation
+# Predictive Justice Thought Experiment
 
-This project is a Streamlit app for a synthetic ethical thought experiment about predictive justice. It compares three policy responses to an imperfect risk signal that flags 10-year-old children for elevated risk of a future violent offense by age 30.
+Suppose we could reliably predict, at age 10, who will become a violent criminal by age 30. What should we do with that information? This Streamlit app compares three policy responses to that question using synthetic LLM-generated life-course trajectories.
 
 The app is not a real-world decision tool. It does not use real crime data, personal data, protected-class data, demographic proxies, or real locations. All agents, districts, risks, trajectories, and outcomes are synthetic.
 

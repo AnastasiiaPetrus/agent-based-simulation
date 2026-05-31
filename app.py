@@ -1424,14 +1424,13 @@ def sidebar_inputs():
 
 
 def render_app():
-    st.set_page_config(page_title="Predictive Justice Simulation", layout="wide")
+    st.set_page_config(page_title="Predictive Justice Thought Experiment", layout="wide")
 
-    st.title("Predictive Justice Simulation")
+    st.title("Predictive Justice Thought Experiment")
     st.markdown(
-        "A life-course simulation of three policy responses to an imperfect prediction of future violent crime. "
-        "An LLM simulates developmental trajectories for 1 000 synthetic children aged 10–30 and derives "
-        "outcomes from those trajectories — through mechanisms such as stigma, trust, opportunity, and coercion. "
-        "All agents and outcomes are synthetic."
+        "Suppose we could reliably predict, at age 10, who will become a violent criminal by age 30. "
+        "What should we do with that information? This simulation compares three policy responses using "
+        "synthetic LLM-generated life-course trajectories for 1 000 children."
     )
     render_reference_guide()
 
