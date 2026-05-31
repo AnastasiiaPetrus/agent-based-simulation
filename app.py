@@ -330,23 +330,41 @@ def population_animation_html(run_results, settings, title):
   transform: scale(0.35);
   opacity: 0.25;
   background: #d7dbe4;
+  --target-scale: 1;
+  --overshoot-scale: 1.16;
+  --pulse-scale: 1.08;
   animation:
     colorGrowLifeDot 1.65s cubic-bezier(.2,.75,.25,1) forwards,
     breatheLifeDot 2.8s ease-in-out infinite;
   animation-delay: var(--delay), calc(var(--delay) + 1.65s);
 }}
-.risk-low {{ --target-color: #25a55f; }}
-.risk-medium {{ --target-color: #f2b705; }}
-.risk-high {{ --target-color: #d64b3c; }}
+.risk-low {{
+  --target-color: #25a55f;
+  --target-scale: 0.92;
+  --overshoot-scale: 1.04;
+  --pulse-scale: 1.0;
+}}
+.risk-medium {{
+  --target-color: #f2b705;
+  --target-scale: 1.08;
+  --overshoot-scale: 1.24;
+  --pulse-scale: 1.16;
+}}
+.risk-high {{
+  --target-color: #d64b3c;
+  --target-scale: 1.24;
+  --overshoot-scale: 1.42;
+  --pulse-scale: 1.32;
+}}
 @keyframes colorGrowLifeDot {{
   0% {{ transform: scale(0.35); opacity: 0.25; background: #d7dbe4; }}
   45% {{ transform: scale(0.72); opacity: 0.72; background: #cfd5df; }}
-  72% {{ transform: scale(1.16); opacity: 1; background: var(--target-color); }}
-  100% {{ transform: scale(1.0); opacity: 1; background: var(--target-color); }}
+  72% {{ transform: scale(var(--overshoot-scale)); opacity: 1; background: var(--target-color); }}
+  100% {{ transform: scale(var(--target-scale)); opacity: 1; background: var(--target-color); }}
 }}
 @keyframes breatheLifeDot {{
-  0%, 100% {{ transform: scale(1.0); filter: brightness(1); }}
-  50% {{ transform: scale(1.08); filter: brightness(1.12); }}
+  0%, 100% {{ transform: scale(var(--target-scale)); filter: brightness(1); }}
+  50% {{ transform: scale(var(--pulse-scale)); filter: brightness(1.12); }}
 }}
 .life-course-legend {{
   display: flex;
@@ -366,6 +384,7 @@ def population_animation_html(run_results, settings, title):
   height: 9px;
   border-radius: 999px;
   display: inline-block;
+  background: var(--target-color);
 }}
 </style>
 <div class="life-course-card">
