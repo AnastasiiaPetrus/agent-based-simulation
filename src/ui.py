@@ -331,7 +331,6 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   animation: revealRiskDot {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards;
   animation-delay: var(--delay);
   transition: background 0.75s ease, transform 0.75s ease, box-shadow 0.75s ease;
-  scale: var(--ws, 1);
   position: relative;
   z-index: 1;
 }}
@@ -420,83 +419,6 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
     }});
   }}, 420);
 
-  root.querySelectorAll('.policy-grid').forEach(function(grid) {{
-    var dotData = null;
-    var gridRect = null;
-    var rafId = null;
-    var mx = -9999, my = -9999;
-    var RADIUS = 150;
-    var RADIUS2 = RADIUS * RADIUS;
-    var active = new Set();
-
-    function init() {{
-      gridRect = grid.getBoundingClientRect();
-      var tracks = getComputedStyle(grid).gridTemplateColumns.trim().split(/\\s+/);
-      var cols = tracks.length || 1;
-      var colW = parseFloat(tracks[0]) || 11;
-      var GAP = 5, PAD_X = 10, PAD_Y = 12, ROW_H = 15;
-      var elems = Array.from(grid.querySelectorAll('.life-dot'));
-      dotData = elems.map(function(el, idx) {{
-        return {{
-          el: el,
-          x: PAD_X + (idx % cols) * (colW + GAP) + colW * 0.5,
-          y: PAD_Y + Math.floor(idx / cols) * (ROW_H + GAP) + ROW_H * 0.5
-        }};
-      }});
-    }}
-
-    function step() {{
-      rafId = null;
-      if (!dotData) return;
-      var nextActive = new Set();
-      for (var i = 0; i < dotData.length; i++) {{
-        var d = dotData[i];
-        var dx = d.x - mx, dy = d.y - my;
-        var dist2 = dx * dx + dy * dy;
-        if (dist2 < RADIUS2) {{
-          var t = 1 - Math.sqrt(dist2) / RADIUS;
-          var e = t * t * t;
-          d.el.style.setProperty('--ws', (1 + e * 0.85).toFixed(3));
-          nextActive.add(d);
-        }}
-      }}
-      active.forEach(function(d) {{
-        if (!nextActive.has(d)) d.el.style.removeProperty('--ws');
-      }});
-      active = nextActive;
-    }}
-
-    grid.addEventListener('resetWaveCache', function() {{
-      dotData = null; gridRect = null;
-      active.forEach(function(d) {{ d.el.style.removeProperty('--ws'); }});
-      active = new Set();
-    }});
-
-    window.addEventListener('scroll', function() {{ gridRect = null; }}, {{ passive: true }});
-    window.addEventListener('resize', function() {{ gridRect = null; dotData = null; }}, {{ passive: true }});
-
-    grid.addEventListener('pointermove', function(e) {{
-      if (!gridRect) gridRect = grid.getBoundingClientRect();
-      mx = e.clientX - gridRect.left;
-      my = e.clientY - gridRect.top;
-      if (!dotData) init();
-      if (!rafId) rafId = requestAnimationFrame(step);
-    }}, {{ passive: true }});
-    grid.addEventListener('pointerleave', function() {{
-      if (rafId) {{ cancelAnimationFrame(rafId); rafId = null; }}
-      active.forEach(function(d) {{
-        d.el.style.removeProperty('--ws');
-        d.el.style.removeProperty('--wb');
-      }});
-      active = new Set();
-    }});
-
-    if (window.requestIdleCallback) {{
-      requestIdleCallback(function() {{ if (!dotData) init(); }});
-    }} else {{
-      setTimeout(function() {{ if (!dotData) init(); }}, 300);
-    }}
-  }});
 }})();
 </script>
 """
