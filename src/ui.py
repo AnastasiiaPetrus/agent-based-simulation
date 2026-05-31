@@ -135,7 +135,6 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   padding: 8px 0;
   position: relative;
   overflow: hidden;
-  cursor: crosshair;
 }}
 .life-dot {{
   width: 10px;
@@ -211,15 +210,16 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   width: 0;
   height: 0;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.6);
+  border: 1.5px solid rgba(45,49,66,0.28);
+  background: radial-gradient(circle, rgba(45,49,66,0.08) 0%, transparent 70%);
   transform: translate(-50%, -50%);
-  animation: lcRipple 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  animation: lcRipple 0.75s ease-out forwards;
   pointer-events: none;
   z-index: 3;
 }}
 @keyframes lcRipple {{
-  from {{ width: 0; height: 0; opacity: 0.85; }}
-  to   {{ width: 280px; height: 280px; opacity: 0; }}
+  from {{ width: 0; height: 0; opacity: 1; }}
+  to   {{ width: 260px; height: 260px; opacity: 0; }}
 }}
 .life-course-legend {{
   display: flex;
