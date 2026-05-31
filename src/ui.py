@@ -6,7 +6,6 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as st_components
 
 from src.charts import line_chart
 from src.constants import (
@@ -20,7 +19,6 @@ from src.constants import (
     POLICY_ORDER,
     POLICIES,
     POPULATION_DOT_ANIMATION_SECONDS,
-    POPULATION_DOT_PULSE_SECONDS,
     POPULATION_DOT_STAGGER_GROUP,
     POPULATION_DOT_STAGGER_SECONDS,
     RESULT_METRIC_DESCRIPTIONS,
@@ -39,9 +37,7 @@ from src.simulation import (
     clean_llm_district_results,
     clean_llm_run_results,
     compact_aggregate_metrics,
-    derived_flagged_count,
     normalize_llm_metrics,
-    population_risk_counts,
     risk_signal_counts,
     validate_llm_tables,
 )
@@ -83,31 +79,152 @@ def glossary_markdown(items):
     return "\n".join(lines)
 
 
-def population_animation_html(run_results, settings, title, animation_key=""):
+def baseline_children(settings):
     population_size = int(settings["population_size"])
-    counts = population_risk_counts(run_results, settings)
-    flagged_high = min(counts["flagged_high"], counts["high"])
-    flagged_low = min(counts["flagged_low"], counts["low"])
-    risk_classes = (
-        ["risk-high flagged-dot"] * flagged_high
-        + ["risk-high"] * max(0, counts["high"] - flagged_high)
-        + ["risk-low flagged-dot"] * flagged_low
-        + ["risk-low"] * max(0, counts["low"] - flagged_low)
+    true_high = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
+    false_positive, false_negative, flagged = risk_signal_counts(true_high, settings)
+    true_positive = max(0, true_high - false_negative)
+    low_unflagged = max(0, population_size - true_positive - false_negative - false_positive)
+
+    children = (
+        [{"base": "high", "flagged": True}] * true_positive
+        + [{"base": "high", "flagged": False}] * false_negative
+        + [{"base": "low", "flagged": True}] * false_positive
+        + [{"base": "low", "flagged": False}] * low_unflagged
     )
-    seed_text = f"{title}-{animation_key}"
-    seed = sum(ord(char) for char in seed_text) + counts["high"] * 7 + counts["flagged"] * 13
-    animation_id = abs(seed + population_size * 17 + counts["low"] * 23) % 100000
-    grid_id = f"lcg{animation_id}"
-    spotlight_id = f"lcsp{animation_id}"
+    seed = population_size * 17 + true_high * 31 + flagged * 43
     rng = np.random.default_rng(seed)
-    rng.shuffle(risk_classes)
+    rng.shuffle(children)
+    return children, {
+        "high": true_high,
+        "low": population_size - true_high,
+        "flagged": flagged,
+        "true_positive": true_positive,
+        "false_positive": false_positive,
+        "false_negative": false_negative,
+    }
+
+
+def policy_transition_metrics(run_results, policy, settings):
+    if run_results is None or run_results.empty or "policy" not in run_results.columns:
+        return None
+
+    policy_rows = run_results[run_results["policy"] == policy]
+    if policy_rows.empty:
+        return None
+
+    population_size = int(settings["population_size"])
+    averages = policy_rows.mean(numeric_only=True)
+    baseline = clamp_count(averages.get("baseline_crimes"), population_size)
+    false_positives = clamp_count(averages.get("false_positives"), population_size)
+    false_negatives = clamp_count(averages.get("false_negatives"), population_size)
+    flagged = clamp_count(averages.get("children_flagged"), population_size)
+    if flagged == 0:
+        flagged = clamp_count(baseline - false_negatives + false_positives, population_size)
+
+    return {
+        "prevented": clamp_count(averages.get("crimes_prevented"), population_size),
+        "harmed": clamp_count(averages.get("children_harmed"), population_size),
+        "baseline": baseline,
+        "flagged": flagged,
+        "false_positives": false_positives,
+        "false_negatives": false_negatives,
+    }
+
+
+def seeded_subset(indices, count, seed_text):
+    indices = list(indices)
+    count = min(max(0, int(count)), len(indices))
+    if count == 0:
+        return set()
+
+    seed = sum(ord(char) for char in seed_text) + len(indices) * 97 + count * 193
+    rng = np.random.default_rng(seed)
+    rng.shuffle(indices)
+    return set(indices[:count])
+
+
+def policy_panel_html(children, policy, metrics, panel_index):
+    high_flagged = [index for index, child in enumerate(children) if child["base"] == "high" and child["flagged"]]
+    low_flagged = [index for index, child in enumerate(children) if child["base"] == "low" and child["flagged"]]
+
+    has_result = metrics is not None
+    prevented = min(metrics["prevented"], len(high_flagged)) if has_result else 0
+    harmed = min(metrics["harmed"], len(low_flagged)) if has_result else 0
+    prevented_indices = seeded_subset(high_flagged, prevented, f"{policy}-prevented")
+    harmed_indices = seeded_subset(low_flagged, harmed, f"{policy}-harmed")
 
     dots = []
-    for index, risk_class in enumerate(risk_classes[:population_size]):
+    final_high = 0
+    final_low = 0
+    final_harmed = 0
+    for index, child in enumerate(children):
         delay = (index % POPULATION_DOT_STAGGER_GROUP) * POPULATION_DOT_STAGGER_SECONDS
+        base_class = "base-high" if child["base"] == "high" else "base-low"
+        final_class = base_class.replace("base-", "final-")
+        change_class = ""
+        title = "baseline low risk"
+
+        if index in prevented_indices:
+            final_class = "final-low"
+            change_class = "changed-prevented"
+            title = "true high-risk, prevented by policy"
+        elif index in harmed_indices:
+            final_class = "final-harmed"
+            change_class = "changed-harmed"
+            title = "wrongly flagged and harmed by policy"
+        elif child["base"] == "high":
+            title = "true high-risk, still adverse outcome"
+
+        if final_class == "final-harmed":
+            final_harmed += 1
+        elif final_class == "final-high":
+            final_high += 1
+        else:
+            final_low += 1
+
+        flagged_class = " flagged-dot" if child["flagged"] else ""
         dots.append(
-            f'<span class="life-dot {risk_class}" style="--delay:{delay:.3f}s"></span>'
+            f'<span class="life-dot {base_class} {final_class} {change_class}{flagged_class}" '
+            f'style="--delay:{delay:.3f}s" title="{escape(title)}"></span>'
         )
+
+    if has_result:
+        summary = (
+            f"{prevented} red to green prevented; {harmed} green to orange harmed; "
+            f"{final_high} red remain."
+        )
+        ready = "true"
+    else:
+        summary = "Waiting for this policy result. Baseline is shown."
+        ready = "false"
+
+    return f"""
+    <section class="policy-panel" data-ready="{ready}">
+      <div class="policy-panel-title">{escape(policy)}</div>
+      <div class="policy-panel-summary">{escape(summary)}</div>
+      <div class="policy-grid" data-panel="{panel_index}">
+        {''.join(dots)}
+        <div class="lc-spotlight"></div>
+      </div>
+    </section>
+    """
+
+
+def population_animation_html(run_results, settings, title, animation_key=""):
+    children, baseline_counts = baseline_children(settings)
+    seed_text = f"{title}-{animation_key}"
+    animation_id = abs(sum(ord(char) for char in seed_text) + len(children) * 17) % 100000
+    root_id = f"policyTransition{animation_id}"
+    panels = [
+        policy_panel_html(
+            children,
+            policy,
+            policy_transition_metrics(run_results, policy, settings),
+            panel_index,
+        )
+        for panel_index, policy in enumerate(POLICY_ORDER)
+    ]
 
     return f"""
 <style>
@@ -117,6 +234,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   padding: 14px 16px;
   margin: 10px 0 16px;
   background: #ffffff;
+  overflow-x: auto;
 }}
 .life-course-header {{
   margin-bottom: 10px;
@@ -125,14 +243,39 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   font-weight: 700;
   color: #2d3142;
 }}
-.life-course-grid {{
+.policy-panels {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16px, 1fr));
-  grid-auto-rows: 16px;
-  gap: 7px;
+  grid-template-columns: repeat(3, minmax(340px, 1fr));
+  gap: 12px;
+  min-width: 1040px;
+}}
+.policy-panel {{
+  border: 1px solid #edf0f6;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfe;
+}}
+.policy-panel-title {{
+  min-height: 42px;
+  color: #2d3142;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+}}
+.policy-panel-summary {{
+  min-height: 34px;
+  color: #697287;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}}
+.policy-grid {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9px, 1fr));
+  grid-auto-rows: 12px;
+  gap: 4px;
   align-items: center;
   justify-items: center;
-  width: 100%;
   padding: 8px 6px;
   position: relative;
   overflow: hidden;
@@ -145,52 +288,57 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   justify-self: center;
   box-sizing: border-box;
   opacity: 0;
-  background: #f1f4f8;
+  background: var(--base-color);
   transform: scale(0.45);
-  --target-scale: 1;
-  --overshoot-scale: 1.12;
-  --soft-color: #dde3ec;
-  --mid-color: #b7c0ce;
+  --base-scale: 1;
+  --final-scale: 1;
   animation: revealRiskDot {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards;
   animation-delay: var(--delay);
-  transition: transform 0.15s ease, filter 0.15s ease;
+  transition: background 0.75s ease, transform 0.75s ease, box-shadow 0.75s ease, filter 0.15s ease;
   position: relative;
   z-index: 1;
 }}
 .life-dot:hover {{
   filter: brightness(1.25);
-  transform: scale(calc(var(--target-scale) * 1.28));
+  transform: scale(calc(var(--final-scale) * 1.18));
 }}
-.risk-low {{
-  --target-color: #25a55f;
-  --soft-color: #d8eee3;
-  --mid-color: #7ed2a1;
-  --target-scale: 0.92;
-  --overshoot-scale: 1.02;
+.base-low {{
+  --base-color: #25a55f;
+  --base-scale: 0.92;
 }}
-.risk-medium {{
-  --target-color: #f2b705;
-  --soft-color: #fff0c6;
-  --mid-color: #ffd15a;
-  --target-scale: 1.08;
-  --overshoot-scale: 1.18;
+.base-high {{
+  --base-color: #d64b3c;
+  --base-scale: 1.28;
 }}
-.risk-high {{
-  --target-color: #d64b3c;
-  --soft-color: #f6d9d6;
-  --mid-color: #eb8d82;
-  --target-scale: 1.28;
-  --overshoot-scale: 1.38;
+.final-low {{
+  --final-color: #25a55f;
+  --final-scale: 0.92;
+}}
+.final-high {{
+  --final-color: #d64b3c;
+  --final-scale: 1.28;
+}}
+.final-harmed {{
+  --final-color: #e57c23;
+  --final-scale: 1.12;
 }}
 .flagged-dot {{
   outline: 3px solid #f2b705;
   outline-offset: 1px;
 }}
 @keyframes revealRiskDot {{
-  0%   {{ opacity: 0; transform: scale(0.45); background: #f1f4f8; }}
-  55%  {{ opacity: 0.76; transform: scale(0.86); background: var(--soft-color); }}
-  78%  {{ opacity: 1; transform: scale(var(--overshoot-scale)); background: var(--mid-color); }}
-  100% {{ opacity: 1; transform: scale(var(--target-scale)); background: var(--target-color); }}
+  0%   {{ opacity: 0; transform: scale(0.45); }}
+  100% {{ opacity: 1; transform: scale(var(--base-scale)); }}
+}}
+.policy-panel.show-final .life-dot {{
+  background: var(--final-color);
+  transform: scale(var(--final-scale));
+}}
+.policy-panel.show-final .life-dot.changed-prevented {{
+  box-shadow: 0 0 0 3px rgba(37,165,95,0.22);
+}}
+.policy-panel.show-final .life-dot.changed-harmed {{
+  box-shadow: 0 0 0 3px rgba(229,124,35,0.24);
 }}
 .lc-spotlight {{
   position: absolute;
@@ -240,111 +388,61 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   height: 9px;
   border-radius: 999px;
   display: inline-block;
-  background: var(--target-color);
+  background: var(--legend-color);
 }}
 .legend-dot.flagged-dot {{
   background: transparent;
   outline-width: 2px;
 }}
+.legend-low {{ --legend-color: #25a55f; }}
+.legend-high {{ --legend-color: #d64b3c; }}
+.legend-harmed {{ --legend-color: #e57c23; }}
 </style>
-<div class="life-course-card">
+<div class="life-course-card" id="{root_id}">
   <div class="life-course-header">
     <div class="life-course-title">{escape(title)}</div>
   </div>
-  <div class="life-course-grid" id="{grid_id}">
-    {''.join(dots)}
-    <div class="lc-spotlight" id="{spotlight_id}"></div>
+  <div class="policy-panels">
+    {''.join(panels)}
   </div>
   <div class="life-course-legend">
-    <span class="legend-item"><span class="legend-dot risk-low"></span>green: lower risk / support path ({counts['low']})</span>
-    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by prediction ({counts['flagged']})</span>
-    <span class="legend-item"><span class="legend-dot risk-high"></span>red: offense or harmful intervention path ({counts['high']})</span>
+    <span class="legend-item"><span class="legend-dot legend-low"></span>green: no modeled offense / prevented</span>
+    <span class="legend-item"><span class="legend-dot legend-high"></span>red: true high-risk / offense remains</span>
+    <span class="legend-item"><span class="legend-dot legend-harmed"></span>orange: wrongly flagged and harmed</span>
+    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by prediction ({baseline_counts['flagged']})</span>
   </div>
 </div>
 <script>
 (function() {{
-  var grid = document.getElementById('{grid_id}');
-  var spot = document.getElementById('{spotlight_id}');
-  if (!grid || !spot) return;
+  var root = document.getElementById('{root_id}');
+  if (!root) return;
 
-  var WAVE_RADIUS = 160;
-  var WAVE_BOOST  = 0.55;
-  var dots = [];
-  var rafId = null;
-  var mx = -9999, my = -9999;
-  var ready = false;
-
-  /* After reveal animation finishes, freeze each dot so JS can drive the transform. */
-  var freezeMs = ({POPULATION_DOT_ANIMATION_SECONDS:.3f} + 0.06) * 1000;
   setTimeout(function() {{
-    var all = grid.querySelectorAll('.life-dot');
-    var gridR = grid.getBoundingClientRect();
-    for (var i = 0; i < all.length; i++) {{
-      var d = all[i];
-      var cs = getComputedStyle(d);
-      var base = parseFloat(cs.getPropertyValue('--target-scale')) || 1;
-      var col  = cs.getPropertyValue('--target-color').trim();
-      d.style.animation  = 'none';
-      d.style.opacity    = '1';
-      d.style.background = col;
-      d.style.transform  = 'scale(' + base + ')';
-      d.style.transition = 'transform 0.09s ease, filter 0.09s ease';
-      var r = d.getBoundingClientRect();
-      dots.push({{
-        el: d,
-        base: base,
-        x: r.left - gridR.left + r.width  / 2,
-        y: r.top  - gridR.top  + r.height / 2,
-        inWave: false
-      }});
-    }}
-    ready = true;
-  }}, freezeMs);
+    root.querySelectorAll('.policy-panel[data-ready="true"]').forEach(function(panel) {{
+      panel.classList.add('show-final');
+    }});
+  }}, 420);
 
-  function applyWave() {{
-    rafId = null;
-    if (!ready) return;
-    for (var i = 0; i < dots.length; i++) {{
-      var p = dots[i];
-      var dx = mx - p.x, dy = my - p.y;
-      var dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist < WAVE_RADIUS) {{
-        var t = 1 - dist / WAVE_RADIUS;
-        p.el.style.transform = 'scale(' + (p.base * (1 + WAVE_BOOST * t * t)).toFixed(3) + ')';
-        p.el.style.filter    = 'brightness(' + (1 + 0.4 * t).toFixed(2) + ')';
-        p.inWave = true;
-      }} else if (p.inWave) {{
-        p.el.style.transform = 'scale(' + p.base.toFixed(3) + ')';
-        p.el.style.filter    = '';
-        p.inWave = false;
-      }}
-    }}
-  }}
-
-  grid.addEventListener('mousemove', function(e) {{
-    var r = grid.getBoundingClientRect();
-    mx = e.clientX - r.left;
-    my = e.clientY - r.top;
-    spot.style.setProperty('--sx', mx + 'px');
-    spot.style.setProperty('--sy', my + 'px');
-    spot.style.opacity = '1';
-    if (!rafId) rafId = requestAnimationFrame(applyWave);
-  }});
-
-  grid.addEventListener('mouseleave', function() {{
-    mx = -9999; my = -9999;
-    spot.style.opacity = '0';
-    if (!rafId) rafId = requestAnimationFrame(applyWave);
-  }});
-
-  grid.addEventListener('click', function(e) {{
-    var r = grid.getBoundingClientRect();
-    var rip = document.createElement('div');
-    rip.className = 'lc-ripple';
-    rip.style.left = (e.clientX - r.left) + 'px';
-    rip.style.top  = (e.clientY - r.top)  + 'px';
-    grid.appendChild(rip);
-    setTimeout(function() {{ if (rip.parentNode) rip.parentNode.removeChild(rip); }}, 900);
+  root.querySelectorAll('.policy-grid').forEach(function(grid) {{
+    var spot = grid.querySelector('.lc-spotlight');
+    grid.addEventListener('mousemove', function(e) {{
+      var r = grid.getBoundingClientRect();
+      spot.style.setProperty('--sx', (e.clientX - r.left) + 'px');
+      spot.style.setProperty('--sy', (e.clientY - r.top) + 'px');
+      spot.style.opacity = '1';
+    }});
+    grid.addEventListener('mouseleave', function() {{
+      spot.style.opacity = '0';
+    }});
+    grid.addEventListener('click', function(e) {{
+      var r = grid.getBoundingClientRect();
+      var rip = document.createElement('div');
+      rip.className = 'lc-ripple';
+      rip.style.left = (e.clientX - r.left) + 'px';
+      rip.style.top  = (e.clientY - r.top)  + 'px';
+      grid.appendChild(rip);
+      setTimeout(function() {{ if (rip.parentNode) rip.parentNode.removeChild(rip); }}, 900);
+    }});
   }});
 }})();
 </script>
@@ -354,7 +452,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 def render_population_animation(container, run_results, settings, title, animation_key=""):
     html = population_animation_html(run_results, settings, title, animation_key)
     with container:
-        st_components.html(html, height=580, scrolling=False)
+        st.html(html, unsafe_allow_javascript=True)
 
 
 def render_reference_guide():
@@ -606,27 +704,29 @@ def render_llm_agent_section(settings):
                         completed_calls += 1
                         progress_bar.progress(completed_calls / max(total_calls, 1))
                         live_status.write(f"Received **{model}** result for **{policy}**.")
+                        result_entry = {
+                            "llm_model": model,
+                            "policy": policy,
+                            "run_results": run_results,
+                            "district_results": district_results,
+                            "representative_agents": representative_agents,
+                            "aggregate_metrics": compact_aggregate_metrics(run_results),
+                            "debrief_text": debrief_text,
+                        }
+                        model_results.append(result_entry)
+                        partial_run_results = pd.concat(
+                            [result["run_results"] for result in model_results],
+                            ignore_index=True,
+                        )
                         render_population_animation(
                             live_population,
-                            run_results,
-                            policy_settings,
-                            f"{model} | {policy}",
+                            partial_run_results,
+                            settings,
+                            "Policy outcome transitions",
                             f"result-{completed_calls}",
                         )
                         if debrief_text:
                             live_debrief.info(f"{model} | {policy}: {debrief_text}")
-
-                        model_results.append(
-                            {
-                                "llm_model": model,
-                                "policy": policy,
-                                "run_results": run_results,
-                                "district_results": district_results,
-                                "representative_agents": representative_agents,
-                                "aggregate_metrics": compact_aggregate_metrics(run_results),
-                                "debrief_text": debrief_text,
-                            }
-                        )
                     except Exception as error:
                         completed_calls += 1
                         progress_bar.progress(completed_calls / max(total_calls, 1))
@@ -773,10 +873,7 @@ def sidebar_inputs():
     }
     true_high_risk_count = clamp_count(true_high_risk_rate * population_size, population_size)
     fp, fn, flagged_count = risk_signal_counts(true_high_risk_count, settings)
-    tp = true_high_risk_count - fn
     settings["high_risk_threshold"] = flagged_count / population_size
-
-    fdr = fp / flagged_count if flagged_count > 0 else 0.0
 
     model_options = llm_model_options()
     settings["llm_agent_models"] = default_llm_agent_models(model_options)

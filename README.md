@@ -17,11 +17,12 @@ Each LLM response must return JSON with:
 
 Before showing results, the app validates and normalizes the LLM output. It checks required rows, rejects missing metric values, removes negative counts, recomputes `crimes_prevented`, applies policy constraints, and reconciles district-level totals with run-level totals.
 
-During a run, the app updates a live population view after each model-policy response arrives. The live view shows 1,000 dots, one per synthetic child. Dots animate from small to full size to suggest the age-10-to-age-30 life-course frame, and their colors summarize the latest aggregate model output:
+During a run, the app updates a live policy comparison view after each model-policy response arrives. It shows three panels, one per policy, with the same 1,000 synthetic children in the same positions. Dots start from the shared baseline and then transition to the outcome implied by each policy:
 
-- Green: lower modeled risk or support path.
-- Yellow: flagged or error-sensitive path.
-- Red: offense or harmful intervention path.
+- Green: no modeled offense or offense prevented.
+- Red: true high-risk / offense remains.
+- Orange: wrongly flagged and harmed by an intervention.
+- Yellow outline: flagged by the prediction.
 
 This animation is an aggregate visualization, not 1,000 individually returned LLM records.
 
