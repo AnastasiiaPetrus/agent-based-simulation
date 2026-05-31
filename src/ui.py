@@ -58,6 +58,213 @@ from src.tables import average_results_table, combined_policy_totals_table
 _LIVE_GRID_ID = "livePopGrid"
 
 
+def render_global_styles():
+    st.html(
+        """
+<style>
+:root {
+  --surface: #ffffff;
+  --surface-muted: #f6f8fb;
+  --surface-panel: #fbfcfe;
+  --line: #dce3ec;
+  --line-soft: #e8edf3;
+  --text: #202635;
+  --text-muted: #667085;
+  --primary: #145c58;
+  --primary-strong: #0f4744;
+  --accent: #d95f47;
+  --amber: #d6a21d;
+  --success: #23875a;
+  --shadow-sm: 0 1px 2px rgba(24, 33, 51, 0.06);
+  --shadow-md: 0 14px 36px rgba(24, 33, 51, 0.10);
+}
+
+.stApp {
+  background:
+    linear-gradient(180deg, rgba(246, 248, 251, 0.98) 0%, #ffffff 42%),
+    radial-gradient(circle at top left, rgba(20, 92, 88, 0.10), transparent 34%);
+  color: var(--text);
+}
+
+[data-testid="stHeader"] {
+  background: rgba(246, 248, 251, 0.82);
+  border-bottom: 1px solid rgba(220, 227, 236, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+[data-testid="stMainBlockContainer"],
+.block-container {
+  max-width: 1180px;
+  padding-top: 2.25rem;
+  padding-bottom: 3rem;
+}
+
+[data-testid="stSidebar"] {
+  border-right: 1px solid var(--line-soft);
+  box-shadow: 10px 0 30px rgba(24, 33, 51, 0.04);
+}
+
+[data-testid="stSidebar"] > div:first-child {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%);
+  padding-top: 2rem;
+}
+
+h1, h2, h3 {
+  color: var(--text);
+  letter-spacing: 0;
+}
+
+h1 {
+  max-width: 860px;
+  margin-bottom: 0.4rem;
+  font-size: 3.7rem;
+  line-height: 1.02;
+}
+
+h2 {
+  margin-top: 1.4rem;
+  font-size: 1.55rem;
+}
+
+h3 {
+  font-size: 1.08rem;
+}
+
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li {
+  color: var(--text-muted);
+  line-height: 1.62;
+}
+
+[data-testid="stMarkdownContainer"] strong {
+  color: var(--text);
+}
+
+[data-testid="stCaptionContainer"] {
+  color: #747d8d;
+}
+
+[data-testid="stExpander"] details {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-testid="stExpander"] summary {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.stButton > button {
+  min-height: 2.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.stButton > button:hover:not(:disabled) {
+  border-color: rgba(20, 92, 88, 0.42);
+  box-shadow: 0 8px 20px rgba(24, 33, 51, 0.10);
+  transform: translateY(-1px);
+}
+
+.stButton > button[kind="primary"] {
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
+  border-color: var(--primary-strong);
+  color: #ffffff;
+}
+
+.stButton > button[kind="primary"]:hover:not(:disabled) {
+  border-color: var(--primary-strong);
+  box-shadow: 0 10px 24px rgba(20, 92, 88, 0.25);
+}
+
+[data-baseweb="select"] > div,
+[data-baseweb="slider"] {
+  border-radius: 8px;
+}
+
+[data-testid="stSlider"] [role="slider"] {
+  background-color: var(--primary);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(20, 92, 88, 0.12);
+}
+
+[data-testid="stSlider"] div[data-testid="stTickBar"] div {
+  background: var(--line);
+}
+
+[data-baseweb="tab-list"] {
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+[data-baseweb="tab"] {
+  border-radius: 8px 8px 0 0;
+  color: var(--text-muted);
+  font-weight: 650;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+[data-baseweb="tab"][aria-selected="true"] {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-testid="stAlert"] {
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-testid="stPlotlyChart"],
+[data-testid="stImage"],
+[data-testid="stPyplot"] {
+  border-radius: 8px;
+}
+
+div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]) {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 760px) {
+  [data-testid="stMainBlockContainer"],
+  .block-container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 1.25rem;
+  }
+
+  h1 {
+    font-size: 2.25rem;
+    line-height: 1.08;
+  }
+
+  [data-baseweb="tab"] {
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+}
+</style>
+        """
+    )
+
+
 def unique_values(values):
     return list(dict.fromkeys(value for value in values if value))
 
@@ -269,57 +476,69 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
     return f"""
 <style>
 .life-course-card {{
-  border: 1px solid #e3e6ee;
+  border: 1px solid #dce3ec;
   border-radius: 8px;
-  padding: 14px 16px;
-  margin: 10px 0 16px;
-  background: #ffffff;
+  padding: 16px;
+  margin: 12px 0 18px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(251,252,254,0.98) 100%);
+  box-shadow: 0 14px 36px rgba(24,33,51,0.09);
 }}
 .life-course-header {{
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }}
 .life-course-title {{
   font-weight: 700;
-  color: #2d3142;
+  color: #202635;
+  letter-spacing: 0;
 }}
 .policy-panels {{
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }}
 .policy-panel {{
-  border: 1px solid #edf0f6;
+  border: 1px solid #e8edf3;
   border-radius: 8px;
   padding: 12px;
-  background: #fbfcfe;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(24,33,51,0.05);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}}
+.policy-panel[data-ready="true"] {{
+  border-color: rgba(20,92,88,0.24);
 }}
 .policy-panel-title {{
-  color: #2d3142;
+  color: #202635;
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1.25;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }}
 .policy-panel-summary {{
-  color: #697287;
+  color: #667085;
   font-size: 0.78rem;
-  line-height: 1.25;
-  margin-bottom: 8px;
+  line-height: 1.35;
+  margin-bottom: 10px;
 }}
 .policy-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11px, 1fr));
-  grid-auto-rows: 15px;
-  gap: 5px;
+  grid-template-columns: repeat(auto-fill, minmax(10px, 1fr));
+  grid-auto-rows: 14px;
+  gap: 4px;
   align-items: center;
   justify-items: center;
-  padding: 12px 10px;
+  padding: 13px 11px;
   position: relative;
   overflow: hidden;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(246,248,251,0.88) 0%, rgba(255,255,255,0.92) 100%);
+  border: 1px solid #eef2f6;
 }}
 .life-dot {{
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   display: inline-block;
   justify-self: center;
@@ -331,28 +550,28 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   --final-scale: 1;
   animation: revealRiskDot {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards;
   animation-delay: var(--delay);
-  transition: background 0.75s ease, transform 0.75s ease, box-shadow 0.75s ease;
+  transition: background 0.75s ease, transform 0.75s ease, box-shadow 0.75s ease, outline-color 0.75s ease;
   position: relative;
   z-index: 1;
 }}
 .base-low {{
-  --base-color: #25a55f;
+  --base-color: #23875a;
   --base-scale: 0.92;
 }}
 .base-high {{
-  --base-color: #d64b3c;
+  --base-color: #d95f47;
   --base-scale: 1.28;
 }}
 .final-low {{
-  --final-color: #25a55f;
+  --final-color: #23875a;
   --final-scale: 0.92;
 }}
 .final-high {{
-  --final-color: #d64b3c;
+  --final-color: #d95f47;
   --final-scale: 1.28;
 }}
 .flagged-dot {{
-  outline: 3px solid #f2b705;
+  outline: 3px solid #d6a21d;
   outline-offset: 1px;
 }}
 @keyframes revealRiskDot {{
@@ -364,18 +583,19 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   transform: scale(var(--final-scale));
 }}
 .policy-panel.show-final .life-dot.changed-prevented {{
-  box-shadow: 0 0 0 3px rgba(37,165,95,0.22);
+  box-shadow: 0 0 0 3px rgba(35,135,90,0.24);
 }}
 .policy-panel.show-final .life-dot.changed-harmed {{
-  box-shadow: 0 0 0 3px rgba(214,75,60,0.30);
+  box-shadow: 0 0 0 3px rgba(217,95,71,0.30);
 }}
 .life-course-legend {{
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 10px;
-  color: #4c5568;
-  font-size: 0.88rem;
+  gap: 10px 16px;
+  margin-top: 12px;
+  color: #4d5868;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }}
 .legend-item {{
   display: inline-flex;
@@ -393,8 +613,25 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   background: transparent;
   outline-width: 2px;
 }}
-.legend-low {{ --legend-color: #25a55f; }}
-.legend-high {{ --legend-color: #d64b3c; }}
+.legend-low {{ --legend-color: #23875a; }}
+.legend-high {{ --legend-color: #d95f47; }}
+@media (max-width: 700px) {{
+  .life-course-card {{
+    padding: 12px;
+  }}
+
+  .policy-grid {{
+    grid-template-columns: repeat(auto-fill, minmax(8px, 1fr));
+    grid-auto-rows: 12px;
+    gap: 3px;
+    padding: 10px 8px;
+  }}
+
+  .life-dot {{
+    width: 8px;
+    height: 8px;
+  }}
+}}
 </style>
 <div class="life-course-card" id="{root_id}">
   <div class="life-course-header">
@@ -908,6 +1145,7 @@ def sidebar_inputs():
 
 def render_app():
     st.set_page_config(page_title="Predictive Justice Thought Experiment", layout="wide")
+    render_global_styles()
 
     st.title("Predictive Justice Thought Experiment")
     st.markdown(
