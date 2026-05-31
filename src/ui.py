@@ -96,8 +96,8 @@ def population_animation_html(run_results, settings, title, animation_key=""):
     seed_text = f"{title}-{animation_key}"
     seed = sum(ord(char) for char in seed_text) + counts["high"] * 7 + counts["flagged"] * 13
     animation_id = abs(seed + population_size * 17 + counts["low"] * 23) % 100000
-    reveal_animation_name = f"revealRiskDot{animation_id}"
-    pulse_animation_name = f"pulseRiskDot{animation_id}"
+    grid_id = f"lcg{animation_id}"
+    spotlight_id = f"lcsp{animation_id}"
     rng = np.random.default_rng(seed)
     rng.shuffle(risk_classes)
 
@@ -133,6 +133,9 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   justify-items: center;
   width: 100%;
   padding: 8px 0;
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
 }}
 .life-dot {{
   width: 10px;
@@ -151,10 +154,12 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   animation: revealRiskDot {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards;
   animation-delay: var(--delay);
   transition: transform 0.15s ease, filter 0.15s ease;
+  position: relative;
+  z-index: 1;
 }}
 .life-dot:hover {{
-  filter: brightness(1.18);
-  transform: scale(calc(var(--target-scale) * 1.18));
+  filter: brightness(1.25);
+  transform: scale(calc(var(--target-scale) * 1.28));
 }}
 .risk-low {{
   --target-color: #25a55f;
@@ -182,26 +187,39 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   outline-offset: 1px;
 }}
 @keyframes revealRiskDot {{
-  0% {{
-    opacity: 0;
-    transform: scale(0.45);
-    background: #f1f4f8;
-  }}
-  55% {{
-    opacity: 0.76;
-    transform: scale(0.86);
-    background: var(--soft-color);
-  }}
-  78% {{
-    opacity: 1;
-    transform: scale(var(--overshoot-scale));
-    background: var(--mid-color);
-  }}
-  100% {{
-    opacity: 1;
-    transform: scale(var(--target-scale));
-    background: var(--target-color);
-  }}
+  0%   {{ opacity: 0; transform: scale(0.45); background: #f1f4f8; }}
+  55%  {{ opacity: 0.76; transform: scale(0.86); background: var(--soft-color); }}
+  78%  {{ opacity: 1; transform: scale(var(--overshoot-scale)); background: var(--mid-color); }}
+  100% {{ opacity: 1; transform: scale(var(--target-scale)); background: var(--target-color); }}
+}}
+.lc-spotlight {{
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle 110px at var(--sx, -400px) var(--sy, -400px),
+    rgba(255,255,255,0.22) 0%,
+    rgba(255,255,255,0.07) 45%,
+    transparent 70%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 2;
+}}
+.lc-ripple {{
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.6);
+  transform: translate(-50%, -50%);
+  animation: lcRipple 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  pointer-events: none;
+  z-index: 3;
+}}
+@keyframes lcRipple {{
+  from {{ width: 0; height: 0; opacity: 0.85; }}
+  to   {{ width: 280px; height: 280px; opacity: 0; }}
 }}
 .life-course-legend {{
   display: flex;
@@ -232,13 +250,44 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   <div class="life-course-header">
     <div class="life-course-title">{escape(title)}</div>
   </div>
-  <div class="life-course-grid">{''.join(dots)}</div>
+  <div class="life-course-grid" id="{grid_id}">
+    {''.join(dots)}
+    <div class="lc-spotlight" id="{spotlight_id}"></div>
+  </div>
   <div class="life-course-legend">
-    <span class="legend-item"><span class="legend-dot risk-low"></span>green: lower modeled risk/support path ({counts['low']})</span>
-    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by the prediction ({counts['flagged']})</span>
-    <span class="legend-item"><span class="legend-dot risk-high"></span>red: modeled offense or harmful intervention path ({counts['high']})</span>
+    <span class="legend-item"><span class="legend-dot risk-low"></span>green: lower risk / support path ({counts['low']})</span>
+    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by prediction ({counts['flagged']})</span>
+    <span class="legend-item"><span class="legend-dot risk-high"></span>red: offense or harmful intervention path ({counts['high']})</span>
   </div>
 </div>
+<script>
+(function() {{
+  var grid = document.getElementById('{grid_id}');
+  var spot = document.getElementById('{spotlight_id}');
+  if (!grid || !spot) return;
+
+  grid.addEventListener('mousemove', function(e) {{
+    var r = grid.getBoundingClientRect();
+    spot.style.setProperty('--sx', (e.clientX - r.left) + 'px');
+    spot.style.setProperty('--sy', (e.clientY - r.top) + 'px');
+    spot.style.opacity = '1';
+  }});
+
+  grid.addEventListener('mouseleave', function() {{
+    spot.style.opacity = '0';
+  }});
+
+  grid.addEventListener('click', function(e) {{
+    var r = grid.getBoundingClientRect();
+    var rip = document.createElement('div');
+    rip.className = 'lc-ripple';
+    rip.style.left = (e.clientX - r.left) + 'px';
+    rip.style.top  = (e.clientY - r.top)  + 'px';
+    grid.appendChild(rip);
+    setTimeout(function() {{ if (rip.parentNode) rip.parentNode.removeChild(rip); }}, 900);
+  }});
+}})();
+</script>
 """
 
 
