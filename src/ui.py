@@ -120,7 +120,7 @@ def render_hero_statement():
         """
 <section class="hero-copy">
   <h1 class="hero-question">
-    Suppose we could reliably predict, <span class="hero-nowrap">at age <span class="hero-accent">10</span></span>, who will become a violent criminal <span class="hero-nowrap">by age <span class="hero-accent">30</span></span>.
+    Suppose we could reliably predict, <span class="hero-nowrap">at age <span class="hero-accent">10</span></span>,<br>who will become a violent criminal <span class="hero-nowrap">by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
     What should we <em>do</em> with that information? Run a synthetic population of 1,000 children through three policies &mdash; and watch what a few percentage points of error actually cost.
