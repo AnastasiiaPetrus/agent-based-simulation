@@ -1901,10 +1901,8 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
     if st.session_state.get("simulation_running", False):
         st.html("""
 <style>
-[data-testid="stSidebar"] .stButton > button,
-[data-testid="stSidebar"] .stButton > button:disabled,
-[data-testid="stSidebar"] .stButton > button[kind="primary"],
-[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled {
+[data-testid="stSidebar"] .stButton > button:not([kind="primary"]),
+[data-testid="stSidebar"] .stButton > button:not([kind="primary"]):disabled {
   background: #f08a00 !important;
   border-color: #c97000 !important;
   box-shadow: 0 8px 18px rgba(240, 138, 0, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
