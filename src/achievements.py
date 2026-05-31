@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from src.constants import POLICIES
 
 ACHIEVEMENTS = [
@@ -18,6 +20,12 @@ ACHIEVEMENTS = [
         "icon": "📊",
         "name": "Full Picture",
         "description": "Compare all three policies in a single session.",
+    },
+    {
+        "id": "false_alarm",
+        "icon": "🚨",
+        "name": "False Alarm",
+        "description": "More children wrongly flagged on average than offenses prevented.",
     },
     {
         "id": "tinkerer",
@@ -44,10 +52,22 @@ ACHIEVEMENTS = [
         "description": "Observe more wrongly flagged children than correctly flagged ones.",
     },
     {
+        "id": "schrodinger",
+        "icon": "🐱",
+        "name": "Schrödinger",
+        "description": "Total prediction errors (FP + FN) exceed the number of children who would actually offend.",
+    },
+    {
         "id": "helping_hundreds",
         "icon": "🤝",
         "name": "Helping Hundreds",
         "description": "Average 200+ children helped per run under Targeted Support.",
+    },
+    {
+        "id": "overreaction",
+        "icon": "😱",
+        "name": "Overreaction",
+        "description": "More than half the population (500+) flagged as high-risk in a single run.",
     },
     {
         "id": "sharp_signal",
@@ -60,6 +80,12 @@ ACHIEVEMENTS = [
         "icon": "⚠️",
         "name": "High-Risk World",
         "description": "Simulate a population where 30%+ of children are truly high-risk.",
+    },
+    {
+        "id": "night_owl",
+        "icon": "🦉",
+        "name": "Night Owl",
+        "description": "Run a simulation between midnight and 6 AM.",
     },
 ]
 
@@ -74,7 +100,6 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     policies_present = (
         set(combined_run_results["policy"].dropna().unique()) if has_policy_col else set()
     )
-
     targeted = (
         combined_run_results[combined_run_results["policy"] == "Targeted support for high-risk children"]
         if has_policy_col else combined_run_results.iloc[0:0]
@@ -86,44 +111,55 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if not targeted.empty and targeted["children_harmed"].mean() == 0:
         earned.add("do_no_harm")
 
+    avg_fp = combined_run_results["false_positives"].mean()
+    avg_prevented = combined_run_results["crimes_prevented"].mean()
+    if avg_fp > avg_prevented:
+        earned.add("false_alarm")
+
     if simulation_count >= 3:
         earned.add("tinkerer")
 
     policy_avg_prevented = (
         combined_run_results.groupby("policy")["crimes_prevented"].mean()
         if has_policy_col
-        else combined_run_results["crimes_prevented"].mean().__class__([combined_run_results["crimes_prevented"].mean()])
+        else combined_run_results["crimes_prevented"].mean().__class__(
+            [combined_run_results["crimes_prevented"].mean()]
+        )
     )
-    if (
-        hasattr(policy_avg_prevented, "max")
-        and policy_avg_prevented.max() >= 20
-    ):
+    if hasattr(policy_avg_prevented, "max") and policy_avg_prevented.max() >= 20:
         earned.add("crime_preventer")
 
     policy_avg_baseline = (
         combined_run_results.groupby("policy")["baseline_crimes"].mean()
-        if has_policy_col
-        else None
+        if has_policy_col else None
     )
     if policy_avg_baseline is not None and (policy_avg_baseline > 0).any():
         reduction_rates = policy_avg_prevented / policy_avg_baseline.replace(0, float("nan"))
         if reduction_rates.max() >= 0.25:
             earned.add("crime_crusher")
 
-    if "false_positives" in combined_run_results.columns and "false_negatives" in combined_run_results.columns:
-        avg_fp = combined_run_results["false_positives"].mean()
-        avg_fn = combined_run_results["false_negatives"].mean()
-        avg_tp = combined_run_results["baseline_crimes"].mean() - avg_fn
-        if avg_fp > avg_tp:
-            earned.add("base_rate_trap")
+    avg_fn = combined_run_results["false_negatives"].mean()
+    avg_tp = combined_run_results["baseline_crimes"].mean() - avg_fn
+    if avg_fp > avg_tp:
+        earned.add("base_rate_trap")
+
+    if (avg_fp + avg_fn) > combined_run_results["baseline_crimes"].mean():
+        earned.add("schrodinger")
 
     if not targeted.empty and targeted["children_helped"].mean() >= 200:
         earned.add("helping_hundreds")
+
+    if "children_flagged" in combined_run_results.columns:
+        if combined_run_results["children_flagged"].max() > 500:
+            earned.add("overreaction")
 
     if float(settings["prediction_noise"]) <= 0.02:
         earned.add("sharp_signal")
 
     if float(settings["true_high_risk_rate"]) >= 0.30:
         earned.add("high_risk_world")
+
+    if datetime.now().hour < 6:
+        earned.add("night_owl")
 
     return earned
