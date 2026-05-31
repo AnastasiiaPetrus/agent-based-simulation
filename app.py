@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime
+from html import escape
 from io import StringIO
 
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ POLICY_DESCRIPTIONS = {
         "Monitoring for flagged children; may reduce crime but exposes children to surveillance."
     ),
     "Coercive preventive intervention for high-risk children": (
-        "Restriction before any act; highest harm and cost."
+        "Restriction before any act; highest ethical concern."
     ),
 }
 
@@ -178,51 +179,218 @@ def display_policy_model_comparison_table(run_results):
 
 
 def combined_policy_totals_table(run_results):
-    avg_metric_labels = {
-        "crimes_prevented": "Avg crimes prevented per run",
-        "false_positives": "Avg children incorrectly flagged",
-        "false_negatives": "Avg children missed by risk signal",
-        "children_helped": "Avg children receiving support",
-        "children_harmed": "Avg children exposed to harmful intervention",
+    total_metric_labels = {
+        "baseline_crimes": "Total children who would offend (no intervention)",
+        "crimes_after_policy": "Total offenses after policy",
+        "crimes_prevented": "Total offenses prevented by policy",
+        "false_positives": "Total children incorrectly flagged",
+        "false_negatives": "Total children missed by risk signal",
+        "children_helped": "Total children receiving support",
+        "children_harmed": "Total children exposed to harmful intervention",
     }
-    metric_columns = [column for column in avg_metric_labels if column in run_results.columns]
-    baseline_avg = run_results.groupby("policy")["baseline_crimes"].mean().rename("baseline_avg")
+    metric_columns = [column for column in total_metric_labels if column in run_results.columns]
     table = (
-        run_results.groupby("policy", as_index=False)[metric_columns].mean(numeric_only=True)
+        run_results.groupby("policy", as_index=False)
+        .agg(
+            model_runs=("run", "count"),
+            model_agents=("llm_model", "nunique"),
+            **{column: (column, "sum") for column in metric_columns},
+        )
     )
-    table = table.merge(baseline_avg, on="policy")
     table["policy_sort"] = table["policy"].map({policy: index for index, policy in enumerate(POLICY_ORDER)})
     table = table.sort_values("policy_sort").drop(columns="policy_sort")
-    table["crime_reduction_pct"] = (table["crimes_prevented"] / table["baseline_avg"].replace(0, np.nan)) * 100
-    table = table.drop(columns="baseline_avg")
+    table["crime_reduction_pct"] = (
+        table["crimes_prevented"] / table["baseline_crimes"].replace(0, np.nan)
+    ) * 100
 
-    display_table = table.rename(columns={"policy": "Policy", "crime_reduction_pct": "Crime reduction (%)", **avg_metric_labels})
+    display_table = table.rename(
+        columns={
+            "policy": "Policy",
+            "model_runs": "Model-runs included",
+            "model_agents": "Model agents included",
+            "crime_reduction_pct": "Offense reduction (%)",
+            **total_metric_labels,
+        }
+    )
     ordered_columns = [
         "Policy",
-        "Avg crimes prevented per run",
-        "Crime reduction (%)",
-        "Avg children incorrectly flagged",
-        "Avg children missed by risk signal",
-        "Avg children receiving support",
-        "Avg children exposed to harmful intervention",
+        "Model agents included",
+        "Model-runs included",
+        "Total children who would offend (no intervention)",
+        "Total offenses after policy",
+        "Offense reduction (%)",
+        "Total children incorrectly flagged",
+        "Total children missed by risk signal",
+        "Total children receiving support",
+        "Total children exposed to harmful intervention",
     ]
     display_table = display_table[[c for c in ordered_columns if c in display_table.columns]]
     for column in display_table.columns:
         if column == "Policy":
             continue
-        if column == "Crime reduction (%)":
+        if column == "Offense reduction (%)":
             display_table[column] = display_table[column].map(
                 lambda v: "N/A" if pd.isna(v) else f"{v:.1f}%"
             )
         else:
             display_table[column] = display_table[column].map(
-                lambda v: "N/A" if pd.isna(v) else f"{v:.1f}"
+                lambda v: "N/A" if pd.isna(v) else f"{v:,.0f}"
             )
     return display_table
 
 
 def display_combined_policy_totals_table(run_results):
     st.dataframe(combined_policy_totals_table(run_results), use_container_width=True, hide_index=True)
+
+
+def clamp_count(value, maximum):
+    if pd.isna(value):
+        return 0
+    return int(max(0, min(maximum, round(float(value)))))
+
+
+def population_risk_counts(run_results, settings):
+    population_size = int(settings["population_size"])
+    if run_results is None or run_results.empty:
+        return {
+            "low": population_size,
+            "medium": 0,
+            "high": 0,
+            "baseline": 0,
+            "prevented": 0,
+            "harmed": 0,
+            "false_positive": 0,
+        }
+
+    averages = run_results[RUN_COUNT_COLUMNS].mean(numeric_only=True)
+    baseline = clamp_count(averages.get("baseline_crimes"), population_size)
+    prevented = clamp_count(averages.get("crimes_prevented"), population_size)
+    harmed = clamp_count(averages.get("children_harmed"), population_size)
+    false_positive = clamp_count(averages.get("false_positives"), population_size)
+    missed = clamp_count(averages.get("false_negatives"), population_size)
+
+    high = max(harmed, baseline - prevented, missed)
+    medium = max(false_positive, clamp_count(settings["high_risk_threshold"] * population_size, population_size))
+    high = min(high, population_size)
+    medium = min(medium, population_size - high)
+    low = population_size - high - medium
+
+    return {
+        "low": low,
+        "medium": medium,
+        "high": high,
+        "baseline": baseline,
+        "prevented": prevented,
+        "harmed": harmed,
+        "false_positive": false_positive,
+    }
+
+
+def population_animation_html(run_results, settings, title):
+    population_size = int(settings["population_size"])
+    counts = population_risk_counts(run_results, settings)
+    risk_classes = (
+        ["risk-high"] * counts["high"]
+        + ["risk-medium"] * counts["medium"]
+        + ["risk-low"] * counts["low"]
+    )
+    seed = sum(ord(char) for char in title) + counts["high"] * 7 + counts["medium"] * 13
+    rng = np.random.default_rng(seed)
+    rng.shuffle(risk_classes)
+
+    dots = []
+    for index, risk_class in enumerate(risk_classes[:population_size]):
+        delay = (index % 50) * 0.01
+        dots.append(
+            f'<span class="life-dot {risk_class}" style="animation-delay:{delay:.2f}s"></span>'
+        )
+
+    return f"""
+<style>
+.life-course-card {{
+  border: 1px solid #e3e6ee;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 10px 0 16px;
+  background: #ffffff;
+}}
+.life-course-header {{
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}}
+.life-course-title {{
+  font-weight: 700;
+  color: #2d3142;
+}}
+.life-course-note {{
+  color: #687083;
+  font-size: 0.88rem;
+}}
+.life-course-grid {{
+  display: grid;
+  grid-template-columns: repeat(40, 10px);
+  gap: 5px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 8px 0;
+}}
+.life-dot {{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  transform: scale(0.42);
+  opacity: 0.45;
+  animation: growLifeDot 1.2s ease-out forwards, breatheLifeDot 2.6s ease-in-out infinite;
+}}
+.risk-low {{ background: #25a55f; }}
+.risk-medium {{ background: #f2b705; }}
+.risk-high {{ background: #d64b3c; }}
+@keyframes growLifeDot {{
+  0% {{ transform: scale(0.42); opacity: 0.42; }}
+  55% {{ transform: scale(0.75); opacity: 0.78; }}
+  100% {{ transform: scale(1.0); opacity: 1.0; }}
+}}
+@keyframes breatheLifeDot {{
+  0%, 100% {{ filter: brightness(1); }}
+  50% {{ filter: brightness(1.18); }}
+}}
+.life-course-legend {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  color: #4c5568;
+  font-size: 0.88rem;
+}}
+.legend-item {{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}}
+.legend-dot {{
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+}}
+</style>
+<div class="life-course-card">
+  <div class="life-course-header">
+    <div class="life-course-title">{escape(title)}</div>
+    <div class="life-course-note">1 dot = 1 synthetic child; dots grow from age 10 toward age 30.</div>
+  </div>
+  <div class="life-course-grid">{''.join(dots)}</div>
+  <div class="life-course-legend">
+    <span class="legend-item"><span class="legend-dot risk-low"></span>green: lower modeled risk/support path ({counts['low']})</span>
+    <span class="legend-item"><span class="legend-dot risk-medium"></span>yellow: flagged or error-sensitive path ({counts['medium']})</span>
+    <span class="legend-item"><span class="legend-dot risk-high"></span>red: offense or harmful intervention path ({counts['high']})</span>
+  </div>
+</div>
+"""
 
 
 def glossary_markdown(items):
@@ -494,7 +662,7 @@ def build_llm_simulation_prompt(settings):
         "- Chance events and uncertainty at key moments\n"
         "- Interaction with family, school, peers, and institutions\n"
         "- Improvement, stagnation, or deterioration at different life stages\n\n"
-        "Each representative_agent must include these fields (string values):\n"
+        "Each representative_agent must include these fields (string values except flagged, which is boolean):\n"
         "  age_10_profile: brief description of the child's situation and context at age 10\n"
         "  flagged: true or false (whether the risk signal flagged this child)\n"
         "  trajectory: how the intervention affected their development step by step, ages 10 to 30\n"
@@ -665,11 +833,34 @@ def validate_llm_tables(run_results, district_results, settings):
         raise ValueError("The model returned missing district-level metric values.")
 
 
+def reconcile_district_column(district_results, run_results, run_column, district_column):
+    district_results = district_results.copy()
+    targets = run_results.set_index("run")[run_column]
+
+    for run_number, target in targets.items():
+        mask = district_results["run"] == run_number
+        if not mask.any() or pd.isna(target):
+            continue
+
+        current_total = district_results.loc[mask, district_column].sum()
+        if target <= 0:
+            district_results.loc[mask, district_column] = 0
+        elif current_total > 0:
+            district_results.loc[mask, district_column] = (
+                district_results.loc[mask, district_column] / current_total * target
+            )
+        else:
+            district_results.loc[mask, district_column] = target / mask.sum()
+
+    return district_results
+
+
 def normalize_llm_metrics(run_results, district_results, settings):
     run_results = run_results.copy()
     district_results = district_results.copy()
     population_size = int(settings["population_size"])
     policy = settings["policy"]
+    flagged_limit = int(round(float(settings["high_risk_threshold"]) * population_size))
 
     run_results[RUN_COUNT_COLUMNS] = run_results[RUN_COUNT_COLUMNS].clip(
         lower=0,
@@ -687,10 +878,44 @@ def normalize_llm_metrics(run_results, district_results, settings):
     run_results["crimes_prevented"] = (
         run_results["baseline_crimes"] - run_results["crimes_after_policy"]
     ).clip(lower=0, upper=population_size)
+    run_results["false_positives"] = np.minimum(
+        run_results["false_positives"],
+        flagged_limit,
+    )
+    run_results["false_negatives"] = np.minimum(
+        run_results["false_negatives"],
+        run_results["baseline_crimes"],
+    )
 
     if policy == "Targeted support for high-risk children":
+        run_results["children_helped"] = np.minimum(run_results["children_helped"], flagged_limit)
         run_results["children_harmed"] = 0
         district_results["children_harmed"] = 0
+    elif policy == "Surveillance of high-risk children":
+        run_results["children_helped"] = 0
+        run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_limit)
+    elif policy == "Coercive preventive intervention for high-risk children":
+        run_results["children_helped"] = 0
+        run_results["children_harmed"] = np.minimum(run_results["children_harmed"], flagged_limit)
+
+    district_results = reconcile_district_column(
+        district_results,
+        run_results,
+        "false_positives",
+        "false_positives",
+    )
+    district_results = reconcile_district_column(
+        district_results,
+        run_results,
+        "children_harmed",
+        "children_harmed",
+    )
+    district_results = reconcile_district_column(
+        district_results,
+        run_results,
+        "crimes_after_policy",
+        "crimes",
+    )
 
     return run_results, district_results
 
@@ -738,16 +963,15 @@ def add_llm_run_log_entry(entry, max_entries):
 
 def render_llm_run_log(max_entries):
     trim_llm_run_log(max_entries)
+    run_log = st.session_state["llm_agent_run_log"]
+    if not run_log:
+        return
+
     st.subheader("Previous LLM-Agent Runs")
 
     if st.button("Clear LLM-agent run log"):
         st.session_state["llm_agent_run_log"] = []
         st.write("LLM-agent run log cleared for this session.")
-        return
-
-    run_log = st.session_state["llm_agent_run_log"]
-    if not run_log:
-        st.caption("No LLM-agent debriefs have been run in this session.")
         return
 
     log_for_csv = []
@@ -828,14 +1052,41 @@ def render_llm_agent_section(settings):
 
     parameter_summary = compact_parameter_summary(settings)
     system_prompt = DEFAULT_SYSTEM_PROMPT
+    latest_result = st.session_state.get("llm_agent_latest_result")
+    initial_population_results = None
+    initial_population_title = "Live synthetic population view"
+    if latest_result and latest_result_has_current_schema(latest_result):
+        initial_population_results = latest_result["run_results"]
+        initial_population_title = "Latest synthetic population view"
+
+    st.markdown("**Live synthetic population view**")
+    st.caption(
+        "Visible before and during the run. One dot represents one synthetic child; colors update after each "
+        "model-policy result arrives."
+    )
+    live_population = st.empty()
+    live_population.markdown(
+        population_animation_html(initial_population_results, settings, initial_population_title),
+        unsafe_allow_html=True,
+    )
+    progress_slot = st.empty()
+    live_status = st.empty()
+    live_debrief = st.empty()
 
     if st.button(
-        "Run / rerun LLM-agent simulation",
+        "Run simulation",
         disabled=not bool(api_key) or not selected_models,
         type="primary",
     ):
         model_results = []
         model_errors = []
+        completed_calls = 0
+        progress_bar = progress_slot.progress(0.0)
+        live_status.write("Starting LLM-agent simulation...")
+        live_population.markdown(
+            population_animation_html(None, settings, "Waiting for the first LLM-agent result"),
+            unsafe_allow_html=True,
+        )
 
         with st.spinner(f"Running {len(POLICIES)} policy(ies) × {len(selected_models)} model agent(s)..."):
             for model in selected_models:
@@ -845,6 +1096,7 @@ def render_llm_agent_section(settings):
                     if not policy_uses_effect(policy):
                         policy_settings["policy_effect_strength"] = "None"
 
+                    live_status.write(f"Running **{model}** on **{policy}**...")
                     user_prompt = build_llm_simulation_prompt(policy_settings)
                     try:
                         raw_result = run_openai_json(system_prompt, user_prompt, model=model)
@@ -869,6 +1121,19 @@ def render_llm_agent_section(settings):
                             model,
                         )
                         debrief_text = str(raw_result.get("debrief_text", "")).strip()
+                        completed_calls += 1
+                        progress_bar.progress(completed_calls / max(total_calls, 1))
+                        live_status.write(f"Received **{model}** result for **{policy}**.")
+                        live_population.markdown(
+                            population_animation_html(
+                                run_results,
+                                policy_settings,
+                                f"{model} | {policy}",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                        if debrief_text:
+                            live_debrief.info(f"{model} | {policy}: {debrief_text}")
 
                         model_results.append(
                             {
@@ -882,6 +1147,9 @@ def render_llm_agent_section(settings):
                             }
                         )
                     except Exception as error:
+                        completed_calls += 1
+                        progress_bar.progress(completed_calls / max(total_calls, 1))
+                        live_status.write(f"Could not generate **{model}** result for **{policy}**.")
                         model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
         for model, error_message in model_errors:
@@ -959,7 +1227,7 @@ def render_llm_agent_section(settings):
                 display_average_table(average_results_table(policy_runs))
                 render_charts(policy_runs, policy_districts)
 
-                # Interpretation uses combined averages across selected models for this policy.
+                # Interpretation uses per-run averages across selected models for this policy.
                 render_interpretation(
                     policy,
                     average_results_table(policy_runs),
@@ -984,7 +1252,7 @@ def render_llm_agent_section(settings):
             with st.expander("Representative LLM synthetic agents used", expanded=False):
                 st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
     else:
-        st.caption("No LLM-agent simulation has been generated in this session yet.")
+        pass
 
     render_llm_run_log(MAX_RUN_LOG_SIZE)
 
