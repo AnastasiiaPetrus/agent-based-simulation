@@ -439,9 +439,13 @@ def render_llm_agent_section(settings):
         f"{total_calls} LLM call(s). Each call generates {int(settings['llm_simulation_runs'])} "
         f"synthetic run(s) over {int(settings['population_size']):,} synthetic children."
     )
+    settings_invalid = settings["true_high_risk_rate"] == 0
+    if settings_invalid:
+        st.sidebar.warning("Set 'Percentage of true high-risk children' above 0% to run a meaningful simulation.")
+
     run_requested = st.sidebar.button(
         "Run simulation",
-        disabled=not bool(api_key) or not selected_models,
+        disabled=not bool(api_key) or not selected_models or settings_invalid,
         type="primary",
         use_container_width=True,
     )
