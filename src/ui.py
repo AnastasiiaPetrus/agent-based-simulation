@@ -1192,6 +1192,12 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   font-size: 0.9rem;
 }
 
+[data-testid="stAlert"] [kind="info"],
+[data-baseweb="notification"][kind="info"] {
+  background: rgba(0, 167, 87, 0.08) !important;
+  border-color: rgba(0, 167, 87, 0.22) !important;
+}
+
 /* ── Charts ───────────────────────────────── */
 [data-testid="stPlotlyChart"],
 [data-testid="stImage"],
