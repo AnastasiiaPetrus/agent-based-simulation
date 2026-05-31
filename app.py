@@ -85,6 +85,10 @@ RUN_COUNT_COLUMNS = [
 DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
 NON_NEGATIVE_RUN_COLUMNS = RUN_COUNT_COLUMNS
 NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
+POPULATION_DOT_ANIMATION_SECONDS = 5.4
+POPULATION_DOT_PULSE_SECONDS = 3.6
+POPULATION_DOT_STAGGER_GROUP = 90
+POPULATION_DOT_STAGGER_SECONDS = 0.022
 
 RUN_METRIC_LABELS = {
     "baseline_crimes": "Children who would offend (no intervention)",
@@ -292,7 +296,7 @@ def population_animation_html(run_results, settings, title):
 
     dots = []
     for index, risk_class in enumerate(risk_classes[:population_size]):
-        delay = (index % 50) * 0.01
+        delay = (index % POPULATION_DOT_STAGGER_GROUP) * POPULATION_DOT_STAGGER_SECONDS
         dots.append(
             f'<span class="life-dot {risk_class}" style="--delay:{delay:.2f}s"></span>'
         )
@@ -329,39 +333,47 @@ def population_animation_html(run_results, settings, title):
   justify-self: center;
   transform: scale(0.35);
   opacity: 0.25;
-  background: #d7dbe4;
+  background: #edf1f7;
   --target-scale: 1;
   --overshoot-scale: 1.16;
   --pulse-scale: 1.08;
+  --soft-color: #dde3ec;
+  --mid-color: #b7c0ce;
   animation:
-    colorGrowLifeDot 3.2s cubic-bezier(.34,.01,.18,1) forwards,
-    breatheLifeDot 2.8s ease-in-out infinite;
-  animation-delay: var(--delay), calc(var(--delay) + 3.2s);
+    colorGrowLifeDot {POPULATION_DOT_ANIMATION_SECONDS:.1f}s cubic-bezier(.22,.61,.19,1) forwards,
+    breatheLifeDot {POPULATION_DOT_PULSE_SECONDS:.1f}s ease-in-out infinite;
+  animation-delay: var(--delay), calc(var(--delay) + {POPULATION_DOT_ANIMATION_SECONDS:.1f}s);
 }}
 .risk-low {{
   --target-color: #25a55f;
+  --soft-color: #d8eee3;
+  --mid-color: #7ed2a1;
   --target-scale: 0.92;
   --overshoot-scale: 1.04;
   --pulse-scale: 1.0;
 }}
 .risk-medium {{
   --target-color: #f2b705;
+  --soft-color: #fff0c6;
+  --mid-color: #ffd15a;
   --target-scale: 1.08;
   --overshoot-scale: 1.24;
   --pulse-scale: 1.16;
 }}
 .risk-high {{
   --target-color: #d64b3c;
+  --soft-color: #f6d9d6;
+  --mid-color: #eb8d82;
   --target-scale: 1.24;
   --overshoot-scale: 1.42;
   --pulse-scale: 1.32;
 }}
 @keyframes colorGrowLifeDot {{
-  0% {{ transform: scale(0.35); opacity: 0.25; background: #d7dbe4; }}
-  24% {{ transform: scale(0.48); opacity: 0.44; background: #d7dbe4; }}
-  48% {{ transform: scale(0.68); opacity: 0.70; background: #cfd5df; }}
-  78% {{ transform: scale(0.92); opacity: 0.94; background: var(--target-color); }}
-  90% {{ transform: scale(var(--overshoot-scale)); opacity: 1; background: var(--target-color); }}
+  0% {{ transform: scale(0.32); opacity: 0.18; background: #edf1f7; }}
+  18% {{ transform: scale(0.42); opacity: 0.36; background: #edf1f7; }}
+  42% {{ transform: scale(0.58); opacity: 0.58; background: var(--soft-color); }}
+  68% {{ transform: scale(0.82); opacity: 0.82; background: var(--mid-color); }}
+  88% {{ transform: scale(var(--overshoot-scale)); opacity: 1; background: var(--target-color); }}
   100% {{ transform: scale(var(--target-scale)); opacity: 1; background: var(--target-color); }}
 }}
 @keyframes breatheLifeDot {{
@@ -1166,6 +1178,10 @@ def render_llm_agent_section(settings):
                         live_status.write(f"Could not generate **{model}** result for **{policy}**.")
                         model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
 
+        progress_slot.empty()
+        live_status.empty()
+        live_debrief.empty()
+
         for model, error_message in model_errors:
             st.error(f"{model}: {error_message}")
 
@@ -1195,6 +1211,14 @@ def render_llm_agent_section(settings):
                 "representative_agents": all_representative_agents,
                 "debrief_text": debrief_text,
             }
+            live_population.markdown(
+                population_animation_html(
+                    combined_run_results,
+                    settings,
+                    "Latest synthetic population view",
+                ),
+                unsafe_allow_html=True,
+            )
 
             entry = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
