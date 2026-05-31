@@ -842,15 +842,26 @@ def reconcile_district_column(district_results, run_results, run_column, distric
         if not mask.any() or pd.isna(target):
             continue
 
-        current_total = district_results.loc[mask, district_column].sum()
+        target_total = clamp_count(target, int(run_results[run_column].max()))
+        current_values = district_results.loc[mask, district_column].astype(float).clip(lower=0)
+        current_total = current_values.sum()
         if target <= 0:
             district_results.loc[mask, district_column] = 0
         elif current_total > 0:
-            district_results.loc[mask, district_column] = (
-                district_results.loc[mask, district_column] / current_total * target
-            )
+            raw_values = current_values / current_total * target_total
+            base_values = np.floor(raw_values).astype(int)
+            remainder = target_total - int(base_values.sum())
+            if remainder > 0:
+                fractional_order = np.argsort(-(raw_values - base_values).to_numpy())
+                for position in fractional_order[:remainder]:
+                    base_values.iloc[position] += 1
+            district_results.loc[mask, district_column] = base_values.to_numpy(dtype=int)
         else:
-            district_results.loc[mask, district_column] = target / mask.sum()
+            row_count = int(mask.sum())
+            base_value, remainder = divmod(target_total, row_count)
+            values = np.full(row_count, base_value, dtype=int)
+            values[:remainder] += 1
+            district_results.loc[mask, district_column] = values
 
     return district_results
 
