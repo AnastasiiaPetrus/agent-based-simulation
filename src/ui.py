@@ -85,6 +85,7 @@ def render_hero_badges():
 <div class="hero-badges">
   <span class="badge-chip badge-live">Thought Experiment</span>
   <span class="badge-chip">Statistical</span>
+  <span class="badge-chip">Agentic AI</span>
 </div>
         """
     )
