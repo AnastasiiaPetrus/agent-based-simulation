@@ -217,13 +217,43 @@ html, body, .stApp {
 
 /* ── Streamlit chrome ─────────────────────── */
 [data-testid="stHeader"] {
-  display: none;
+  height: 0;
+  min-height: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
 }
 
-[data-testid="stToolbar"],
 [data-testid="stDecoration"],
+[data-testid="stToolbarActions"],
+[data-testid="stAppDeployButton"],
 #MainMenu {
   display: none !important;
+}
+
+[data-testid="stToolbar"] {
+  background: transparent;
+  pointer-events: none;
+}
+
+[data-testid="stExpandSidebarButton"] {
+  position: fixed;
+  top: 0.7rem;
+  left: 0.7rem;
+  z-index: 999999;
+  display: inline-grid !important;
+  width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  border: 1px solid rgba(53, 88, 72, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-xs);
+  pointer-events: auto;
+}
+
+[data-testid="stExpandSidebarButton"] * {
+  pointer-events: auto;
 }
 
 /* ── Main content ─────────────────────────── */
