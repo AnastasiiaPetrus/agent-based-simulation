@@ -22,7 +22,7 @@ POLICY_DESCRIPTIONS = {
 
 SETTING_DESCRIPTIONS = {
     "Percentage of true high-risk children (%)": "Share of the 1 000 synthetic children whose no-intervention trajectory would include the modeled offense.",
-    "Prediction error rate (%)": "How noisy the risk signal is. It creates missed true high-risk children and incorrectly flagged children outside the true high-risk group.",
+    "Prediction error rate (%)": "Signal error rate applied to each group separately: this % of truly high-risk children are missed (false negatives), and the same % of truly low-risk children are incorrectly flagged (false positives). Because low-risk children vastly outnumber high-risk children, even a small error rate produces many more false positives than false negatives — see the flagging breakdown below.",
     "Intervention strength": "How intensively the chosen policy is applied — scales the simulated effect on offenses, support reach, and harm.",
 }
 

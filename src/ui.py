@@ -34,12 +34,14 @@ from src.llm import (
     run_openai_json,
 )
 from src.simulation import (
+    clamp_count,
     clean_llm_district_results,
     clean_llm_run_results,
     compact_aggregate_metrics,
     derived_flagged_count,
     normalize_llm_metrics,
     population_risk_counts,
+    risk_signal_counts,
     validate_llm_tables,
 )
 from src.state import (
@@ -675,11 +677,17 @@ def sidebar_inputs():
         "llm_simulation_runs": 5,
         "llm_representative_agents": 2,
     }
-    flagged_count = derived_flagged_count(settings)
+    true_high_risk_count = clamp_count(true_high_risk_rate * population_size, population_size)
+    fp, fn, flagged_count = risk_signal_counts(true_high_risk_count, settings)
+    tp = true_high_risk_count - fn
     settings["high_risk_threshold"] = flagged_count / population_size
+
+    fdr = fp / flagged_count if flagged_count > 0 else 0.0
     st.sidebar.caption(
-        f"Calculated flagged by prediction: **{flagged_count} children** "
-        f"({settings['high_risk_threshold'] * 100:.1f}%)."
+        f"**{flagged_count} children flagged** by the signal — "
+        f"{tp} correctly ({(1 - fdr) * 100:.0f}% of flagged) and "
+        f"**{fp} incorrectly ({fdr * 100:.0f}% of flagged)**. "
+        f"{fn} truly high-risk children missed entirely."
     )
 
     model_options = llm_model_options()
