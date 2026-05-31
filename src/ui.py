@@ -311,6 +311,7 @@ h2 {
 }
 
 h3 {
+  margin-top: 1.65rem;
   font-size: 0.98rem;
   font-family: var(--mono);
   text-transform: uppercase;
@@ -1870,6 +1871,60 @@ def render_interpretation(policy, average_table, bias_against_district_c):
         )
 
 
+@st.fragment
+def render_results_fragment(settings):
+    latest_result = st.session_state.get("llm_agent_latest_result")
+    if not latest_result:
+        return
+    latest_run_results = latest_result["run_results"]
+    latest_district_results = latest_result["district_results"]
+
+    st.subheader("Policy comparison")
+    st.caption("Average outcomes per run. Use this to compare policies side by side.")
+    display_combined_policy_totals_table(latest_run_results, settings["population_size"])
+
+    selected_policy = st.segmented_control(
+        "Policy",
+        options=POLICY_ORDER,
+        default=POLICY_ORDER[0],
+        label_visibility="collapsed",
+        width="stretch",
+    )
+    if selected_policy:
+        policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
+        policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
+        if policy_runs.empty or policy_districts.empty:
+            st.caption("No results for this policy in the current session.")
+        else:
+            st.subheader("Averages")
+            display_average_table(average_results_table(policy_runs))
+            render_charts(policy_runs, policy_districts)
+            render_interpretation(
+                selected_policy,
+                average_results_table(policy_runs),
+                settings["bias_against_district_c"],
+            )
+
+    st.subheader("Latest LLM-agent explanations")
+    model_results = latest_result.get("model_results", [])
+    if model_results:
+        for result in model_results:
+            with st.expander(
+                f"{result['llm_model']} | {result.get('policy', 'Unknown policy')} explanation",
+                expanded=False,
+            ):
+                st.write(result["debrief_text"])
+                st.json(result["aggregate_metrics"])
+    else:
+        st.write(latest_result["debrief_text"])
+
+    representative_agents = latest_result.get("representative_agents", [])
+    if representative_agents:
+        with st.expander("Representative LLM synthetic agents used", expanded=False):
+            st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
+
+
+@st.fragment
 def render_llm_run_log(max_entries):
     trim_llm_run_log(max_entries)
     run_log = st.session_state["llm_agent_run_log"]
@@ -2203,56 +2258,9 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
     latest_result = st.session_state.get("llm_agent_latest_result")
     if latest_result and not latest_result_has_current_schema(latest_result):
         st.session_state.pop("llm_agent_latest_result", None)
-        latest_result = None
         st.write("Previous in-session results used an older metric schema. Run the simulation again.")
-
-    if latest_result:
-        latest_run_results = latest_result["run_results"]
-        latest_district_results = latest_result["district_results"]
-
-        st.subheader("Policy comparison")
-        st.caption("Average outcomes per run. Use this to compare policies side by side.")
-        display_combined_policy_totals_table(latest_run_results, settings["population_size"])
-
-        selected_policy = st.segmented_control(
-            "Policy",
-            options=POLICY_ORDER,
-            default=POLICY_ORDER[0],
-            label_visibility="collapsed",
-            width="stretch",
-        )
-        if selected_policy:
-            policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
-            policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
-            if policy_runs.empty or policy_districts.empty:
-                st.caption("No results for this policy in the current session.")
-            else:
-                st.subheader("Averages")
-                display_average_table(average_results_table(policy_runs))
-                render_charts(policy_runs, policy_districts)
-                render_interpretation(
-                    selected_policy,
-                    average_results_table(policy_runs),
-                    settings["bias_against_district_c"],
-                )
-
-        st.markdown("**Latest LLM-agent explanations**")
-        model_results = latest_result.get("model_results", [])
-        if model_results:
-            for result in model_results:
-                with st.expander(
-                    f"{result['llm_model']} | {result.get('policy', 'Unknown policy')} explanation",
-                    expanded=False,
-                ):
-                    st.write(result["debrief_text"])
-                    st.json(result["aggregate_metrics"])
-        else:
-            st.write(latest_result["debrief_text"])
-
-        representative_agents = latest_result.get("representative_agents", [])
-        if representative_agents:
-            with st.expander("Representative LLM synthetic agents used", expanded=False):
-                st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
+    else:
+        render_results_fragment(settings)
     render_llm_run_log(MAX_RUN_LOG_SIZE)
 
 
