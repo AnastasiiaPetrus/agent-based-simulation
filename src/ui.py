@@ -452,7 +452,7 @@ h3 {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.85rem;
-  margin: 2.35rem 0 2.2rem;
+  margin: 2.35rem 0 0.85rem;
 }
 
 .hero-stat-card {
