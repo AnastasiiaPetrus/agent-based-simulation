@@ -250,17 +250,17 @@ def render_population_animation(container, run_results, settings, title, animati
 
 
 def render_reference_guide():
-    with st.expander("Guide: policies, inputs, and metrics", expanded=False):
-        st.markdown("### Policies compared")
+    with st.expander("How this works", expanded=False):
+        st.markdown("### Three policies")
         st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
-        st.markdown("### Inputs")
+        st.markdown("### What you can adjust")
         st.markdown(glossary_markdown(SETTING_DESCRIPTIONS))
 
-        st.markdown("### Metrics")
+        st.markdown("### What the results show")
         st.markdown(glossary_markdown(RESULT_METRIC_DESCRIPTIONS))
 
-        st.markdown("### What is compared across policies")
+        st.markdown("### Key trade-offs")
         st.markdown(glossary_markdown(CHECK_DESCRIPTIONS))
 
 
@@ -322,43 +322,28 @@ def render_charts(run_results, district_results):
 
 def render_interpretation(policy, average_table, bias_against_district_c):
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
-    crimes_prevented = values.get("Offenses prevented by policy", 0.0)
-    false_positives = values.get("Children incorrectly flagged (false positives)", 0.0)
-    children_helped = values.get("Children receiving support", 0.0)
-    children_harmed = values.get("Children exposed to harmful intervention", 0.0)
-
-    st.subheader("Interpretation")
-    st.write(
-        "This is a research thought experiment, not a real-world decision tool. "
-        "The numbers reflect only the synthetic assumptions selected in the sidebar."
-    )
+    crimes_prevented = values.get("Offenses prevented", 0.0)
+    false_positives = values.get("Wrongly flagged", 0.0)
+    children_helped = values.get("Received support", 0.0)
+    children_harmed = values.get("Harmed by intervention", 0.0)
 
     if policy == "Coercive preventive intervention for high-risk children":
         st.warning(
-            "Any modeled crime reduction under this policy comes with coercive restriction before any act. "
-            f"The model flags an average of {false_positives:.1f} children per run who would not have "
-            "committed the modeled offense in the baseline outcome, and "
-            f"{children_harmed:.1f} children are counted as harmed by the intervention."
+            f"On average, {crimes_prevented:.0f} offenses are prevented per run — "
+            f"but {children_harmed:.0f} children are restricted before committing any offense, "
+            f"including {false_positives:.0f} who would not have offended at all."
         )
     elif policy == "Targeted support for high-risk children":
         st.write(
-            f"This support-oriented policy prevents an average of {crimes_prevented:.1f} crimes per run "
-            f"under the selected assumptions and reaches {children_helped:.1f} children. "
-            "Resource burden is intentionally not shown as a numeric score because it would depend on real "
-            "program design, prices, institutions, and local context."
+            f"On average, {crimes_prevented:.0f} offenses are prevented per run "
+            f"and {children_helped:.0f} children receive help. "
+            f"Of those, {false_positives:.0f} are wrongly flagged and receive unnecessary support."
         )
     elif policy == "Surveillance of high-risk children":
         st.warning(
-            f"Surveillance counts {children_harmed:.1f} children per run as harmed by monitoring while "
-            "relying on imperfect classification. False positives matter because flagged children may be "
-            "monitored even when the baseline outcome would not include a crime."
-        )
-
-    if bias_against_district_c >= 0.05:
-        st.warning(
-            "The selected bias against District C can create uneven false positives and harmful exposure. "
-            "Districts A, B, and C are abstract labels, so this illustrates structural sensitivity rather "
-            "than any claim about real people or places."
+            f"On average, {crimes_prevented:.0f} offenses are prevented per run, "
+            f"but {children_harmed:.0f} children are monitored — including {false_positives:.0f} "
+            "who would not have offended and have no basis to be watched."
         )
 
 
@@ -368,7 +353,7 @@ def render_llm_run_log(max_entries):
     if not run_log:
         return
 
-    st.subheader("Previous LLM-Agent Runs")
+    st.subheader("Previous runs")
 
     if st.button("Clear LLM-agent run log"):
         st.session_state["llm_agent_run_log"] = []
@@ -413,9 +398,9 @@ def render_llm_run_log(max_entries):
 
 def render_llm_agent_section(settings):
     initialize_llm_state()
-    st.subheader("LLM-Agent Simulation")
+    st.subheader("Simulation")
     total_calls = len(settings["llm_agent_models"]) * len(POLICIES)
-    st.caption(f"One LLM call per policy — {total_calls} call(s) total.")
+    st.caption(f"{total_calls} LLM call(s) — one per policy.")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -602,11 +587,8 @@ def render_llm_agent_section(settings):
         latest_run_results = latest_result["run_results"]
         latest_district_results = latest_result["district_results"]
 
-        st.subheader("Policy comparison (averages per synthetic run)")
-        st.caption(
-            "Each value is the mean across all synthetic runs. "
-            "Numbers are per-run averages, directly comparable across policies."
-        )
+        st.subheader("Policy comparison")
+        st.caption("Average outcomes per run. Use this to compare policies side by side.")
         display_combined_policy_totals_table(latest_run_results)
 
         policy_tabs = st.tabs(POLICY_ORDER)
