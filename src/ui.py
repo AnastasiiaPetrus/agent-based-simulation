@@ -103,7 +103,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
     for index, risk_class in enumerate(risk_classes[:population_size]):
         delay = (index % POPULATION_DOT_STAGGER_GROUP) * POPULATION_DOT_STAGGER_SECONDS
         dots.append(
-            f'<span class="life-dot {risk_class}" style="--delay:{delay:.2f}s"></span>'
+            f'<span class="life-dot {risk_class}" style="--delay:{delay:.3f}s"></span>'
         )
 
     return f"""
@@ -142,16 +142,17 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   opacity: 0;
   background: #f1f4f8;
   transform: scale(0.45);
-  will-change: transform, opacity, background-color;
   --target-scale: 1;
   --overshoot-scale: 1.12;
-  --pulse-scale: 1.06;
   --soft-color: #dde3ec;
   --mid-color: #b7c0ce;
-  animation:
-    {reveal_animation_name} {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards,
-    {pulse_animation_name} {POPULATION_DOT_PULSE_SECONDS:.1f}s ease-in-out infinite;
-  animation-delay: var(--delay), calc(var(--delay) + {POPULATION_DOT_ANIMATION_SECONDS:.2f}s);
+  animation: revealRiskDot {POPULATION_DOT_ANIMATION_SECONDS:.2f}s cubic-bezier(.22,.61,.19,1) forwards;
+  animation-delay: var(--delay);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}}
+.life-dot:hover {{
+  filter: brightness(1.18);
+  transform: scale(calc(var(--target-scale) * 1.18));
 }}
 .risk-low {{
   --target-color: #25a55f;
@@ -159,7 +160,6 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --mid-color: #7ed2a1;
   --target-scale: 0.92;
   --overshoot-scale: 1.02;
-  --pulse-scale: 0.98;
 }}
 .risk-medium {{
   --target-color: #f2b705;
@@ -167,7 +167,6 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --mid-color: #ffd15a;
   --target-scale: 1.08;
   --overshoot-scale: 1.18;
-  --pulse-scale: 1.10;
 }}
 .risk-high {{
   --target-color: #d64b3c;
@@ -175,23 +174,16 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   --mid-color: #eb8d82;
   --target-scale: 1.28;
   --overshoot-scale: 1.38;
-  --pulse-scale: 1.30;
 }}
 .flagged-dot {{
   outline: 3px solid #f2b705;
   outline-offset: 1px;
 }}
-@keyframes {reveal_animation_name} {{
+@keyframes revealRiskDot {{
   0% {{
     opacity: 0;
     transform: scale(0.45);
     background: #f1f4f8;
-    box-shadow: 0 0 0 0 rgba(45, 49, 66, 0);
-  }}
-  28% {{
-    opacity: 0.42;
-    transform: scale(0.68);
-    background: #edf1f7;
   }}
   55% {{
     opacity: 0.76;
@@ -202,18 +194,12 @@ def population_animation_html(run_results, settings, title, animation_key=""):
     opacity: 1;
     transform: scale(var(--overshoot-scale));
     background: var(--mid-color);
-    box-shadow: 0 0 0 3px rgba(45, 49, 66, 0.06);
   }}
   100% {{
     opacity: 1;
     transform: scale(var(--target-scale));
     background: var(--target-color);
-    box-shadow: 0 0 0 0 rgba(45, 49, 66, 0);
   }}
-}}
-@keyframes {pulse_animation_name} {{
-  0%, 100% {{ transform: scale(var(--target-scale)); filter: brightness(1); }}
-  50% {{ transform: scale(var(--pulse-scale)); filter: brightness(1.12); }}
 }}
 .life-course-legend {{
   display: flex;
@@ -689,9 +675,10 @@ def sidebar_inputs():
         "llm_simulation_runs": 5,
         "llm_representative_agents": 2,
     }
-    settings["high_risk_threshold"] = derived_flagged_count(settings) / population_size
+    flagged_count = derived_flagged_count(settings)
+    settings["high_risk_threshold"] = flagged_count / population_size
     st.sidebar.caption(
-        f"Calculated flagged by prediction: **{derived_flagged_count(settings)} children** "
+        f"Calculated flagged by prediction: **{flagged_count} children** "
         f"({settings['high_risk_threshold'] * 100:.1f}%)."
     )
 
