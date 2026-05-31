@@ -163,18 +163,13 @@ def policy_panel_html(children, policy, metrics, panel_index):
         base_class = "base-high" if child["base"] == "high" else "base-low"
         final_class = base_class.replace("base-", "final-")
         change_class = ""
-        title = "baseline low risk"
 
         if index in prevented_indices:
             final_class = "final-low"
             change_class = "changed-prevented"
-            title = "true high-risk, prevented by policy"
         elif index in harmed_indices:
             final_class = "final-harmed"
             change_class = "changed-harmed"
-            title = "wrongly flagged and harmed by policy"
-        elif child["base"] == "high":
-            title = "true high-risk, still adverse outcome"
 
         if final_class == "final-harmed":
             final_harmed += 1
@@ -186,7 +181,7 @@ def policy_panel_html(children, policy, metrics, panel_index):
         flagged_class = " flagged-dot" if child["flagged"] else ""
         dots.append(
             f'<span class="life-dot {base_class} {final_class} {change_class}{flagged_class}" '
-            f'style="--delay:{delay:.3f}s" title="{escape(title)}"></span>'
+            f'style="--delay:{delay:.3f}s"></span>'
         )
 
     if has_result:
@@ -245,14 +240,14 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .policy-panels {{
   display: grid;
-  grid-template-columns: repeat(3, minmax(340px, 1fr));
-  gap: 12px;
-  min-width: 1040px;
+  grid-template-columns: repeat(3, minmax(660px, 1fr));
+  gap: 18px;
+  min-width: 2100px;
 }}
 .policy-panel {{
   border: 1px solid #edf0f6;
   border-radius: 8px;
-  padding: 10px;
+  padding: 12px;
   background: #fbfcfe;
 }}
 .policy-panel-title {{
@@ -271,12 +266,12 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .policy-grid {{
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9px, 1fr));
-  grid-auto-rows: 12px;
-  gap: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(13px, 1fr));
+  grid-auto-rows: 18px;
+  gap: 6px;
   align-items: center;
   justify-items: center;
-  padding: 8px 6px;
+  padding: 12px 10px;
   position: relative;
   overflow: hidden;
 }}
@@ -342,33 +337,18 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 }}
 .lc-spotlight {{
   position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle 110px at var(--sx, -400px) var(--sy, -400px),
-    rgba(255,255,255,0.22) 0%,
-    rgba(255,255,255,0.07) 45%,
-    transparent 70%
-  );
+  top: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 44%, transparent 72%);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.25s ease;
+  transform: translate3d(-220px, -220px, 0);
+  transition: opacity 0.08s ease;
+  will-change: transform, opacity;
   z-index: 2;
-}}
-.lc-ripple {{
-  position: absolute;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  border: 1.5px solid rgba(45,49,66,0.28);
-  background: radial-gradient(circle, rgba(45,49,66,0.08) 0%, transparent 70%);
-  transform: translate(-50%, -50%);
-  animation: lcRipple 0.75s ease-out forwards;
-  pointer-events: none;
-  z-index: 3;
-}}
-@keyframes lcRipple {{
-  from {{ width: 0; height: 0; opacity: 1; }}
-  to   {{ width: 260px; height: 260px; opacity: 0; }}
 }}
 .life-course-legend {{
   display: flex;
@@ -425,23 +405,24 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 
   root.querySelectorAll('.policy-grid').forEach(function(grid) {{
     var spot = grid.querySelector('.lc-spotlight');
-    grid.addEventListener('mousemove', function(e) {{
+    var rafId = null;
+    var nextX = -220;
+    var nextY = -220;
+
+    function drawSpot() {{
+      rafId = null;
+      spot.style.transform = 'translate3d(' + (nextX - 90) + 'px,' + (nextY - 90) + 'px,0)';
+    }}
+
+    grid.addEventListener('pointermove', function(e) {{
       var r = grid.getBoundingClientRect();
-      spot.style.setProperty('--sx', (e.clientX - r.left) + 'px');
-      spot.style.setProperty('--sy', (e.clientY - r.top) + 'px');
+      nextX = e.clientX - r.left;
+      nextY = e.clientY - r.top;
       spot.style.opacity = '1';
-    }});
-    grid.addEventListener('mouseleave', function() {{
+      if (!rafId) rafId = requestAnimationFrame(drawSpot);
+    }}, {{ passive: true }});
+    grid.addEventListener('pointerleave', function() {{
       spot.style.opacity = '0';
-    }});
-    grid.addEventListener('click', function(e) {{
-      var r = grid.getBoundingClientRect();
-      var rip = document.createElement('div');
-      rip.className = 'lc-ripple';
-      rip.style.left = (e.clientX - r.left) + 'px';
-      rip.style.top  = (e.clientY - r.top)  + 'px';
-      grid.appendChild(rip);
-      setTimeout(function() {{ if (rip.parentNode) rip.parentNode.removeChild(rip); }}, 900);
     }});
   }});
 }})();
