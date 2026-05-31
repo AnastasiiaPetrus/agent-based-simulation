@@ -600,10 +600,10 @@ def render_llm_agent_section(settings):
         latest_run_results = latest_result["run_results"]
         latest_district_results = latest_result["district_results"]
 
-        st.subheader("Combined totals across selected model agents")
+        st.subheader("Policy comparison (averages per synthetic run)")
         st.caption(
-            "These totals sum all selected model agents and all synthetic runs. They are useful for "
-            "side-by-side comparison, not real-world population estimates."
+            "Each value is the mean across all synthetic runs. "
+            "Numbers are per-run averages, directly comparable across policies."
         )
         display_combined_policy_totals_table(latest_run_results)
 

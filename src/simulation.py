@@ -32,6 +32,11 @@ def baseline_count_for_run(run_number, run_numbers, settings):
 
 def risk_signal_counts(true_high_risk_count, settings):
     population_size = int(settings["population_size"])
+    # signal_error_rate is used symmetrically as both FNR and FPR.
+    # FNR = P(not flagged | truly high-risk) = error_rate
+    # FPR = P(flagged | truly low-risk)      = error_rate
+    # This is a deliberate simplification: one "prediction error" parameter
+    # controls both miss rate and false alarm rate equally.
     signal_error_rate = float(settings["prediction_noise"])
     true_high_risk_count = clamp_count(true_high_risk_count, population_size)
     not_true_high_risk_count = population_size - true_high_risk_count
@@ -70,18 +75,29 @@ def population_risk_counts(run_results, settings):
             "false_positive": 0,
         }
 
+    # Average across all runs and (if present) all policies.
     averages = run_results[RUN_COUNT_COLUMNS].mean(numeric_only=True)
     baseline = clamp_count(averages.get("baseline_crimes"), population_size)
     prevented = clamp_count(averages.get("crimes_prevented"), population_size)
     harmed = clamp_count(averages.get("children_harmed"), population_size)
     false_positive = clamp_count(averages.get("false_positives"), population_size)
     missed = clamp_count(averages.get("false_negatives"), population_size)
+
+    # flagged = TP + FP; TP = baseline - FN
     flagged = clamp_count(baseline - missed + false_positive, population_size)
 
-    high = max(harmed, baseline - prevented, missed)
-    high = min(high, population_size)
+    # "high" dots represent children in adverse outcomes. We use the larger of:
+    # (a) children still offending after policy (baseline - prevented), and
+    # (b) children harmed by the intervention.
+    # These groups overlap, so we take the union upper-bound rather than the sum.
+    remaining_crimes = max(0, baseline - prevented)
+    high = min(max(remaining_crimes, harmed), population_size)
     low = population_size - high
-    flagged_high = min(max(0, baseline - missed), high, flagged)
+
+    # Flagged-high: correctly flagged (TP), capped by both high and flagged.
+    true_positives = max(0, baseline - missed)
+    flagged_high = min(true_positives, high, flagged)
+    # Flagged-low: false positives among the low-risk (green) dots.
     flagged_low = min(false_positive, low, max(0, flagged - flagged_high))
 
     return {
