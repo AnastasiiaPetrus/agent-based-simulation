@@ -405,7 +405,7 @@ def population_animation_html(run_results, settings, title, animation_key="", ro
   <div class="life-course-legend">
     <span class="legend-item"><span class="legend-dot legend-low"></span>green: low-risk / offense prevented</span>
     <span class="legend-item"><span class="legend-dot legend-high"></span>red: high-risk / offense remains or harmed by intervention</span>
-    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by prediction ({baseline_counts['flagged']})</span>
+    <span class="legend-item"><span class="legend-dot flagged-dot"></span>yellow outline: flagged by prediction</span>
   </div>
 </div>
 <script>
