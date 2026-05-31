@@ -267,7 +267,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   var spot = document.getElementById('{spotlight_id}');
   if (!grid || !spot) return;
 
-  var WAVE_RADIUS = 90;
+  var WAVE_RADIUS = 160;
   var WAVE_BOOST  = 0.55;
   var dots = [];
   var rafId = null;
