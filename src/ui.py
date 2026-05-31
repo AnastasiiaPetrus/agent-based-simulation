@@ -2163,6 +2163,7 @@ def sidebar_inputs():
     true_rate_value = int(st.session_state.get(true_rate_key, true_rate_default))
     prediction_error_value = int(st.session_state.get(prediction_error_key, prediction_error_default))
     strength_value = st.session_state.get(strength_key, "Medium")
+    is_running = bool(st.session_state.get("simulation_running", False))
 
     model_options = llm_model_options()
 
@@ -2186,6 +2187,7 @@ def sidebar_inputs():
             key=true_rate_key,
             help=SETTING_DESCRIPTIONS["Percentage of true high-risk children (%)"],
             label_visibility="collapsed",
+            disabled=is_running,
         ) / 100
         render_settings_field_copy(
             "Share of children who would commit violence by age 30 with no intervention."
@@ -2201,6 +2203,7 @@ def sidebar_inputs():
             key=prediction_error_key,
             help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
             label_visibility="collapsed",
+            disabled=is_running,
         ) / 100
         render_settings_field_copy("Rate at which the age-10 prediction misclassifies a child.")
 
@@ -2214,6 +2217,7 @@ def sidebar_inputs():
             help=SETTING_DESCRIPTIONS["Intervention strength"],
             label_visibility="collapsed",
             width="stretch",
+            disabled=is_running,
         )
 
         render_settings_field_header("LLM model agent(s)")
@@ -2223,6 +2227,7 @@ def sidebar_inputs():
             default=default_llm_agent_models(model_options),
             key=model_key,
             label_visibility="collapsed",
+            disabled=is_running,
         )
 
         render_settings_stat_rows(population_size, len(POLICIES))
