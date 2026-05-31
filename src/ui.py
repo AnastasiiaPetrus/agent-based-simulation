@@ -6,6 +6,7 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as st_components
 
 from src.charts import line_chart
 from src.constants import (
@@ -132,7 +133,7 @@ def population_animation_html(run_results, settings, title, animation_key=""):
   align-items: center;
   justify-items: center;
   width: 100%;
-  padding: 8px 0;
+  padding: 8px 6px;
   position: relative;
   overflow: hidden;
 }}
@@ -351,10 +352,9 @@ def population_animation_html(run_results, settings, title, animation_key=""):
 
 
 def render_population_animation(container, run_results, settings, title, animation_key=""):
-    container.markdown(
-        population_animation_html(run_results, settings, title, animation_key),
-        unsafe_allow_html=True,
-    )
+    html = population_animation_html(run_results, settings, title, animation_key)
+    with container:
+        st_components.html(html, height=580, scrolling=False)
 
 
 def render_reference_guide():
