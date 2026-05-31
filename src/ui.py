@@ -215,12 +215,15 @@ html, body, .stApp {
   color: var(--text);
 }
 
-/* ── Topbar ───────────────────────────────── */
+/* ── Streamlit chrome ─────────────────────── */
 [data-testid="stHeader"] {
-  background: rgba(248, 252, 249, 0.78);
-  border-bottom: 1px solid rgba(53, 88, 72, 0.14);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  display: none;
+}
+
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+#MainMenu {
+  display: none !important;
 }
 
 /* ── Main content ─────────────────────────── */
