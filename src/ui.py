@@ -1120,6 +1120,13 @@ h3 {
   line-height: 1;
 }
 
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled {
+  background: #c8d4cf !important;
+  border-color: #b0bfba !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
   color: var(--text-muted);
   font-size: 0.74rem;
