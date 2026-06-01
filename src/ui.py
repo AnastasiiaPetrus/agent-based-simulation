@@ -15,7 +15,6 @@ from src.charts import line_chart
 from src.constants import (
     CHECK_DESCRIPTIONS,
     DEFAULT_TRUE_HIGH_RISK_RATE,
-    DISTRICTS,
     LLM_MODEL,
     DEFAULT_LLM_MODEL_OPTIONS,
     MAX_RUN_LOG_SIZE,
@@ -26,7 +25,6 @@ from src.constants import (
     POPULATION_DOT_STAGGER_GROUP,
     POPULATION_DOT_STAGGER_SECONDS,
     RESULT_METRIC_DESCRIPTIONS,
-    RUN_METRIC_LABELS,
     SETTING_DESCRIPTIONS,
 )
 from src.llm import (
@@ -41,6 +39,7 @@ from src.simulation import (
     clean_llm_district_results,
     clean_llm_run_results,
     compact_aggregate_metrics,
+    derived_flagged_count,
     normalize_llm_metrics,
     optimize_result_frames,
     risk_signal_counts,
@@ -973,18 +972,6 @@ h3 {
   color: var(--text-muted);
 }
 
-[data-testid="stSidebar"] .achievement-shell,
-[data-testid="stSidebar"] .achievement-shell summary,
-[data-testid="stSidebar"] .achievement-shell .achievement-summary-main,
-[data-testid="stSidebar"] .achievement-shell .achievement-title,
-[data-testid="stSidebar"] .achievement-shell .achievement-count,
-[data-testid="stSidebar"] .achievement-shell .achievement-count span,
-[data-testid="stSidebar"] .achievement-shell .achievement-toggle,
-[data-testid="stSidebar"] .achievement-shell summary > .achievement-icon {
-  filter: none !important;
-  opacity: 1 !important;
-}
-
 [data-testid="stSidebar"] .achievement-shell {
   border-color: var(--frame-border-strong) !important;
 }
@@ -992,10 +979,6 @@ h3 {
 [data-testid="stSidebar"] .achievement-shell,
 [data-testid="stSidebar"] .achievement-shell summary {
   pointer-events: auto !important;
-}
-
-[data-testid="stSidebar"] .achievement-shell summary .achievement-icon-trophy {
-  color: var(--amber) !important;
 }
 
 .achievement-toggle {
@@ -1924,10 +1907,7 @@ def default_llm_agent_models(model_options):
 
 
 def glossary_markdown(items):
-    lines = []
-    for item, meaning in items.items():
-        lines.append(f"- **{item}:** {meaning}")
-    return "\n".join(lines)
+    return "\n".join(f"- **{item}:** {meaning}" for item, meaning in items.items())
 
 
 def baseline_children(settings):
@@ -1946,14 +1926,7 @@ def baseline_children(settings):
     seed = population_size * 17 + true_high * 31 + flagged * 43
     rng = np.random.default_rng(seed)
     rng.shuffle(children)
-    return children, {
-        "high": true_high,
-        "low": population_size - true_high,
-        "flagged": flagged,
-        "true_positive": true_positive,
-        "false_positive": false_positive,
-        "false_negative": false_negative,
-    }
+    return children
 
 
 def policy_transition_metrics(run_results, policy, settings):
@@ -2070,7 +2043,7 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
   if (!panel) return;
   var dots = Array.from(panel.querySelectorAll('.life-dot'));
   dots.forEach(function(dot) {{
-    dot.classList.remove('final-low','final-high','final-harmed','changed-prevented','changed-harmed');
+    dot.classList.remove('final-low','final-high','changed-prevented','changed-harmed');
     dot.classList.add(dot.classList.contains('base-high') ? 'final-high' : 'final-low');
   }});
   {json.dumps(sorted(prevented_indices))}.forEach(function(i) {{
@@ -2100,7 +2073,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
         "true_high_risk_rate": true_high_risk_rate,
         "prediction_noise": prediction_noise,
     }
-    children, baseline_counts = baseline_children(settings)
+    children = baseline_children(settings)
     if root_id is None:
         seed_text = f"{title}-{animation_key}"
         animation_id = abs(sum(ord(char) for char in seed_text) + len(children) * 17) % 100000
@@ -2474,7 +2447,7 @@ def render_charts(run_results, district_results):
             )
 
 
-def render_interpretation(policy, average_table, bias_against_district_c):
+def render_interpretation(policy, average_table):
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
     crimes_prevented = values.get("Offenses prevented", 0.0)
     false_positives = values.get("Wrongly flagged", 0.0)
@@ -2528,7 +2501,6 @@ def render_results_fragment(settings):
                     render_interpretation(
                         selected_policy,
                         policy_average_table,
-                        settings["bias_against_district_c"],
                     )
 
     st.html('<div class="section-gap section-gap-explanations"></div>')
@@ -2582,19 +2554,21 @@ def render_terminal_progress(
     title: str | None = None,
     note: str = "",
 ):
-    pct = int(completed / max(total, 1) * 100)
+    total_safe = max(total, 1)
+    progress_ratio = completed / total_safe
+    pct = int(progress_ratio * 100)
     block_count = 32
-    filled = min(block_count, int(completed / max(total, 1) * block_count))
+    filled = min(block_count, int(progress_ratio * block_count))
     label = title or "RUNNING_SIMULATION"
     status_text = status or "Simulation status live"
     blocks = []
     for index in range(block_count):
-        block_class = "terminal-progress-block"
+        classes = ["terminal-progress-block"]
         if index < filled:
-            block_class += " is-filled"
+            classes.append("is-filled")
         if index == filled - 1 and filled > 0:
-            block_class += " is-active"
-        blocks.append(f'<span class="{block_class}"></span>')
+            classes.append("is-active")
+        blocks.append(f'<span class="{" ".join(classes)}"></span>')
     note_html = f'<div class="terminal-progress-note">{escape(note)}</div>' if note else ""
 
     slot.html(
@@ -2746,7 +2720,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
             note=progress_note,
         )
         scroll_to_anchor("simulation-progress-anchor")
-        children, _ = baseline_children(settings)
+        children = baseline_children(settings)
         render_population_animation(
             live_population,
             None,
@@ -2995,9 +2969,7 @@ def sidebar_inputs():
         "llm_simulation_runs": 5,
         "llm_representative_agents": 2,
     }
-    true_high_risk_count = clamp_count(true_high_risk_rate * population_size, population_size)
-    fp, fn, flagged_count = risk_signal_counts(true_high_risk_count, settings)
-    settings["high_risk_threshold"] = flagged_count / population_size
+    settings["high_risk_threshold"] = derived_flagged_count(settings) / population_size
     settings["llm_agent_models"] = selected_models
 
     return settings, run_info_slot, run_button_slot

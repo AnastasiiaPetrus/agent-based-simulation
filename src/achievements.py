@@ -119,23 +119,28 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if simulation_count >= 7:
         earned.add("tinkerer")
 
-    policy_avg_prevented = (
-        combined_run_results.groupby("policy", observed=True)["crimes_prevented"].mean()
-        if has_policy_col
-        else combined_run_results["crimes_prevented"].mean().__class__(
-            [combined_run_results["crimes_prevented"].mean()]
-        )
-    )
-    if hasattr(policy_avg_prevented, "max") and policy_avg_prevented.max() >= 20:
+    if has_policy_col:
+        policy_avg_prevented = combined_run_results.groupby("policy", observed=True)[
+            "crimes_prevented"
+        ].mean()
+        max_prevented = policy_avg_prevented.max()
+    else:
+        policy_avg_prevented = None
+        max_prevented = combined_run_results["crimes_prevented"].mean()
+
+    if max_prevented >= 20:
         earned.add("crime_preventer")
 
-    policy_avg_baseline = (
-        combined_run_results.groupby("policy", observed=True)["baseline_crimes"].mean()
-        if has_policy_col else None
-    )
-    if policy_avg_baseline is not None and (policy_avg_baseline > 0).any():
+    if has_policy_col:
+        policy_avg_baseline = combined_run_results.groupby("policy", observed=True)[
+            "baseline_crimes"
+        ].mean()
         reduction_rates = policy_avg_prevented / policy_avg_baseline.replace(0, float("nan"))
         if reduction_rates.max() >= 0.25:
+            earned.add("crime_crusher")
+    else:
+        avg_baseline = combined_run_results["baseline_crimes"].mean()
+        if avg_baseline > 0 and avg_prevented / avg_baseline >= 0.25:
             earned.add("crime_crusher")
 
     avg_fn = combined_run_results["false_negatives"].mean()

@@ -65,17 +65,8 @@ def metric_value(value):
 
 
 def compact_aggregate_metrics(run_results):
-    metric_columns = [
-        "baseline_crimes",
-        "crimes_after_policy",
-        "crimes_prevented",
-        "false_positives",
-        "false_negatives",
-        "children_helped",
-        "children_harmed",
-    ]
-    averages = run_results[metric_columns].mean(numeric_only=True)
-    return {column: metric_value(averages[column]) for column in metric_columns}
+    averages = run_results[RUN_COUNT_COLUMNS].mean(numeric_only=True)
+    return {column: metric_value(averages[column]) for column in RUN_COUNT_COLUMNS}
 
 
 def optimize_result_frames(run_results, district_results):
