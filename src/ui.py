@@ -82,10 +82,6 @@ def render_app_header():
     )
 
 
-def render_hero_badges():
-    pass
-
-
 def render_hero_summary(settings):
     population_size = int(settings["population_size"])
     true_high_risk_count = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
@@ -169,24 +165,11 @@ ACHIEVEMENT_ICON_BY_ID = {
     "night_owl": "owl",
 }
 
-ACHIEVEMENT_ICON_FILES = {
-    "rocket": "rocket.png",
-    "microscope": "microscope.png",
-    "dove": "dove.png",
-    "siren": "siren.png",
-    "hero": "hero.png",
-    "burst": "burst.png",
-    "trap": "trap.png",
-    "target": "target.png",
-    "cat": "cat.png",
-    "flame": "flame.png",
-    "shocked": "shocked.png",
-    "handshake": "handshake.png",
-    "puzzle": "puzzle.png",
-    "owl": "owl.png",
-    "lock": "lock.png",
-    "trophy": "trophy.png",
-}
+_VALID_ICON_KEYS = frozenset({
+    "rocket", "microscope", "dove", "siren", "hero", "burst",
+    "trap", "target", "cat", "flame", "shocked", "handshake",
+    "puzzle", "owl", "lock", "trophy",
+})
 
 ACHIEVEMENT_ICON_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "achievement-icons"
 
@@ -199,13 +182,13 @@ def achievement_icon_key(achievement_id: str | None, locked: bool = False) -> st
 
 @lru_cache(maxsize=None)
 def achievement_icon_src(icon_key: str) -> str:
-    filename = ACHIEVEMENT_ICON_FILES.get(icon_key, ACHIEVEMENT_ICON_FILES["trophy"])
-    payload = (ACHIEVEMENT_ICON_ASSET_DIR / filename).read_bytes()
+    valid_key = icon_key if icon_key in _VALID_ICON_KEYS else "trophy"
+    payload = (ACHIEVEMENT_ICON_ASSET_DIR / f"{valid_key}.png").read_bytes()
     return f"data:image/png;base64,{b64encode(payload).decode('ascii')}"
 
 
 def achievement_icon_html(icon_key: str, extra_class: str = "") -> str:
-    icon_key = icon_key if icon_key in ACHIEVEMENT_ICON_FILES or icon_key == "chevron" else "trophy"
+    icon_key = icon_key if icon_key in _VALID_ICON_KEYS or icon_key == "chevron" else "trophy"
     class_attr = f"achievement-icon achievement-icon-{icon_key}"
     if extra_class:
         class_attr = f"{class_attr} {extra_class}"
@@ -1898,10 +1881,7 @@ def seeded_subset(indices, count, seed_text):
 
 
 def _panel_changes(children, policy, metrics):
-    """Compute which dots change state for a given policy result.
-
-    Returns (prevented_indices, harmed_indices, summary, ready).
-    """
+    """Returns (prevented_indices, harmed_indices, summary, ready)."""
     high_flagged = [i for i, c in enumerate(children) if c["base"] == "high" and c["flagged"]]
     low_flagged = [i for i, c in enumerate(children) if c["base"] == "low" and c["flagged"]]
     low_flagged_set = set(low_flagged)
@@ -2915,7 +2895,6 @@ def render_app():
 
     render_app_header()
     render_achievement_notifications(st.session_state.pop("achievement_notifications", []))
-    render_hero_badges()
     render_hero_statement()
     render_hero_summary(settings)
     render_reference_guide()

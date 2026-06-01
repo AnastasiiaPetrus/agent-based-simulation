@@ -56,7 +56,6 @@ def derived_flagged_count(settings):
     return risk_signal_counts(true_high_risk_count, settings)[2]
 
 
-
 def metric_value(value):
     if pd.isna(value):
         return None
@@ -261,7 +260,6 @@ def normalize_llm_metrics(run_results, district_results, settings):
         run_results["baseline_crimes"] - run_results["crimes_prevented"]
     ).clip(lower=0, upper=population_size)
 
-    # baseline_crimes = children who would offend without intervention = true_high_risk_count.
     risk_signal_results = run_results["baseline_crimes"].apply(
         lambda baseline_count: risk_signal_counts(int(baseline_count), settings)
     )
