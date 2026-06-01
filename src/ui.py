@@ -535,18 +535,15 @@ h3 {
 }
 
 .badge-live-status {
-  animation: liveStatusPulse 1.45s ease-in-out infinite;
-  background: var(--primary-light);
+  animation: liveStatusFade 3.2s ease-in-out infinite;
 }
 
-@keyframes liveStatusPulse {
+@keyframes liveStatusFade {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(0, 167, 87, 0.22);
   }
   50% {
-    opacity: 0.48;
-    box-shadow: 0 0 0 5px rgba(0, 167, 87, 0.04);
+    opacity: 0.18;
   }
 }
 
