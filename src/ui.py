@@ -1665,17 +1665,28 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 }
 
 /* ── Results panel (Policy comparison + Averages card) ── */
-div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel {
+.st-key-results_panel {
   overflow: hidden;
   margin-top: 0.25rem;
   margin-bottom: 0.25rem;
   border: 0 !important;
+  outline: 0 !important;
   border-radius: var(--radius) !important;
-  background: var(--frame-bg) !important;
+  background: var(--surface) !important;
   box-shadow: none !important;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel,
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div,
+.st-key-results_panel > div {
+  border: 0 !important;
+  outline: 0 !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div,
+.st-key-results_panel > div[data-testid="stVerticalBlock"] {
   padding: 1.2rem 1.45rem;
 }
 
@@ -2406,7 +2417,7 @@ def render_results_fragment(settings):
     latest_run_results = latest_result["run_results"]
     latest_district_results = latest_result["district_results"]
 
-    with st.container(border=True, key="results_panel"):
+    with st.container(border=False, key="results_panel"):
         st.subheader("Policy comparison")
         st.caption("Average outcomes per run. Use this to compare policies side by side.")
         display_combined_policy_totals_table(latest_run_results, settings["population_size"])
