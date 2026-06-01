@@ -190,6 +190,17 @@ def render_global_styles():
   --accent: #dd2538;
   --amber: #f08a00;
   --success: #00a757;
+  --primary-border: rgba(0, 167, 87, 0.32);
+  --amber-light: rgba(240, 138, 0, 0.07);
+  --amber-border: rgba(240, 138, 0, 0.28);
+  --accent-light: rgba(221, 37, 56, 0.06);
+  --accent-border: rgba(221, 37, 56, 0.22);
+  --risk-safe: rgba(157, 190, 168, 0.62);
+  --risk-safe-soft: rgba(157, 190, 168, 0.58);
+  --disabled-fill: #c8d4cf;
+  --disabled-border: #b0bfba;
+  --disabled-track: rgba(200, 212, 207, 0.55);
+  --disabled-tag: rgba(200, 212, 207, 0.50);
   --radius-sm: 6px;
   --radius: 8px;
   --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
@@ -329,7 +340,7 @@ h3 {
 }
 
 [data-testid="stCaptionContainer"] {
-  color: #5d737b;
+  color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.77rem;
   letter-spacing: 0.04em;
@@ -558,26 +569,26 @@ h3 {
 }
 
 .population-legend-dot.is-safe {
-  background: rgba(157, 190, 168, 0.62);
+  background: var(--risk-safe);
 }
 
 .population-legend-dot.is-diverted {
   background: var(--primary);
-  outline: 2px solid #f08a00;
+  outline: 2px solid var(--amber);
 }
 
 .population-legend-dot.is-violent {
-  background: #dd2538;
-  outline: 2px solid #f08a00;
+  background: var(--accent);
+  outline: 2px solid var(--amber);
 }
 
 .population-legend-dot.is-missed {
-  background: #dd2538;
+  background: var(--accent);
 }
 
 .population-legend-dot.is-wrong {
-  background: rgba(157, 190, 168, 0.62);
-  outline: 2px solid #f08a00;
+  background: var(--risk-safe);
+  outline: 2px solid var(--amber);
 }
 
 .achievement-toast-stack {
@@ -612,15 +623,15 @@ h3 {
   height: 1.55rem;
   place-items: center;
   border-radius: 999px;
-  background: #151719;
+  background: var(--text);
 }
 
 .achievement-toast-check::before {
   content: "";
   width: 0.72rem;
   height: 0.44rem;
-  border-left: 2px solid #ffffff;
-  border-bottom: 2px solid #ffffff;
+  border-left: 2px solid var(--surface);
+  border-bottom: 2px solid var(--surface);
   transform: rotate(-45deg) translate(1px, -1px);
 }
 
@@ -640,7 +651,7 @@ h3 {
 .achievement-toast-desc {
   display: block;
   margin-top: 0.22rem;
-  color: #3f4e54;
+  color: var(--text-muted);
   font-size: 0.92rem;
   line-height: 1.35;
 }
@@ -935,7 +946,7 @@ h3 {
 }
 
 .achievement-row.is-locked .achievement-icon {
-  color: #94a2a8;
+  color: var(--text-muted);
 }
 
 .achievement-name {
@@ -989,8 +1000,8 @@ h3 {
   width: 0.48rem;
   height: 0.48rem;
   border-radius: 999px;
-  background: #72c58f;
-  box-shadow: 0 0 0 4px rgba(0, 167, 87, 0.08);
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-light);
 }
 
 .settings-field-head {
@@ -1067,7 +1078,7 @@ h3 {
 }
 
 [data-testid="stExpander"] details[open] {
-  border-color: rgba(0, 167, 87, 0.32);
+  border-color: var(--primary-border);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1108,18 +1119,18 @@ h3 {
 .stButton > button[kind="primary"] {
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
   border-color: var(--primary-strong);
-  color: #ffffff;
+  color: var(--surface);
   box-shadow: 0 2px 8px rgba(0, 167, 87, 0.22), 0 1px 2px rgba(0, 167, 87, 0.16);
 }
 
 .stButton > button[kind="primary"] *,
 .stButton > button[kind="primary"] p {
-  color: #ffffff !important;
+  color: var(--surface) !important;
   font-weight: 600;
 }
 
 .stButton > button[kind="primary"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #05b961 0%, #008f4a 100%);
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
   box-shadow: 0 6px 18px rgba(0, 167, 87, 0.30), 0 2px 6px rgba(0, 167, 87, 0.16);
 }
 
@@ -1130,7 +1141,7 @@ h3 {
 
 [data-testid="stSlider"] [role="slider"] {
   background-color: var(--primary);
-  border-color: #ffffff;
+  border-color: var(--surface);
   box-shadow: 0 0 0 3px rgba(0, 167, 87, 0.14), 0 2px 5px rgba(0, 167, 87, 0.22);
 }
 
@@ -1144,8 +1155,8 @@ h3 {
 }
 
 [data-testid="stSidebar"] [data-testid="stSlider"] [role="slider"] {
-  background: #ffffff;
-  border: 1px solid #72c58f;
+  background: var(--surface);
+  border: 1px solid var(--primary);
 }
 
 [data-testid="stSidebar"] [data-testid="stSliderThumbValue"],
@@ -1217,7 +1228,7 @@ h3 {
 [data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"],
 [data-testid="stSidebar"] [data-testid="stSegmentedControl"] label:has(input:checked) > div {
   border-color: transparent;
-  background: rgba(0, 167, 87, 0.08);
+  background: var(--primary-light);
   box-shadow: inset 0 0 0 1.5px var(--primary);
   color: var(--primary);
 }
@@ -1236,8 +1247,8 @@ h3 {
   margin-top: 0.4rem;
   padding: 0.65rem 1.2rem;
   border-radius: 8px;
-  background: #00a757;
-  border-color: #008846;
+  background: var(--primary);
+  border-color: var(--primary-strong);
   box-shadow: 0 8px 18px rgba(0, 136, 70, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10);
   transition: none !important;
 }
@@ -1245,7 +1256,7 @@ h3 {
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover:not(:disabled),
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:active:not(:disabled),
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:focus:not(:disabled) {
-  background: #00a757 !important;
+  background: var(--primary) !important;
   box-shadow: 0 8px 18px rgba(0, 136, 70, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
   transform: none !important;
 }
@@ -1261,8 +1272,8 @@ h3 {
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled {
-  background: #c8d4cf !important;
-  border-color: #b0bfba !important;
+  background: var(--disabled-fill) !important;
+  border-color: var(--disabled-border) !important;
   box-shadow: none !important;
   opacity: 1 !important;
   cursor: not-allowed !important;
@@ -1273,7 +1284,7 @@ h3 {
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled:hover,
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled:active {
-  background: #c8d4cf !important;
+  background: var(--disabled-fill) !important;
   box-shadow: none !important;
   transform: none !important;
 }
@@ -1288,14 +1299,14 @@ h3 {
 }
 
 [data-testid="stSidebar"] [data-testid="stSlider"]:has(input:disabled) [role="slider"] {
-  background: #c8d4cf !important;
-  border-color: #b0bfba !important;
+  background: var(--disabled-fill) !important;
+  border-color: var(--disabled-border) !important;
   box-shadow: none !important;
   cursor: not-allowed !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stSlider"]:has(input:disabled) > div > div {
-  background: rgba(200, 212, 207, 0.55) !important;
+  background: var(--disabled-track) !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stSegmentedControl"] label:has(input:disabled) > div {
@@ -1318,7 +1329,7 @@ h3 {
 }
 
 [data-testid="stSidebar"] [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="tag"] {
-  background: rgba(200, 212, 207, 0.50) !important;
+  background: var(--disabled-tag) !important;
   opacity: 0.70;
 }
 
@@ -1351,10 +1362,10 @@ h3 {
 }
 
 [data-baseweb="tab"][aria-selected="true"] {
-  background: rgba(0, 167, 87, 0.09);
+  background: var(--primary-light);
   color: var(--primary);
   font-weight: 650;
-  box-shadow: inset 0 0 0 1px rgba(0, 167, 87, 0.36);
+  box-shadow: inset 0 0 0 1px var(--primary-border);
 }
 
 /* ── Policy segmented control (main content) ─ */
@@ -1409,7 +1420,7 @@ h3 {
 
 [data-testid="stMain"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"],
 [data-testid="stMain"] [data-testid="stSegmentedControl"] label:has(input:checked) > div {
-  background: rgba(0, 167, 87, 0.08) !important;
+  background: var(--primary-light) !important;
   box-shadow: inset 0 0 0 1.5px var(--primary) !important;
   color: var(--primary) !important;
 }
@@ -1446,29 +1457,29 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 [data-testid="stAlert"][kind="info"],
 [data-testid="stAlert"] [kind="info"],
 [data-baseweb="notification"][kind="info"] {
-  background: rgba(0, 167, 87, 0.08) !important;
-  border-color: rgba(0, 167, 87, 0.22) !important;
+  background: var(--primary-light) !important;
+  border-color: var(--primary-border) !important;
 }
 
 [data-testid="stAlert"][kind="success"],
 [data-testid="stAlert"] [kind="success"],
 [data-baseweb="notification"][kind="positive"] {
-  background: rgba(0, 167, 87, 0.08) !important;
-  border-color: rgba(0, 167, 87, 0.22) !important;
+  background: var(--primary-light) !important;
+  border-color: var(--primary-border) !important;
 }
 
 [data-testid="stAlert"][kind="warning"],
 [data-testid="stAlert"] [kind="warning"],
 [data-baseweb="notification"][kind="warning"] {
-  background: rgba(240, 138, 0, 0.07) !important;
-  border-color: rgba(240, 138, 0, 0.28) !important;
+  background: var(--amber-light) !important;
+  border-color: var(--amber-border) !important;
 }
 
 [data-testid="stAlert"][kind="error"],
 [data-testid="stAlert"] [kind="error"],
 [data-baseweb="notification"][kind="negative"] {
-  background: rgba(221, 37, 56, 0.06) !important;
-  border-color: rgba(221, 37, 56, 0.22) !important;
+  background: var(--accent-light) !important;
+  border-color: var(--accent-border) !important;
 }
 
 /* ── Results panel (Policy comparison + Averages card) ── */
@@ -1847,7 +1858,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   box-shadow: 0 2px 10px rgba(0,167,87,0.07);
 }}
 .policy-panel-title {{
-  color: #071823;
+  color: var(--text);
   font-size: 0.88rem;
   font-weight: 650;
   line-height: 1.3;
@@ -1855,7 +1866,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   letter-spacing: -0.01em;
 }}
 .policy-panel-summary {{
-  color: #48616a;
+  color: var(--text-muted);
   font-size: 0.75rem;
   line-height: 1.4;
   margin-bottom: 10px;
@@ -1896,23 +1907,23 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   z-index: 1;
 }}
 .base-low {{
-  --base-color: rgba(157,190,168,0.58);
+  --base-color: var(--risk-safe-soft);
   --base-scale: 0.92;
 }}
 .base-high {{
-  --base-color: #dd2538;
+  --base-color: var(--accent);
   --base-scale: 1.28;
 }}
 .final-low {{
-  --final-color: rgba(157,190,168,0.58);
+  --final-color: var(--risk-safe-soft);
   --final-scale: 0.92;
 }}
 .final-high {{
-  --final-color: #dd2538;
+  --final-color: var(--accent);
   --final-scale: 1.28;
 }}
 .flagged-dot {{
-  outline: 2px solid #f08a00;
+  outline: 2px solid var(--amber);
   outline-offset: 0;
 }}
 @keyframes revealRiskDot {{
@@ -1924,11 +1935,11 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   transform: scale(var(--final-scale));
 }}
 .policy-panel.show-final .life-dot.changed-prevented {{
-  background: #00a757;
+  background: var(--primary);
   box-shadow: 0 0 0 3px rgba(0,167,87,0.24);
 }}
 .policy-panel.show-final .life-dot.changed-harmed {{
-  box-shadow: 0 0 0 3px rgba(221,37,56,0.30);
+  box-shadow: 0 0 0 3px var(--accent-border);
 }}
 @media (max-width: 700px) {{
   .life-course-card {{
@@ -2385,8 +2396,8 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 <style>
 [data-testid="stSidebar"] .stButton > button:not([kind="primary"]),
 [data-testid="stSidebar"] .stButton > button:not([kind="primary"]):disabled {
-  background: #f08a00 !important;
-  border-color: #c97000 !important;
+  background: var(--amber) !important;
+  border-color: var(--amber) !important;
   box-shadow: 0 8px 18px rgba(240, 138, 0, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
   opacity: 1 !important;
 }

@@ -1,16 +1,26 @@
 import matplotlib.pyplot as plt
 
 
+SURFACE = "#ffffff"
+SURFACE_PANEL = "#fbfdfb"
+LINE = "#d6e1db"
+TEXT = "#071823"
+TEXT_MUTED = "#48616a"
+PRIMARY = "#00a757"
+ACCENT = "#dd2538"
+AMBER = "#f08a00"
+
+
 def line_chart(data, x_column, y_column, title, y_label):
-    fig, ax = plt.subplots(figsize=(7, 3.6), facecolor="#ffffff")
-    ax.set_facecolor("#fbfdfb")
+    fig, ax = plt.subplots(figsize=(7, 3.6), facecolor=SURFACE)
+    ax.set_facecolor(SURFACE_PANEL)
     columns = [x_column, y_column]
     if "llm_model" in data.columns:
         columns.append("llm_model")
 
     plot_data = data[columns].dropna()
     if "llm_model" in plot_data.columns and plot_data["llm_model"].nunique() > 1:
-        colors = ["#00a757", "#dd2538", "#f08a00", "#48616a"]
+        colors = [PRIMARY, ACCENT, AMBER, TEXT_MUTED]
         for llm_model, model_data in plot_data.groupby("llm_model", observed=True):
             color = colors[len(ax.lines) % len(colors)]
             ax.plot(
@@ -20,7 +30,7 @@ def line_chart(data, x_column, y_column, title, y_label):
                 linewidth=2.2,
                 marker="o",
                 markersize=4.2,
-                markerfacecolor="#ffffff",
+                markerfacecolor=SURFACE,
                 markeredgewidth=1.4,
                 label=llm_model,
             )
@@ -29,24 +39,24 @@ def line_chart(data, x_column, y_column, title, y_label):
         ax.plot(
             plot_data[x_column],
             plot_data[y_column],
-            color="#00a757",
+            color=PRIMARY,
             linewidth=2.3,
             marker="o",
             markersize=4.5,
-            markerfacecolor="#ffffff",
+            markerfacecolor=SURFACE,
             markeredgewidth=1.5,
         )
 
-    ax.set_title(title, loc="left", fontsize=10, fontweight="bold", color="#071823", pad=12)
-    ax.set_xlabel("Synthetic run", color="#48616a", labelpad=8)
-    ax.set_ylabel(y_label, color="#48616a", labelpad=8)
-    ax.grid(True, axis="y", color="#d6e1db", linewidth=0.8, alpha=0.7)
+    ax.set_title(title, loc="left", fontsize=10, fontweight="bold", color=TEXT, pad=12)
+    ax.set_xlabel("Synthetic run", color=TEXT_MUTED, labelpad=8)
+    ax.set_ylabel(y_label, color=TEXT_MUTED, labelpad=8)
+    ax.grid(True, axis="y", color=LINE, linewidth=0.8, alpha=0.7)
     ax.grid(False, axis="x")
-    ax.tick_params(axis="both", colors="#48616a", labelsize=8)
+    ax.tick_params(axis="both", colors=TEXT_MUTED, labelsize=8)
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
     for spine in ["left", "bottom"]:
-        ax.spines[spine].set_color("#d6e1db")
+        ax.spines[spine].set_color(LINE)
         ax.spines[spine].set_linewidth(0.8)
     fig.tight_layout()
     return fig
