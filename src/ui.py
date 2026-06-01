@@ -149,17 +149,70 @@ def render_population_view_overview(settings):
     )
 
 
+ACHIEVEMENT_ICON_BY_ID = {
+    "first_run": "rocket",
+    "do_no_harm": "dove",
+    "full_comparison": "puzzle",
+    "false_alarm": "siren",
+    "tinkerer": "microscope",
+    "crime_preventer": "hero",
+    "crime_crusher": "burst",
+    "base_rate_trap": "trap",
+    "schrodinger": "cat",
+    "helping_hundreds": "handshake",
+    "overreaction": "shocked",
+    "sharp_signal": "target",
+    "high_risk_world": "flame",
+    "night_owl": "owl",
+}
+
+ACHIEVEMENT_ICON_SVGS = {
+    "rocket": """<svg viewBox="0 0 24 24"><path d="M5 19c1.9-.5 3.4-1.6 4.4-3.2"/><path d="M8.4 15.6 4.5 11.7l3.2-1.1"/><path d="M12.4 19.6l-3.9-3.9 1.1-3.2"/><path d="M8.2 15.8l4.1-4.1"/><path d="M12.3 11.7c1.8-4.2 4.2-6.9 7.7-7.7-.8 3.5-3.5 5.9-7.7 7.7Z"/><circle cx="16.4" cy="7.6" r="1.15"/><path d="M4.7 19.3 3.4 20.6"/></svg>""",
+    "microscope": """<svg viewBox="0 0 24 24"><path d="M8 13.5h9"/><path d="M7 18h12"/><path d="M9 21h8"/><path d="M14.5 5.2 18.8 8l-3.2 5-4.3-2.8 3.2-5Z"/><path d="M16.6 3.4 20 5.6"/><path d="M17.4 13.2a5.2 5.2 0 0 1-4.5 4.7"/><path d="M6 18h12"/></svg>""",
+    "dove": """<svg viewBox="0 0 24 24"><path d="M4 13.5c3.2-.2 4.8-1.8 5.8-5.4 1.5 3 3.3 4.6 6.7 4.5 2.2 0 3.8-1.2 4.9-3.2"/><path d="M9.7 8.1C8 7 6.4 6.7 4.8 7.1c.9 1.6 2.2 2.7 4 3.1"/><path d="M13.2 12.6c-1 2.4-2.7 4.2-5.3 5.4 3.4.9 6.6-.2 8.5-2.8"/><path d="M18 9.4l2.8-1.2"/><path d="M18.3 10.8l2.8 1"/><circle cx="15.8" cy="8.5" r=".35" fill="currentColor" stroke="none"/></svg>""",
+    "siren": """<svg viewBox="0 0 24 24"><path d="M6 16V9a6 6 0 0 1 12 0v7"/><path d="M4.5 16h15"/><path d="M5.5 20h13"/><path d="M9 16V9a3 3 0 0 1 6 0v7"/><path d="M12 2v2"/><path d="M4.8 5.1 3.5 3.8"/><path d="M19.2 5.1l1.3-1.3"/></svg>""",
+    "hero": """<svg viewBox="0 0 24 24"><circle cx="9" cy="4.5" r="2"/><path d="M6.5 8.5h5l2 4.5-2.2 1.2L10 11.6V21H8V11.6l-1.3 2.6L4.5 13l2-4.5Z"/><path d="M11.8 9.2c3.1.1 5.8 1.1 8.2 3.1-2 1.3-4.2 2.4-6.8 3.1"/><path d="M8 8.8 9 7.7l1 1.1-.4 1.5H8.4L8 8.8Z"/></svg>""",
+    "burst": """<svg viewBox="0 0 24 24"><path d="M12 3.2 14 8l5.1-1.4-2.1 4.8 4 3.2-5.2.8-.6 5.3-3.5-4-4.4 3 .5-5.3-4.9-1.9 4.7-2.5L6.9 4.8 12 8V3.2Z"/><path d="M9.3 11.5h.1"/><path d="M12.2 10.3h.1"/><path d="M14.4 12.6h.1"/><path d="M11.4 14.7h.1"/></svg>""",
+    "trap": """<svg viewBox="0 0 24 24"><path d="M4 10.5 7.8 7l2.4 3.5L12 7l1.8 3.5L16.2 7 20 10.5"/><path d="M5.5 11.2c1.8 2.5 4 3.8 6.5 3.8s4.7-1.3 6.5-3.8"/><path d="M8.5 16.5h7"/><circle cx="12" cy="12.2" r="1.2"/></svg>""",
+    "target": """<svg viewBox="0 0 24 24"><circle cx="11" cy="13" r="7"/><circle cx="11" cy="13" r="4"/><circle cx="11" cy="13" r="1.2"/><path d="M14.2 9.8 20 4"/><path d="M18.8 4.2h2.7v2.7"/><path d="M18.4 5.6 20.4 7.6"/></svg>""",
+    "cat": """<svg viewBox="0 0 24 24"><path d="M5 11 6.3 5.5 10 8h4l3.7-2.5L19 11"/><path d="M5 11c0 5 2.8 8 7 8s7-3 7-8"/><circle cx="9" cy="13" r=".7" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r=".7" fill="currentColor" stroke="none"/><path d="M11 16h2"/><path d="M12 16v1"/><path d="M6.5 15H3.8"/><path d="M6.7 17.2 4.4 18"/><path d="M17.5 15h2.7"/><path d="M17.3 17.2l2.3.8"/></svg>""",
+    "flame": """<svg viewBox="0 0 24 24"><path d="M12.5 3.5c1.9 3.2.2 5.2 2.2 7 1.1 1 2.2.8 3.1-.3.8 1.6 1.2 3 1.2 4.4A7 7 0 0 1 5 14.6c0-2.7 1.4-4.9 4.3-7 .2 2.3 1.1 3.7 2.7 4.3-.8-2.7-.6-5.4.5-8.4Z"/><path d="M11.8 20c-1.6-.8-2.4-2-2.4-3.5 0-1.3.7-2.4 2.1-3.4.1 1.3.7 2.2 1.7 2.7.4-.9.8-1.7 1.5-2.4 1 1.2 1.5 2.4 1.5 3.6 0 1.5-.9 2.5-2.6 3"/></svg>""",
+    "shocked": """<svg viewBox="0 0 24 24"><circle cx="12" cy="11" r="6"/><circle cx="9.5" cy="9.5" r=".9"/><circle cx="14.5" cy="9.5" r=".9"/><ellipse cx="12" cy="14" rx="1.4" ry="2"/><path d="M6.3 13.5c-1.8 1-2.4 2.7-1.6 5.2"/><path d="M17.7 13.5c1.8 1 2.4 2.7 1.6 5.2"/><path d="M7 18.5c1.2 1.5 2.8 2.2 5 2.2s3.8-.7 5-2.2"/></svg>""",
+    "handshake": """<svg viewBox="0 0 24 24"><path d="M3.5 9.5 7 7.2l4.2 2.7"/><path d="M20.5 9.5 17 7.2l-4.2 2.7"/><path d="M8.7 10.3 11 8.4c.8-.7 1.8-.7 2.6 0l4.2 3.6"/><path d="M6.5 12.2l5.2 5.1c.8.8 1.8.8 2.6 0l3.2-3.1"/><path d="M9 14.7l2.5 2.5"/><path d="M11.2 12.8l3.2 3.2"/><path d="M3.5 9.5v5h3"/><path d="M20.5 9.5v5h-3"/></svg>""",
+    "puzzle": """<svg viewBox="0 0 24 24"><path d="M5 4h5.5v3a2 2 0 1 0 3 0V4H19v5.5h-3a2 2 0 1 0 0 3h3V20h-5.5v-3a2 2 0 1 0-3 0v3H5v-5.5h3a2 2 0 1 0 0-3H5V4Z"/></svg>""",
+    "owl": """<svg viewBox="0 0 24 24"><path d="M7 6.2C8.2 4.8 9.9 4 12 4s3.8.8 5 2.2v8.2c0 3.2-2 5.6-5 5.6s-5-2.4-5-5.6V6.2Z"/><circle cx="9.7" cy="10.5" r="1.7"/><circle cx="14.3" cy="10.5" r="1.7"/><path d="M11.2 13h1.6l-.8 1.1Z"/><path d="M8 19.5h2"/><path d="M14 19.5h2"/><path d="M7 7.2 5.6 5.5"/><path d="M17 7.2l1.4-1.7"/></svg>""",
+    "lock": """<svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7"/><path d="M12 14.2v2.6"/><circle cx="12" cy="14.2" r=".75" fill="currentColor" stroke="none"/></svg>""",
+    "trophy": """<svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 7H5.8a2.3 2.3 0 0 0 0 4.6H8"/><path d="M16 7h2.2a2.3 2.3 0 0 1 0 4.6H16"/><path d="M12 13v5"/><path d="M9 18h6"/><path d="M7.5 21h9"/></svg>""",
+    "chevron": """<svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg>""",
+}
+
+
+def achievement_icon_key(achievement_id: str | None, locked: bool = False) -> str:
+    if locked:
+        return "lock"
+    return ACHIEVEMENT_ICON_BY_ID.get(achievement_id or "", "trophy")
+
+
+def achievement_icon_html(icon_key: str, extra_class: str = "") -> str:
+    svg = ACHIEVEMENT_ICON_SVGS.get(icon_key, ACHIEVEMENT_ICON_SVGS["trophy"])
+    class_attr = f"achievement-icon achievement-icon-{icon_key}"
+    if extra_class:
+        class_attr = f"{class_attr} {extra_class}"
+    return f'<span class="{class_attr}" aria-hidden="true">{svg}</span>'
+
+
 def render_achievement_notifications(notifications):
     if not notifications:
         return
 
     cards = []
     for index, achievement in enumerate(notifications):
+        icon = achievement_icon_html(achievement_icon_key(achievement.get("id")))
         cards.append(
             f"""
 <div class="achievement-toast" style="--toast-index:{index}">
   <span class="achievement-toast-check" aria-hidden="true"></span>
-  <span class="achievement-icon achievement-icon-trophy" aria-hidden="true"></span>
+  {icon}
   <span>
     <span class="achievement-toast-title">{escape(achievement['name'])}</span>
     <span class="achievement-toast-desc">{escape(achievement['description'])}</span>
@@ -212,6 +265,9 @@ def render_global_styles():
   --disabled-text-active: rgba(72, 97, 106, 0.62);
   --disabled-track: rgba(200, 212, 207, 0.55);
   --disabled-tag: rgba(200, 212, 207, 0.50);
+  --achievement-blue: #4f9fe8;
+  --achievement-green: #6faf4f;
+  --achievement-purple: #7a55d8;
   --radius-sm: 6px;
   --radius: 8px;
   --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
@@ -879,16 +935,6 @@ h3 {
   stroke: currentColor;
 }
 
-.achievement-toggle::before {
-  content: "";
-  display: block;
-  width: 1rem;
-  height: 1rem;
-  background: currentColor;
-  -webkit-mask: var(--achievement-mask) center / contain no-repeat;
-  mask: var(--achievement-mask) center / contain no-repeat;
-}
-
 .achievement-shell:not([open]) .achievement-toggle {
   transform: rotate(180deg);
 }
@@ -928,32 +974,62 @@ h3 {
 }
 
 .achievement-icon svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.38rem;
+  height: 1.38rem;
   display: block;
   stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
 }
 
-.achievement-icon::before {
-  content: "";
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-  background: currentColor;
-  -webkit-mask: var(--achievement-mask) center / contain no-repeat;
-  mask: var(--achievement-mask) center / contain no-repeat;
+.achievement-icon svg [fill="currentColor"] {
+  fill: currentColor;
 }
 
-.achievement-icon-trophy {
-  --achievement-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 4h8v5a4 4 0 0 1-8 0V4Z'/%3E%3Cpath d='M8 7H5.8a2.3 2.3 0 0 0 0 4.6H8'/%3E%3Cpath d='M16 7h2.2a2.3 2.3 0 0 1 0 4.6H16'/%3E%3Cpath d='M12 13v5'/%3E%3Cpath d='M9 18h6'/%3E%3Cpath d='M7.5 21h9'/%3E%3C/svg%3E");
-}
-
+.achievement-icon-rocket,
+.achievement-icon-trap,
 .achievement-icon-lock {
-  --achievement-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='10.5' width='14' height='10' rx='2'/%3E%3Cpath d='M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7'/%3E%3C/svg%3E");
+  color: var(--text-muted);
+}
+
+.achievement-icon-microscope,
+.achievement-icon-target,
+.achievement-icon-shocked {
+  color: var(--achievement-blue);
+}
+
+.achievement-icon-dove,
+.achievement-icon-handshake {
+  color: var(--achievement-green);
+}
+
+.achievement-icon-siren,
+.achievement-icon-flame {
+  color: var(--accent);
+}
+
+.achievement-icon-hero,
+.achievement-icon-puzzle {
+  color: var(--achievement-purple);
+}
+
+.achievement-icon-burst,
+.achievement-icon-cat,
+.achievement-icon-owl,
+.achievement-icon-trophy {
+  color: var(--amber);
 }
 
 .achievement-icon-chevron {
-  --achievement-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");
+  color: var(--text-muted);
+}
+
+.achievement-toggle svg {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 2.6;
 }
 
 .achievement-row.is-locked .achievement-icon {
@@ -2091,14 +2167,14 @@ def render_sidebar_achievements():
     for ach in ACHIEVEMENTS:
         is_earned = ach["id"] in earned
         row_class = "achievement-row" if is_earned else "achievement-row is-locked"
-        icon_class = "achievement-icon-trophy" if is_earned else "achievement-icon-lock"
+        icon = achievement_icon_html(achievement_icon_key(ach["id"], locked=not is_earned))
         description = (
             f'<div class="achievement-desc">{escape(ach["description"])}</div>' if is_earned else ""
         )
         rows.append(
             f"""
 <div class="{row_class}">
-  <div class="achievement-icon {icon_class}" aria-hidden="true"></div>
+  {icon}
   <div>
     <div class="achievement-name">{escape(ach['name'])}</div>
     {description}
@@ -2112,11 +2188,11 @@ def render_sidebar_achievements():
 <details class="achievement-shell">
   <summary>
     <div class="achievement-summary-main">
-      <span class="achievement-icon achievement-icon-trophy" aria-hidden="true"></span>
+      {achievement_icon_html("trophy")}
       <span class="achievement-title">Achievements</span>
       <span class="achievement-count">{count}<span> / {len(ACHIEVEMENTS)}</span></span>
     </div>
-    <span class="achievement-toggle achievement-icon-chevron" aria-hidden="true"></span>
+    {achievement_icon_html("chevron", "achievement-toggle")}
   </summary>
   <div class="achievement-list">
     {''.join(rows)}
@@ -2626,6 +2702,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
             if unlocked_ids:
                 st.session_state["achievement_notifications"] = [
                     {
+                        "id": ach["id"],
                         "name": ACHIEVEMENT_INDEX[ach["id"]]["name"],
                         "description": ACHIEVEMENT_INDEX[ach["id"]]["description"],
                     }
