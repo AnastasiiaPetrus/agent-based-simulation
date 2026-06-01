@@ -868,10 +868,13 @@ h3 {
 .achievement-shell {
   overflow: hidden;
   margin-bottom: 0.75rem;
-  border: 1px solid var(--frame-border);
+  border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
+  filter: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 .achievement-shell summary {
@@ -883,7 +886,10 @@ h3 {
   padding: 0.9rem 1rem;
   cursor: pointer;
   list-style: none;
-  border-bottom: 1px solid var(--frame-border-soft);
+  border-bottom: 1px solid var(--line-soft);
+  filter: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 .achievement-shell summary::-webkit-details-marker {
@@ -916,6 +922,27 @@ h3 {
 
 .achievement-count span {
   color: var(--text-muted);
+}
+
+[data-testid="stSidebar"] .achievement-shell,
+[data-testid="stSidebar"] .achievement-shell summary,
+[data-testid="stSidebar"] .achievement-shell .achievement-summary-main,
+[data-testid="stSidebar"] .achievement-shell .achievement-title,
+[data-testid="stSidebar"] .achievement-shell .achievement-count,
+[data-testid="stSidebar"] .achievement-shell .achievement-count span,
+[data-testid="stSidebar"] .achievement-shell .achievement-toggle,
+[data-testid="stSidebar"] .achievement-shell summary > .achievement-icon {
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell,
+[data-testid="stSidebar"] .achievement-shell summary {
+  pointer-events: auto !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell summary .achievement-icon-trophy {
+  color: var(--amber) !important;
 }
 
 .achievement-toggle {
@@ -953,7 +980,7 @@ h3 {
   grid-template-columns: 1.6rem minmax(0, 1fr);
   gap: 0.75rem;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--frame-border-soft);
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .achievement-row:last-child {
