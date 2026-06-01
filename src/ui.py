@@ -1493,31 +1493,66 @@ h3 {
 
 /* ── Tabs ─────────────────────────────────── */
 [data-baseweb="tab-list"] {
-  gap: 0.2rem;
-  border-bottom: 2px solid var(--line-soft);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0.9rem 0 1.2rem;
+  border-bottom: 0;
+  overflow: visible;
+}
+
+[data-baseweb="tab-border"],
+[data-baseweb="tab-highlight"] {
+  display: none;
 }
 
 [data-baseweb="tab"] {
-  border-radius: 999px;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: var(--frame-bg-soft);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-muted);
   font-family: var(--mono);
-  font-weight: 600;
   font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  padding: 0.45rem 0.9rem;
-  transition: color 140ms ease, background 140ms ease;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  line-height: 1.35;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: normal;
+  opacity: 1 !important;
+  transition: none !important;
 }
 
 [data-baseweb="tab"]:hover:not([aria-selected="true"]) {
   color: var(--text);
-  background: var(--surface-muted);
+  background: var(--frame-bg-strong);
 }
 
 [data-baseweb="tab"][aria-selected="true"] {
-  background: var(--primary-light);
-  color: var(--primary);
-  font-weight: 650;
-  box-shadow: inset 0 0 0 1px var(--primary-border);
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+  box-shadow: inset 0 0 0 1.5px var(--primary) !important;
+}
+
+[data-baseweb="tab"] *,
+[data-baseweb="tab"] p {
+  color: inherit !important;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  line-height: 1.35;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: normal;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* ── Policy segmented control (main content) ─ */
@@ -1686,10 +1721,15 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
     line-height: 1.08;
   }
 
+  [data-baseweb="tab-list"] {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
   [data-baseweb="tab"] {
+    min-height: 2.35rem;
     padding-left: 0.65rem;
     padding-right: 0.65rem;
-    font-size: 0.82rem;
   }
 
   .app-topbar {
@@ -2379,28 +2419,22 @@ def render_results_fragment(settings):
         st.caption("Average outcomes per run. Use this to compare policies side by side.")
         display_combined_policy_totals_table(latest_run_results, settings["population_size"])
 
-        selected_policy = st.segmented_control(
-            "Policy",
-            options=POLICY_ORDER,
-            default=POLICY_ORDER[0],
-            label_visibility="collapsed",
-            width="stretch",
-            key="policy_selector",
-        )
-        if selected_policy:
-            policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
-            policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
-            if policy_runs.empty or policy_districts.empty:
-                st.caption("No results for this policy in the current session.")
-            else:
-                st.subheader("Averages")
-                display_average_table(average_results_table(policy_runs))
-                render_charts(policy_runs, policy_districts)
-                render_interpretation(
-                    selected_policy,
-                    average_results_table(policy_runs),
-                    settings["bias_against_district_c"],
-                )
+        for selected_policy, policy_tab in zip(POLICY_ORDER, st.tabs(POLICY_ORDER), strict=True):
+            with policy_tab:
+                policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
+                policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
+                if policy_runs.empty or policy_districts.empty:
+                    st.caption("No results for this policy in the current session.")
+                else:
+                    policy_average_table = average_results_table(policy_runs)
+                    st.subheader("Averages")
+                    display_average_table(policy_average_table)
+                    render_charts(policy_runs, policy_districts)
+                    render_interpretation(
+                        selected_policy,
+                        policy_average_table,
+                        settings["bias_against_district_c"],
+                    )
 
     st.subheader("Latest LLM-agent explanations")
     model_results = latest_result.get("model_results", [])
