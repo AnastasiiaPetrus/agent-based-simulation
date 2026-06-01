@@ -75,7 +75,7 @@ def render_app_header():
   <div class="app-status-chips">
     <span class="badge-chip">N = 1,000</span>
     <span class="badge-chip">{len(POLICIES)} policies</span>
-    <span class="badge-chip badge-live">live</span>
+    <span class="badge-chip badge-live badge-live-status">live</span>
   </div>
 </header>
         """
@@ -520,6 +520,28 @@ h3 {
 .badge-live {
   border-color: var(--primary-border);
   color: var(--primary);
+}
+
+.badge-live-status {
+  animation: liveStatusPulse 1.45s ease-in-out infinite;
+  background: var(--primary-light);
+}
+
+@keyframes liveStatusPulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(0, 167, 87, 0.22);
+  }
+  50% {
+    opacity: 0.48;
+    box-shadow: 0 0 0 5px rgba(0, 167, 87, 0.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-live-status {
+    animation: none;
+  }
 }
 
 .section-gap {
