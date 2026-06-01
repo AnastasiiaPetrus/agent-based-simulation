@@ -1428,6 +1428,27 @@ h3 {
   opacity: 0.38;
 }
 
+.st-key-simulation_params_panel:has(input:disabled) .settings-panel-title {
+  color: var(--disabled-text-active);
+}
+
+.st-key-simulation_params_panel:has(input:disabled) .settings-panel-dot {
+  background: var(--disabled-fill);
+  box-shadow: 0 0 0 4px var(--disabled-surface-active);
+}
+
+.st-key-simulation_params_panel:has(input:disabled) .settings-panel-divider {
+  background: var(--disabled-border-soft);
+}
+
+.st-key-simulation_params_panel:has(input:disabled) .settings-kv-row {
+  color: var(--disabled-text);
+}
+
+.st-key-simulation_params_panel:has(input:disabled) .settings-kv-row strong {
+  color: var(--disabled-text-active);
+}
+
 [data-testid="stSidebar"] [data-testid="stSlider"]:has(input:disabled) [role="slider"] {
   background: var(--disabled-fill) !important;
   border-color: var(--disabled-border) !important;
