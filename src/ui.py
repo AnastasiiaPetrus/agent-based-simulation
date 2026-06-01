@@ -1739,37 +1739,36 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   border-color: var(--accent-border) !important;
 }
 
-/* ── Results panel (Policy comparison + Averages card) ── */
-.st-key-results_panel {
+/* ── Results content panel (tables + charts only) ── */
+.st-key-results_content_panel {
   overflow: hidden;
-  margin-top: 0.25rem;
+  margin-top: 1rem;
   margin-bottom: 0.25rem;
-  border: 0 !important;
+  border: 1px solid var(--frame-border) !important;
   outline: 0 !important;
   border-radius: var(--radius) !important;
   background: var(--surface) !important;
   box-shadow: none !important;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel,
-div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div,
-.st-key-results_panel > div {
-  border: 0 !important;
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel,
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > div,
+.st-key-results_content_panel > div {
   outline: 0 !important;
   background: var(--surface) !important;
   box-shadow: none !important;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div,
-.st-key-results_panel > div[data-testid="stVerticalBlock"] {
+div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > div,
+.st-key-results_content_panel > div[data-testid="stVerticalBlock"] {
   padding: 1.2rem 1.45rem;
 }
 
-.st-key-results_panel [data-testid="stVerticalBlock"] {
+.st-key-results_content_panel [data-testid="stVerticalBlock"] {
   gap: 0.65rem;
 }
 
-.st-key-results_panel h3 {
+.st-key-results_content_panel h3 {
   margin-top: 0 !important;
 }
 
@@ -2482,9 +2481,10 @@ def render_results_fragment(settings):
     latest_run_results = latest_result["run_results"]
     latest_district_results = latest_result["district_results"]
 
-    with st.container(border=False, key="results_panel"):
-        st.subheader("Policy comparison")
-        st.caption("Average outcomes per run. Use this to compare policies side by side.")
+    st.subheader("Policy comparison")
+    st.caption("Average outcomes per run. Use this to compare policies side by side.")
+
+    with st.container(border=False, key="results_content_panel"):
         display_combined_policy_totals_table(latest_run_results, settings["population_size"])
 
         for selected_policy, policy_tab in zip(POLICY_ORDER, st.tabs(POLICY_ORDER), strict=True):
