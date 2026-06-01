@@ -530,6 +530,18 @@ h3 {
   height: 1.15rem;
 }
 
+.section-gap-results {
+  height: 1.8rem;
+}
+
+.section-gap-explanations {
+  height: 1.35rem;
+}
+
+.section-gap-history {
+  height: 2.05rem;
+}
+
 .hero-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1656,7 +1668,7 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel {
   overflow: hidden;
   margin-top: 0.25rem;
-  margin-bottom: 1.1rem;
+  margin-bottom: 0.25rem;
   border: 1px solid var(--frame-border) !important;
   border-radius: var(--radius) !important;
   background: var(--frame-bg-strong) !important;
@@ -2416,6 +2428,7 @@ def render_results_fragment(settings):
                         settings["bias_against_district_c"],
                     )
 
+    st.html('<div class="section-gap section-gap-explanations"></div>')
     st.subheader("Latest LLM-agent explanations")
     model_results = latest_result.get("model_results", [])
     if model_results:
@@ -2442,6 +2455,7 @@ def render_llm_run_log(max_entries):
     if not run_log:
         return
 
+    st.html('<div class="section-gap section-gap-history"></div>')
     st.subheader("Previous runs")
 
     if st.button("Clear LLM-agent run log"):
@@ -2782,7 +2796,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         st.session_state.pop("llm_agent_latest_result", None)
         st.write("Previous in-session results used an older metric schema. Run the simulation again.")
     else:
-        st.html('<div class="section-gap"></div>')
+        st.html('<div class="section-gap section-gap-results"></div>')
         render_results_fragment(settings)
     render_llm_run_log(MAX_RUN_LOG_SIZE)
 
