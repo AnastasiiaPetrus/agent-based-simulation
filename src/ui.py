@@ -1575,6 +1575,19 @@ h3 {
   color: var(--amber) !important;
 }
 
+/* Keep the achievements summary color stable in every app state. */
+[data-testid="stSidebar"] .achievement-shell summary .achievement-title {
+  color: #48616a !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell summary .achievement-count {
+  color: #071823 !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell summary .achievement-count span {
+  color: #48616a !important;
+}
+
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
   color: var(--text-muted);
   font-size: 0.74rem;
