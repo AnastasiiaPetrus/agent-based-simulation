@@ -19,7 +19,6 @@ from src.constants import (
     DEFAULT_LLM_MODEL_OPTIONS,
     MAX_RUN_LOG_SIZE,
     POLICY_DESCRIPTIONS,
-    POLICY_ORDER,
     POLICIES,
     POPULATION_DOT_ANIMATION_SECONDS,
     POPULATION_DOT_STAGGER_GROUP,
@@ -129,7 +128,7 @@ def render_hero_statement():
 
 def render_population_view_overview(settings):
     population_size = int(settings["population_size"])
-    policy_count = len(POLICY_ORDER)
+    policy_count = len(POLICIES)
     st.html(
         f"""
 <section class="population-overview">
@@ -1777,10 +1776,8 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   box-sizing: border-box;
   overflow: hidden;
   margin-top: 1rem;
-  margin-left: 18px;
-  margin-right: 18px;
   margin-bottom: 0.25rem;
-  width: calc(100% - 36px);
+  width: 100%;
   border: 1px solid var(--frame-border) !important;
   outline: 0 !important;
   border-radius: var(--radius) !important;
@@ -1810,14 +1807,6 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > d
   font-size: 0.82rem !important;
   letter-spacing: 0.14em !important;
   line-height: 1.35 !important;
-}
-
-@media (max-width: 700px) {
-  .st-key-results_content_panel {
-    margin-left: 12px;
-    margin-right: 12px;
-    width: calc(100% - 24px);
-  }
 }
 
 /* ── Charts ───────────────────────────────── */
@@ -1960,14 +1949,14 @@ def glossary_markdown(items):
 def baseline_children(settings):
     population_size = int(settings["population_size"])
     true_high = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
-    false_positive, false_negative, flagged = risk_signal_counts(true_high, settings)
-    true_positive = max(0, true_high - false_negative)
-    low_unflagged = max(0, population_size - true_positive - false_negative - false_positive)
+    false_positives, false_negatives, flagged = risk_signal_counts(true_high, settings)
+    true_positive = max(0, true_high - false_negatives)
+    low_unflagged = max(0, population_size - true_positive - false_negatives - false_positives)
 
     children = (
         [{"base": "high", "flagged": True}] * true_positive
-        + [{"base": "high", "flagged": False}] * false_negative
-        + [{"base": "low", "flagged": True}] * false_positive
+        + [{"base": "high", "flagged": False}] * false_negatives
+        + [{"base": "low", "flagged": True}] * false_positives
         + [{"base": "low", "flagged": False}] * low_unflagged
     )
     seed = population_size * 17 + true_high * 31 + flagged * 43
@@ -2016,7 +2005,6 @@ def seeded_subset(indices, count, seed_text):
 
 
 def _panel_changes(children, policy, metrics):
-    """Returns (prevented_indices, harmed_indices, summary, ready)."""
     high_flagged = [i for i, c in enumerate(children) if c["base"] == "high" and c["flagged"]]
     low_flagged = [i for i, c in enumerate(children) if c["base"] == "low" and c["flagged"]]
     low_flagged_set = set(low_flagged)
@@ -2080,7 +2068,6 @@ def policy_panel_html(children, policy, metrics, panel_index):
 
 
 def population_update_script(root_id, policy, panel_index, children, metrics):
-    """Return a <script> snippet that updates one policy panel's dot colours in-place."""
     prevented_indices, harmed_indices, summary, _ = _panel_changes(children, policy, metrics)
     return f"""<script>
 (function() {{
@@ -2132,7 +2119,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
             policy_transition_metrics(run_results, policy, settings),
             panel_index,
         )
-        for panel_index, policy in enumerate(POLICY_ORDER)
+        for panel_index, policy in enumerate(POLICIES)
     ]
 
     return f"""
@@ -2535,7 +2522,7 @@ def render_results_fragment(settings):
     with st.container(border=False, key="results_content_panel"):
         display_combined_policy_totals_table(latest_run_results, settings["population_size"])
 
-        for selected_policy, policy_tab in zip(POLICY_ORDER, st.tabs(POLICY_ORDER), strict=True):
+        for selected_policy, policy_tab in zip(POLICIES, st.tabs(POLICIES), strict=True):
             with policy_tab:
                 policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
                 policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
@@ -2641,10 +2628,118 @@ def render_terminal_progress(
     )
 
 
+def _run_simulation(settings, selected_models, progress_slot, update_slot, live_population):
+    parameter_summary = compact_parameter_summary(settings)
+    total_calls = len(selected_models) * len(POLICIES)
+    run_frames, district_frames, model_summaries = [], [], []
+    agents, debrief_parts, errors = [], [], []
+    completed = 0
+    progress_note = ""
+
+    render_terminal_progress(
+        progress_slot, 0, total_calls,
+        f"Running {len(POLICIES)} policies × {len(selected_models)} model(s)...",
+        note=progress_note,
+    )
+    scroll_to_anchor("simulation-progress-anchor")
+    children = baseline_children(settings)
+    render_population_animation(live_population, None, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
+
+    for model in selected_models:
+        for policy in POLICIES:
+            policy_settings = {**settings, "policy": policy}
+            render_terminal_progress(progress_slot, completed, total_calls, f"Running {model} on {policy}...", note=progress_note)
+            user_prompt = build_llm_simulation_prompt(policy_settings)
+            try:
+                raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
+                run_results = clean_llm_run_results(raw.get("run_results", []))
+                district_results = clean_llm_district_results(raw.get("district_results", []))
+                validate_llm_tables(run_results, district_results, policy_settings)
+                run_results, district_results = normalize_llm_metrics(run_results, district_results, policy_settings)
+                run_results, district_results = attach_model_label(run_results, district_results, model)
+                run_results, district_results = attach_policy_label(run_results, district_results, policy)
+                policy_agents = normalize_representative_agents(
+                    raw.get("representative_agents", [])[:int(settings["llm_representative_agents"])],
+                    model,
+                )
+                debrief = str(raw.get("debrief_text", "")).strip()
+                completed += 1
+                if debrief:
+                    progress_note = f"{model} | {policy}: {debrief}"
+                render_terminal_progress(progress_slot, completed, total_calls, f"Received {model} / {policy}.", note=progress_note)
+                aggregate = compact_aggregate_metrics(run_results)
+                run_frames.append(run_results)
+                district_frames.append(district_results)
+                agents.extend(policy_agents)
+                if debrief:
+                    debrief_parts.append(f"{model} | {policy}: {debrief}")
+                model_summaries.append({"llm_model": model, "policy": policy, "aggregate_metrics": aggregate, "debrief_text": debrief})
+                metrics = policy_transition_metrics(run_results, policy, settings)
+                render_population_update(update_slot, _LIVE_GRID_ID, policy, POLICIES.index(policy), children, metrics)
+            except Exception as error:
+                completed += 1
+                msg = friendly_llm_error(error)
+                progress_note = msg
+                render_terminal_progress(progress_slot, completed, total_calls, f"Error: {model} / {policy}.", note=progress_note)
+                errors.append((f"{model} | {policy}", msg))
+
+    progress_slot.empty()
+    notices = [("error", f"{label}: {msg}") for label, msg in errors]
+
+    if run_frames:
+        combined_runs = pd.concat(run_frames, ignore_index=True, copy=False)
+        combined_districts = pd.concat(district_frames, ignore_index=True, copy=False)
+        combined_runs, combined_districts = optimize_result_frames(combined_runs, combined_districts)
+        debrief_combined = "\n\n".join(debrief_parts)
+        aggregate = compact_aggregate_metrics(combined_runs)
+
+        st.session_state["llm_agent_latest_result"] = {
+            "run_results": combined_runs,
+            "district_results": combined_districts,
+            "model_results": model_summaries,
+            "representative_agents": agents,
+            "debrief_text": debrief_combined,
+        }
+
+        entry = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "policy_summary": "All policies",
+            "parameter_summary": parameter_summary,
+            "representative_agent_count": len(agents),
+            "llm_model": ", ".join(unique_values(s["llm_model"] for s in model_summaries)),
+            "aggregate_metrics": aggregate,
+            "debrief_text": debrief_combined,
+        }
+        add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
+
+        count = st.session_state.get("simulation_run_count", 0) + 1
+        st.session_state["simulation_run_count"] = count
+        new_achievements = check_achievements(combined_runs, settings, count)
+        prev_achievements = st.session_state.get("earned_achievements", set())
+        st.session_state["earned_achievements"] = prev_achievements | new_achievements
+        unlocked = new_achievements - prev_achievements
+        if unlocked:
+            st.session_state["achievement_notifications"] = [
+                {"id": a["id"], "name": ACHIEVEMENT_INDEX[a["id"]]["name"], "description": ACHIEVEMENT_INDEX[a["id"]]["description"]}
+                for a in ACHIEVEMENTS if a["id"] in unlocked
+            ]
+
+        if errors:
+            notices.append(("warning", "LLM-agent simulation generated for the successful model agents."))
+        del run_frames, district_frames
+    elif errors:
+        notices.append(("warning", "No LLM-agent simulation results were generated."))
+
+    st.session_state["last_run_notices"] = notices
+    st.session_state["simulation_running"] = False
+    st.rerun()
+
+
 def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None):
     initialize_llm_state()
     st.subheader("Simulation")
-    total_calls = len(settings["llm_agent_models"]) * len(POLICIES)
+    selected_models = settings["llm_agent_models"]
+    total_calls = len(selected_models) * len(POLICIES)
     st.caption(f"{total_calls} LLM call(s) — one per policy × model.")
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -2654,28 +2749,15 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
             "variable or Railway secret."
         )
 
-    selected_models = settings["llm_agent_models"]
-
-    parameter_summary = compact_parameter_summary(settings)
-    system_prompt = DEFAULT_SYSTEM_PROMPT
     latest_result = st.session_state.get("llm_agent_latest_result")
-    initial_population_results = None
-    initial_population_title = "Live synthetic population view"
-    if latest_result and latest_result_has_current_schema(latest_result):
-        initial_population_results = latest_result["run_results"]
-        initial_population_title = "Latest synthetic population view"
+    has_valid_result = latest_result and latest_result_has_current_schema(latest_result)
+    initial_runs = latest_result["run_results"] if has_valid_result else None
+    initial_title = "Latest synthetic population view" if has_valid_result else "Live synthetic population view"
 
     render_population_view_overview(settings)
     live_population = st.empty()
     update_slot = st.empty()
-    render_population_animation(
-        live_population,
-        initial_population_results,
-        settings,
-        initial_population_title,
-        "initial",
-        root_id=_LIVE_GRID_ID,
-    )
+    render_population_animation(live_population, initial_runs, settings, initial_title, "initial", root_id=_LIVE_GRID_ID)
     st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
     progress_slot = st.empty()
 
@@ -2697,6 +2779,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
     run_disabled = not bool(api_key) or not selected_models or settings_invalid
     if run_button_slot is None:
         run_button_slot = st.sidebar.empty()
+
     if st.session_state.get("simulation_running", False):
         st.html("""
 <style>
@@ -2710,23 +2793,11 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 </style>
 """)
         with run_button_slot:
-            st.button(
-                "▶ Run simulation",
-                key="run_simulation_running",
-                disabled=True,
-                type="primary",
-                use_container_width=True,
-            )
+            st.button("▶ Run simulation", key="run_simulation_running", disabled=True, type="primary", use_container_width=True)
         run_requested = False
     else:
         with run_button_slot:
-            run_requested = st.button(
-                "▶ Run simulation",
-                key="run_simulation_start",
-                disabled=run_disabled,
-                type="primary",
-                use_container_width=True,
-            )
+            run_requested = st.button("▶ Run simulation", key="run_simulation_start", disabled=run_disabled, type="primary", use_container_width=True)
 
     if run_requested:
         st.session_state["simulation_running"] = True
@@ -2741,180 +2812,10 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         else:
             st.success(message)
 
-    execute_run = st.session_state.pop("simulation_pending", False)
-    if execute_run:
+    if st.session_state.pop("simulation_pending", False):
         with run_button_slot:
-            st.button(
-                "▶ Run simulation",
-                key="run_simulation_active",
-                disabled=True,
-                type="primary",
-                use_container_width=True,
-            )
-        run_frames = []
-        district_frames = []
-        model_summaries = []
-        all_representative_agents = []
-        debrief_parts = []
-        model_errors = []
-        completion_notices = []
-        completed_calls = 0
-        progress_note = ""
-        render_terminal_progress(
-            progress_slot,
-            0,
-            total_calls,
-            f"Running {len(POLICIES)} policies × {len(selected_models)} model(s)...",
-            note=progress_note,
-        )
-        scroll_to_anchor("simulation-progress-anchor")
-        children = baseline_children(settings)
-        render_population_animation(
-            live_population,
-            None,
-            settings,
-            "Simulating…",
-            "waiting",
-            root_id=_LIVE_GRID_ID,
-        )
-
-        for model in selected_models:
-            for policy in POLICY_ORDER:
-                policy_settings = dict(settings)
-                policy_settings["policy"] = policy
-
-                render_terminal_progress(
-                    progress_slot,
-                    completed_calls,
-                    total_calls,
-                    f"Running {model} on {policy}...",
-                    note=progress_note,
-                )
-                user_prompt = build_llm_simulation_prompt(policy_settings)
-                try:
-                    raw_result = run_openai_json(system_prompt, user_prompt, model=model)
-                    run_results = clean_llm_run_results(raw_result.get("run_results", []))
-                    district_results = clean_llm_district_results(raw_result.get("district_results", []))
-                    validate_llm_tables(run_results, district_results, policy_settings)
-                    run_results, district_results = normalize_llm_metrics(
-                        run_results,
-                        district_results,
-                        policy_settings,
-                    )
-                    run_results, district_results = attach_model_label(
-                        run_results, district_results, model
-                    )
-                    run_results, district_results = attach_policy_label(
-                        run_results, district_results, policy
-                    )
-                    representative_agents = normalize_representative_agents(
-                        raw_result.get("representative_agents", [])[
-                            : int(settings["llm_representative_agents"])
-                        ],
-                        model,
-                    )
-                    debrief_text = str(raw_result.get("debrief_text", "")).strip()
-                    completed_calls += 1
-                    if debrief_text:
-                        progress_note = f"{model} | {policy}: {debrief_text}"
-                    render_terminal_progress(
-                        progress_slot,
-                        completed_calls,
-                        total_calls,
-                        f"Received {model} / {policy}.",
-                        note=progress_note,
-                    )
-                    aggregate_metrics = compact_aggregate_metrics(run_results)
-                    run_frames.append(run_results)
-                    district_frames.append(district_results)
-                    all_representative_agents.extend(representative_agents)
-                    if debrief_text:
-                        debrief_parts.append(f"{model} | {policy}: {debrief_text}")
-                    model_summaries.append(
-                        {
-                            "llm_model": model,
-                            "policy": policy,
-                            "aggregate_metrics": aggregate_metrics,
-                            "debrief_text": debrief_text,
-                        }
-                    )
-                    metrics = policy_transition_metrics(run_results, policy, settings)
-                    render_population_update(
-                        update_slot, _LIVE_GRID_ID, policy, POLICY_ORDER.index(policy), children, metrics
-                    )
-                except Exception as error:
-                    completed_calls += 1
-                    error_message = friendly_llm_error(error)
-                    progress_note = error_message
-                    render_terminal_progress(
-                        progress_slot,
-                        completed_calls,
-                        total_calls,
-                        f"Error: {model} / {policy}.",
-                        note=progress_note,
-                    )
-                    model_errors.append((f"{model} | {policy}", error_message))
-
-        progress_slot.empty()
-
-        for error_label, error_message in model_errors:
-            completion_notices.append(("error", f"{error_label}: {error_message}"))
-
-        if run_frames:
-            combined_run_results = pd.concat(run_frames, ignore_index=True, copy=False)
-            combined_district_results = pd.concat(district_frames, ignore_index=True, copy=False)
-            combined_run_results, combined_district_results = optimize_result_frames(
-                combined_run_results,
-                combined_district_results,
-            )
-            debrief_text = "\n\n".join(debrief_parts)
-            aggregate_metrics = compact_aggregate_metrics(combined_run_results)
-
-            st.session_state["llm_agent_latest_result"] = {
-                "run_results": combined_run_results,
-                "district_results": combined_district_results,
-                "model_results": model_summaries,
-                "representative_agents": all_representative_agents,
-                "debrief_text": debrief_text,
-            }
-
-            entry = {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "policy_summary": "All policies",
-                "parameter_summary": parameter_summary,
-                "representative_agent_count": len(all_representative_agents),
-                "llm_model": ", ".join(unique_values(summary["llm_model"] for summary in model_summaries)),
-                "aggregate_metrics": aggregate_metrics,
-                "debrief_text": debrief_text,
-            }
-            add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
-
-            simulation_count = st.session_state.get("simulation_run_count", 0) + 1
-            st.session_state["simulation_run_count"] = simulation_count
-            newly_earned = check_achievements(combined_run_results, settings, simulation_count)
-            previously_earned = st.session_state.get("earned_achievements", set())
-            st.session_state["earned_achievements"] = previously_earned | newly_earned
-            unlocked_ids = newly_earned - previously_earned
-            if unlocked_ids:
-                st.session_state["achievement_notifications"] = [
-                    {
-                        "id": ach["id"],
-                        "name": ACHIEVEMENT_INDEX[ach["id"]]["name"],
-                        "description": ACHIEVEMENT_INDEX[ach["id"]]["description"],
-                    }
-                    for ach in ACHIEVEMENTS
-                    if ach["id"] in unlocked_ids
-                ]
-
-            if model_errors:
-                completion_notices.append(("warning", "LLM-agent simulation generated for the successful model agents."))
-            del run_frames, district_frames
-        elif model_errors:
-            completion_notices.append(("warning", "No LLM-agent simulation results were generated."))
-
-        st.session_state["last_run_notices"] = completion_notices
-        st.session_state["simulation_running"] = False
-        st.rerun()
+            st.button("▶ Run simulation", key="run_simulation_active", disabled=True, type="primary", use_container_width=True)
+        _run_simulation(settings, selected_models, progress_slot, update_slot, live_population)
 
     latest_result = st.session_state.get("llm_agent_latest_result")
     if latest_result and not latest_result_has_current_schema(latest_result):

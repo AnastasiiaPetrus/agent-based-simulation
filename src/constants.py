@@ -6,8 +6,6 @@ POLICIES = [
     "Coercive preventive intervention for high-risk children",
 ]
 
-POLICY_ORDER = list(POLICIES)
-
 POLICY_DESCRIPTIONS = {
     "Targeted support for high-risk children": (
         "Flagged children receive voluntary help — counselling, mentoring, or social support. "

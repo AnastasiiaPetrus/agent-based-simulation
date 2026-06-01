@@ -2,10 +2,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.constants import POLICY_ORDER, RUN_METRIC_LABELS
+from src.constants import POLICIES, RUN_METRIC_LABELS
 
 
-POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICY_ORDER)}
+POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
     "baseline_crimes": "Would offend without intervention",
     "false_positives": "Wrongly flagged",

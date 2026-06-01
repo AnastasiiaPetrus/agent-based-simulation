@@ -70,7 +70,7 @@ def compact_aggregate_metrics(run_results):
 
 
 def optimize_result_frames(run_results, district_results):
-    """Downcast stored result frames to reduce Streamlit session memory."""
+    # Downcast integer columns to reduce Streamlit session memory.
     run_results = run_results.copy()
     district_results = district_results.copy()
 

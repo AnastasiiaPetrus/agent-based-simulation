@@ -105,14 +105,18 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         if has_policy_col else combined_run_results.iloc[0:0]
     )
 
+    avg_baseline = combined_run_results["baseline_crimes"].mean()
+    avg_fp = combined_run_results["false_positives"].mean()
+    avg_fn = combined_run_results["false_negatives"].mean()
+    avg_prevented = combined_run_results["crimes_prevented"].mean()
+    avg_tp = avg_baseline - avg_fn
+
     if set(POLICIES).issubset(policies_present):
         earned.add("full_comparison")
 
     if not targeted.empty and targeted["children_harmed"].mean() == 0:
         earned.add("do_no_harm")
 
-    avg_fp = combined_run_results["false_positives"].mean()
-    avg_prevented = combined_run_results["crimes_prevented"].mean()
     if avg_fp > avg_prevented:
         earned.add("false_alarm")
 
@@ -126,7 +130,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         max_prevented = policy_avg_prevented.max()
     else:
         policy_avg_prevented = None
-        max_prevented = combined_run_results["crimes_prevented"].mean()
+        max_prevented = avg_prevented
 
     if max_prevented >= 20:
         earned.add("crime_preventer")
@@ -139,16 +143,13 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         if reduction_rates.max() >= 0.25:
             earned.add("crime_crusher")
     else:
-        avg_baseline = combined_run_results["baseline_crimes"].mean()
-        if avg_baseline > 0 and avg_prevented / avg_baseline >= 0.25:
+        if avg_baseline > 0 and max_prevented / avg_baseline >= 0.25:
             earned.add("crime_crusher")
 
-    avg_fn = combined_run_results["false_negatives"].mean()
-    avg_tp = combined_run_results["baseline_crimes"].mean() - avg_fn
     if avg_fp > avg_tp:
         earned.add("base_rate_trap")
 
-    if (avg_fp + avg_fn) > combined_run_results["baseline_crimes"].mean():
+    if (avg_fp + avg_fn) > avg_baseline:
         earned.add("schrodinger")
 
     if not targeted.empty and targeted["children_helped"].mean() >= 200:
