@@ -270,6 +270,9 @@ def render_global_styles():
   --achievement-purple: #7a55d8;
   --radius-sm: 6px;
   --radius: 8px;
+  --sidebar-toggle-top: 0.7rem;
+  --sidebar-toggle-edge: 0.7rem;
+  --sidebar-toggle-size: 2.2rem;
   --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
   --shadow-xs: none;
   --shadow-sm: none;
@@ -315,13 +318,13 @@ html, body, .stApp {
 }
 
 [data-testid="stExpandSidebarButton"] {
-  position: fixed;
-  top: 0.7rem;
-  left: 0.7rem;
+  position: fixed !important;
+  top: var(--sidebar-toggle-top) !important;
+  left: var(--sidebar-toggle-edge) !important;
   z-index: 999999;
   display: inline-grid !important;
-  width: 2.2rem;
-  height: 2.2rem;
+  width: var(--sidebar-toggle-size);
+  height: var(--sidebar-toggle-size);
   place-items: center;
   border: 1px solid var(--frame-border);
   border-radius: 8px;
@@ -336,14 +339,30 @@ html, body, .stApp {
 
 [data-testid="stSidebarCollapseButton"],
 [data-testid="collapsedControl"] {
-  top: 0.7rem !important;
   z-index: 999999 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
+  position: absolute !important;
+  top: var(--sidebar-toggle-top) !important;
+  right: var(--sidebar-toggle-edge) !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+[data-testid="collapsedControl"] {
+  position: fixed !important;
+  top: var(--sidebar-toggle-top) !important;
+  left: var(--sidebar-toggle-edge) !important;
 }
 
 [data-testid="stSidebarCollapseButton"] button,
 [data-testid="collapsedControl"] button {
-  width: 2.2rem !important;
-  height: 2.2rem !important;
+  width: var(--sidebar-toggle-size) !important;
+  min-width: var(--sidebar-toggle-size) !important;
+  height: var(--sidebar-toggle-size) !important;
+  min-height: var(--sidebar-toggle-size) !important;
+  margin: 0 !important;
 }
 
 /* ── Main content ─────────────────────────── */
@@ -356,6 +375,7 @@ html, body, .stApp {
 
 /* ── Sidebar ──────────────────────────────── */
 [data-testid="stSidebar"] {
+  position: relative;
   border-right: 1px solid var(--line-soft);
   box-shadow: none;
 }
