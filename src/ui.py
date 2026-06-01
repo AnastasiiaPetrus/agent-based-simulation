@@ -269,6 +269,7 @@ def render_global_styles():
   --achievement-purple: #7a55d8;
   --radius-sm: 6px;
   --radius: 8px;
+  --frame-padding: 1.15rem 1.35rem 1.25rem;
   --sidebar-toggle-top: 0.7rem;
   --sidebar-toggle-edge: 0.7rem;
   --sidebar-toggle-size: 2.2rem;
@@ -646,7 +647,7 @@ h3 {
 
 .population-overview {
   margin: 0.75rem 0 0.8rem;
-  padding: 1.15rem 1.35rem 1.25rem;
+  padding: var(--frame-padding);
   border: 1px solid var(--frame-border);
   border-radius: 8px;
   background: var(--frame-bg);
@@ -1775,14 +1776,12 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 .st-key-results_content_panel {
   box-sizing: border-box;
   overflow: hidden;
-  margin-top: 1rem;
-  margin-bottom: 0.25rem;
-  width: 100%;
+  margin: 0.75rem 0 0.8rem;
   border: 1px solid var(--frame-border) !important;
   outline: 0 !important;
-  border-radius: var(--radius) !important;
+  border-radius: 8px !important;
   background: var(--surface) !important;
-  box-shadow: none !important;
+  box-shadow: var(--shadow-xs) !important;
 }
 
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel,
@@ -1795,7 +1794,7 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > d
 
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > div,
 .st-key-results_content_panel > div[data-testid="stVerticalBlock"] {
-  padding: 1.2rem 1.45rem;
+  padding: var(--frame-padding) !important;
 }
 
 .st-key-results_content_panel [data-testid="stVerticalBlock"] {
