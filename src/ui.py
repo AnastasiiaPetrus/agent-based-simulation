@@ -265,6 +265,7 @@ def render_global_styles():
   --success: #00a757;
   --frame-border: rgba(53, 88, 72, 0.17);
   --frame-border-soft: rgba(53, 88, 72, 0.12);
+  --frame-border-strong: #b0bfba;
   --frame-bg: rgba(255, 255, 255, 0.86);
   --frame-bg-soft: rgba(255, 255, 255, 0.78);
   --frame-bg-strong: rgba(255, 255, 255, 0.94);
@@ -888,7 +889,7 @@ h3 {
 .achievement-shell {
   overflow: hidden;
   margin-bottom: 0.75rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--frame-border-strong);
   border-radius: 8px;
   background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
@@ -954,6 +955,10 @@ h3 {
 [data-testid="stSidebar"] .achievement-shell summary > .achievement-icon {
   filter: none !important;
   opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell {
+  border-color: var(--frame-border-strong) !important;
 }
 
 [data-testid="stSidebar"] .achievement-shell,
