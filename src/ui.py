@@ -1777,6 +1777,7 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
   box-sizing: border-box;
   overflow: hidden;
   margin: 0.75rem 0 0.8rem;
+  padding: var(--frame-padding) !important;
   border: 1px solid var(--frame-border) !important;
   outline: 0 !important;
   border-radius: 8px !important;
@@ -1794,7 +1795,7 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > d
 
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > div,
 .st-key-results_content_panel > div[data-testid="stVerticalBlock"] {
-  padding: var(--frame-padding) !important;
+  padding: 0 !important;
 }
 
 .st-key-results_content_panel [data-testid="stVerticalBlock"] {
@@ -2126,7 +2127,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
 .life-course-card {{
   border: 1px solid var(--frame-border);
   border-radius: 8px;
-  padding: 14px 18px 14px;
+  padding: var(--frame-padding);
   margin: 0 0 12px;
   background: var(--frame-bg);
   box-shadow: none;
@@ -2237,7 +2238,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
 }}
 @media (max-width: 700px) {{
   .life-course-card {{
-    padding: 12px;
+    padding: var(--frame-padding);
     border-radius: 10px;
   }}
 
