@@ -1523,6 +1523,46 @@ h3 {
   opacity: 0.70;
 }
 
+/* Achievements are never disabled, even while simulation inputs are locked. */
+[data-testid="stSidebar"] .achievement-shell {
+  background: var(--frame-bg) !important;
+  color: var(--text) !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell,
+[data-testid="stSidebar"] .achievement-shell summary,
+[data-testid="stSidebar"] .achievement-shell .achievement-summary-main,
+[data-testid="stSidebar"] .achievement-shell .achievement-title,
+[data-testid="stSidebar"] .achievement-shell .achievement-count,
+[data-testid="stSidebar"] .achievement-shell .achievement-count span,
+[data-testid="stSidebar"] .achievement-shell .achievement-toggle,
+[data-testid="stSidebar"] .achievement-shell summary > .achievement-icon {
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell .achievement-title,
+[data-testid="stSidebar"] .achievement-shell .achievement-count span,
+[data-testid="stSidebar"] .achievement-shell .achievement-toggle,
+[data-testid="stSidebar"] .achievement-shell .achievement-icon-chevron {
+  color: var(--text-muted) !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell .achievement-count,
+[data-testid="stSidebar"] .achievement-shell .achievement-name {
+  color: var(--text) !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell .achievement-desc {
+  color: var(--text-muted) !important;
+}
+
+[data-testid="stSidebar"] .achievement-shell summary .achievement-icon-trophy {
+  color: var(--amber) !important;
+}
+
 [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {
   color: var(--text-muted);
   font-size: 0.74rem;
