@@ -1774,9 +1774,13 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 
 /* ── Results content panel (tables + charts only) ── */
 .st-key-results_content_panel {
+  box-sizing: border-box;
   overflow: hidden;
   margin-top: 1rem;
+  margin-left: 18px;
+  margin-right: 18px;
   margin-bottom: 0.25rem;
+  width: calc(100% - 36px);
   border: 1px solid var(--frame-border) !important;
   outline: 0 !important;
   border-radius: var(--radius) !important;
@@ -1803,6 +1807,14 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > d
 
 .st-key-results_content_panel h3 {
   margin-top: 0 !important;
+}
+
+@media (max-width: 700px) {
+  .st-key-results_content_panel {
+    margin-left: 12px;
+    margin-right: 12px;
+    width: calc(100% - 24px);
+  }
 }
 
 /* ── Charts ───────────────────────────────── */
