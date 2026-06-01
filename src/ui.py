@@ -664,9 +664,9 @@ h3 {
 .terminal-progress-card {
   margin: 0.5rem 0 1.65rem;
   padding: 1.15rem 1.25rem 1.25rem;
-  border: 1px solid rgba(0, 167, 87, 0.28);
+  border: 1px solid var(--primary-light);
   border-radius: 8px;
-  background: rgba(248, 255, 252, 0.82);
+  background: rgba(255, 255, 255, 0.84);
   box-shadow: var(--shadow-xs);
 }
 
@@ -692,7 +692,7 @@ h3 {
   height: 0.62rem;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: #74d3ad;
+  background: var(--primary);
 }
 
 .terminal-progress-title {
@@ -714,13 +714,13 @@ h3 {
   align-items: center;
   gap: 0.35rem;
   padding: 0.8rem 0.85rem;
-  border: 1px solid rgba(0, 167, 87, 0.28);
+  border: 1px solid var(--primary-light);
   border-radius: 8px;
-  background: rgba(230, 255, 246, 0.44);
+  background: var(--primary-light);
 }
 
 .terminal-progress-bracket {
-  color: #21bd89;
+  color: var(--primary);
   font-family: var(--mono);
   font-size: 0.82rem;
   font-weight: 700;
@@ -737,15 +737,15 @@ h3 {
 .terminal-progress-block {
   height: 0.9rem;
   border-radius: 3px;
-  background: rgba(0, 167, 87, 0.13);
+  background: var(--primary-light);
 }
 
 .terminal-progress-block.is-filled {
-  background: #16b985;
+  background: var(--primary);
 }
 
 .terminal-progress-block.is-active {
-  box-shadow: 0 0 14px rgba(22, 185, 133, 0.55);
+  box-shadow: 0 0 14px var(--primary-light);
 }
 
 .terminal-progress-status {
@@ -754,6 +754,17 @@ h3 {
   font-family: var(--mono);
   font-size: 0.9rem;
   line-height: 1.4;
+}
+
+.terminal-progress-note {
+  margin-top: 0.8rem;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid var(--primary-light);
+  border-radius: 8px;
+  background: var(--primary-light);
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .terminal-progress-prompt {
@@ -766,7 +777,7 @@ h3 {
   width: 0.52rem;
   height: 0.92rem;
   margin-left: 0.25rem;
-  background: rgba(0, 167, 87, 0.40);
+  background: var(--primary);
   vertical-align: -0.12rem;
   animation: terminalCursorBlink 1s steps(2, jump-none) infinite;
 }
@@ -2268,11 +2279,18 @@ def render_llm_run_log(max_entries):
             st.json(entry["aggregate_metrics"])
 
 
-def render_terminal_progress(slot, completed: int, total: int, status: str = "", title: str | None = None):
+def render_terminal_progress(
+    slot,
+    completed: int,
+    total: int,
+    status: str = "",
+    title: str | None = None,
+    note: str = "",
+):
     pct = int(completed / max(total, 1) * 100)
     block_count = 32
     filled = min(block_count, int(completed / max(total, 1) * block_count))
-    label = title or ("LAST_RUN_COMPLETE" if pct >= 100 else "RUNNING_SIMULATION")
+    label = title or "RUNNING_SIMULATION"
     status_text = status or "Simulation status live"
     blocks = []
     for index in range(block_count):
@@ -2282,6 +2300,7 @@ def render_terminal_progress(slot, completed: int, total: int, status: str = "",
         if index == filled - 1 and filled > 0:
             block_class += " is-active"
         blocks.append(f'<span class="{block_class}"></span>')
+    note_html = f'<div class="terminal-progress-note">{escape(note)}</div>' if note else ""
 
     slot.html(
         f"""
@@ -2299,6 +2318,7 @@ def render_terminal_progress(slot, completed: int, total: int, status: str = "",
     <span class="terminal-progress-bracket">]</span>
   </div>
   <div class="terminal-progress-status"><span class="terminal-progress-prompt">&gt;</span> {escape(status_text)}<span class="terminal-progress-cursor"></span></div>
+  {note_html}
 </div>
         """
     )
@@ -2328,18 +2348,6 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         initial_population_results = latest_result["run_results"]
         initial_population_title = "Latest synthetic population view"
 
-    st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
-    progress_slot = st.empty()
-    if initial_population_results is not None:
-        completed_total = max(total_calls, 1)
-        render_terminal_progress(
-            progress_slot,
-            completed_total,
-            completed_total,
-            f"{len(POLICIES)} policies simulated · results live below",
-            title="LAST_RUN_COMPLETE",
-        )
-
     render_population_view_overview(settings)
     live_population = st.empty()
     update_slot = st.empty()
@@ -2351,8 +2359,8 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         "initial",
         root_id=_LIVE_GRID_ID,
     )
-    live_status = st.empty()
-    live_debrief = st.empty()
+    st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
+    progress_slot = st.empty()
 
     if run_info_slot is None:
         run_info_slot = st.sidebar.container()
@@ -2434,7 +2442,14 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         model_errors = []
         completion_notices = []
         completed_calls = 0
-        render_terminal_progress(progress_slot, 0, total_calls, f"Running {len(POLICIES)} policies × {len(selected_models)} model(s)...")
+        progress_note = ""
+        render_terminal_progress(
+            progress_slot,
+            0,
+            total_calls,
+            f"Running {len(POLICIES)} policies × {len(selected_models)} model(s)...",
+            note=progress_note,
+        )
         scroll_to_anchor("simulation-progress-anchor")
         children, _ = baseline_children(settings)
         render_population_animation(
@@ -2451,7 +2466,13 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                 policy_settings = dict(settings)
                 policy_settings["policy"] = policy
 
-                render_terminal_progress(progress_slot, completed_calls, total_calls, f"Running {model} on {policy}...")
+                render_terminal_progress(
+                    progress_slot,
+                    completed_calls,
+                    total_calls,
+                    f"Running {model} on {policy}...",
+                    note=progress_note,
+                )
                 user_prompt = build_llm_simulation_prompt(policy_settings)
                 try:
                     raw_result = run_openai_json(system_prompt, user_prompt, model=model)
@@ -2477,7 +2498,15 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                     )
                     debrief_text = str(raw_result.get("debrief_text", "")).strip()
                     completed_calls += 1
-                    render_terminal_progress(progress_slot, completed_calls, total_calls, f"Received {model} / {policy}.")
+                    if debrief_text:
+                        progress_note = f"{model} | {policy}: {debrief_text}"
+                    render_terminal_progress(
+                        progress_slot,
+                        completed_calls,
+                        total_calls,
+                        f"Received {model} / {policy}.",
+                        note=progress_note,
+                    )
                     aggregate_metrics = compact_aggregate_metrics(run_results)
                     run_frames.append(run_results)
                     district_frames.append(district_results)
@@ -2496,17 +2525,20 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
                     render_population_update(
                         update_slot, _LIVE_GRID_ID, policy, POLICY_ORDER.index(policy), children, metrics
                     )
-                    if debrief_text:
-                        live_debrief.success(f"{model} | {policy}: {debrief_text}")
                 except Exception as error:
                     completed_calls += 1
-                    render_terminal_progress(progress_slot, completed_calls, total_calls, f"Error: {model} / {policy}.")
-                    model_errors.append((f"{model} | {policy}", friendly_llm_error(error)))
+                    error_message = friendly_llm_error(error)
+                    progress_note = error_message
+                    render_terminal_progress(
+                        progress_slot,
+                        completed_calls,
+                        total_calls,
+                        f"Error: {model} / {policy}.",
+                        note=progress_note,
+                    )
+                    model_errors.append((f"{model} | {policy}", error_message))
 
-        if not run_frames:
-            progress_slot.empty()
-        live_status.empty()
-        live_debrief.empty()
+        progress_slot.empty()
 
         for error_label, error_message in model_errors:
             completion_notices.append(("error", f"{error_label}: {error_message}"))
@@ -2558,8 +2590,6 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 
             if model_errors:
                 completion_notices.append(("warning", "LLM-agent simulation generated for the successful model agents."))
-            else:
-                completion_notices.append(("success", "LLM-agent simulation generated."))
             del run_frames, district_frames
         elif model_errors:
             completion_notices.append(("warning", "No LLM-agent simulation results were generated."))
