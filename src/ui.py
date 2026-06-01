@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from html import escape
+from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
@@ -193,12 +194,30 @@ def achievement_icon_key(achievement_id: str | None, locked: bool = False) -> st
     return ACHIEVEMENT_ICON_BY_ID.get(achievement_id or "", "trophy")
 
 
+def achievement_icon_css():
+    rules = []
+    for icon_key, svg in ACHIEVEMENT_ICON_SVGS.items():
+        svg_with_defaults = svg.replace(
+            "<svg ",
+            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="black" '
+            'stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" ',
+            1,
+        )
+        encoded_svg = quote(svg_with_defaults, safe="")
+        rules.append(
+            f""".achievement-icon-{icon_key}::before {{
+  --achievement-icon-mask: url("data:image/svg+xml;charset=utf-8,{encoded_svg}");
+}}"""
+        )
+    return "\n".join(rules)
+
+
 def achievement_icon_html(icon_key: str, extra_class: str = "") -> str:
-    svg = ACHIEVEMENT_ICON_SVGS.get(icon_key, ACHIEVEMENT_ICON_SVGS["trophy"])
+    icon_key = icon_key if icon_key in ACHIEVEMENT_ICON_SVGS else "trophy"
     class_attr = f"achievement-icon achievement-icon-{icon_key}"
     if extra_class:
         class_attr = f"{class_attr} {extra_class}"
-    return f'<span class="{class_attr}" aria-hidden="true">{svg}</span>'
+    return f'<span class="{class_attr}" aria-hidden="true"></span>'
 
 
 def render_achievement_notifications(notifications):
@@ -224,6 +243,7 @@ def render_achievement_notifications(notifications):
 
 
 def render_global_styles():
+    st.html(f"<style>{achievement_icon_css()}</style>")
     st.html(
         """
 <style>
@@ -955,13 +975,6 @@ h3 {
   transition: transform 160ms ease;
 }
 
-.achievement-toggle svg {
-  width: 1rem;
-  height: 1rem;
-  display: block;
-  stroke: currentColor;
-}
-
 .achievement-shell:not([open]) .achievement-toggle {
   transform: rotate(180deg);
 }
@@ -1000,19 +1013,14 @@ h3 {
   line-height: 1;
 }
 
-.achievement-icon svg {
+.achievement-icon::before {
+  content: "";
+  display: block;
   width: 1.38rem;
   height: 1.38rem;
-  display: block;
-  stroke: currentColor;
-  stroke-width: 2.25;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-}
-
-.achievement-icon svg [fill="currentColor"] {
-  fill: currentColor;
+  background: currentColor;
+  -webkit-mask: var(--achievement-icon-mask) center / contain no-repeat;
+  mask: var(--achievement-icon-mask) center / contain no-repeat;
 }
 
 .achievement-icon-rocket,
@@ -1053,10 +1061,9 @@ h3 {
   color: var(--text-muted);
 }
 
-.achievement-toggle svg {
+.achievement-toggle::before {
   width: 1rem;
   height: 1rem;
-  stroke-width: 2.6;
 }
 
 .achievement-row.is-locked .achievement-icon {
