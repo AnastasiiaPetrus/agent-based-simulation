@@ -1,8 +1,10 @@
 import json
 import os
+from base64 import b64encode
 from datetime import datetime
+from functools import lru_cache
 from html import escape
-from urllib.parse import quote
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -167,25 +169,26 @@ ACHIEVEMENT_ICON_BY_ID = {
     "night_owl": "owl",
 }
 
-ACHIEVEMENT_ICON_SVGS = {
-    "rocket": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M14 42c6-18 18-30 36-34 4 18-4 34-22 42l-8-8zM22 50l-8 6 2-10M28 56l6-8M18 36l-10 2 6-8M38 16a5 5 0 1 0 0 10 5 5 0 0 0 0-10z" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "microscope": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M28 8l14 8-8 14-14-8 8-14zM24 26c-4 8-2 18 8 22M14 50h36M20 58h30M16 42h16" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "dove": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M10 34c10 0 12-18 26-18 10 0 16 8 18 14l8-2-8 8c-4 12-18 18-30 12l-10 6 4-12c-5-2-8-4-8-8zM38 24h.1M48 38l8 6M44 42l6 8" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "siren": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M16 50h32v8H16zM20 50V28a12 12 0 0 1 24 0v22M32 12V6M50 18l5-5M14 18l-5-5M32 30v14" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "hero": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M28 8a5 5 0 1 0 8 0 5 5 0 0 0-8 0zM24 20h16v34H24zM18 28l-6 18M46 28l10 16M40 24c8 0 14 4 18 12v18c-6-4-12-6-18-4M28 32l4-4 4 4-4 4z" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "burst": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M30 8l6 14 14-6-6 14 14 6-16 4 6 14-16-8-12 10 2-16-16-4 14-8-6-14 14 6zM26 32h.1M34 36h.1M38 28h.1" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "trap": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M10 34l10-10 8 10 8-10 8 10 10-10M10 34c6 10 38 10 44 0M32 34v12M24 50h16M32 30a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "target": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M32 56a24 24 0 1 1 0-48 24 24 0 0 1 0 48zM32 46a14 14 0 1 1 0-28 14 14 0 0 1 0 28zM32 36a4 4 0 1 1 0-8 4 4 0 0 1 0 8zM36 28l14-14M46 14h8v8" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "cat": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M16 26l4-14 10 10h4l10-10 4 14c4 5 4 18-2 24-8 8-28 8-36 0-6-6-6-19-2-24zM24 36h.1M40 36h.1M32 42v4M26 48h12M14 40H4M16 48H6M50 40h10M48 48h10" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "flame": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M32 58c-12 0-22-8-22-22 0-9 6-14 10-20 0 8 6 10 8 4 2-6 0-10 8-16 2 12 16 18 16 34 0 12-8 20-20 20zM32 58c-6 0-10-4-10-10 0-6 5-8 7-14 2 6 9 8 9 16 0 4-3 8-6 8z" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "shocked": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M32 8a24 24 0 0 0-24 24c0 14 10 24 24 24s24-10 24-24A24 24 0 0 0 32 8zM23 27h.1M41 27h.1M32 36c4 0 7 4 7 10H25c0-6 3-10 7-10zM10 34l-6 8 4 12 8-4M54 34l6 8-4 12-8-4" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "handshake": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M6 24h12l10 10 6-6c4-4 10-2 14 2l10 10M58 24H46M18 24l-8 18h10l8 8c4 4 10 4 14 0l10-10M28 46l6 6M34 42l6 6M40 38l6 6" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "puzzle": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M22 8h18v12a6 6 0 1 1 0 12v8h-8a6 6 0 1 0-12 0v8H8V30h12a6 6 0 1 0 0-12V8z" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "owl": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M16 18c6-8 26-8 32 0v22c0 10-7 18-16 18S16 50 16 40V18zM22 28a7 7 0 1 0 14 0 7 7 0 0 0-14 0zM36 28a7 7 0 1 0 14 0 7 7 0 0 0-14 0zM32 34l-4 6h8zM24 56v4M40 56v4" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "lock": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M18 28V18a14 14 0 0 1 28 0v10M14 28h36v28H14zM32 40v8M32 40h.1" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "trophy": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M20 10h24v18c0 8-5 14-12 14s-12-6-12-14V10zM20 16H8v8c0 8 6 12 12 12M44 16h12v8c0 8-6 12-12 12M32 42v10M22 56h20M18 60h28" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
-    "chevron": """<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><path d="M16 40l16-16 16 16" fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>""",
+ACHIEVEMENT_ICON_FILES = {
+    "rocket": "rocket.png",
+    "microscope": "microscope.png",
+    "dove": "dove.png",
+    "siren": "siren.png",
+    "hero": "hero.png",
+    "burst": "burst.png",
+    "trap": "trap.png",
+    "target": "target.png",
+    "cat": "cat.png",
+    "flame": "flame.png",
+    "shocked": "shocked.png",
+    "handshake": "handshake.png",
+    "puzzle": "puzzle.png",
+    "owl": "owl.png",
+    "lock": "lock.png",
+    "trophy": "trophy.png",
 }
+
+ACHIEVEMENT_ICON_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets" / "achievement-icons"
 
 
 def achievement_icon_key(achievement_id: str | None, locked: bool = False) -> str:
@@ -194,24 +197,25 @@ def achievement_icon_key(achievement_id: str | None, locked: bool = False) -> st
     return ACHIEVEMENT_ICON_BY_ID.get(achievement_id or "", "trophy")
 
 
-def achievement_icon_css():
-    rules = []
-    for icon_key, svg in ACHIEVEMENT_ICON_SVGS.items():
-        encoded_svg = quote(svg, safe="")
-        rules.append(
-            f""".achievement-icon-{icon_key}::before {{
-  --achievement-icon-mask: url("data:image/svg+xml;charset=utf-8,{encoded_svg}");
-}}"""
-        )
-    return "\n".join(rules)
+@lru_cache(maxsize=None)
+def achievement_icon_src(icon_key: str) -> str:
+    filename = ACHIEVEMENT_ICON_FILES.get(icon_key, ACHIEVEMENT_ICON_FILES["trophy"])
+    payload = (ACHIEVEMENT_ICON_ASSET_DIR / filename).read_bytes()
+    return f"data:image/png;base64,{b64encode(payload).decode('ascii')}"
 
 
 def achievement_icon_html(icon_key: str, extra_class: str = "") -> str:
-    icon_key = icon_key if icon_key in ACHIEVEMENT_ICON_SVGS else "trophy"
+    icon_key = icon_key if icon_key in ACHIEVEMENT_ICON_FILES or icon_key == "chevron" else "trophy"
     class_attr = f"achievement-icon achievement-icon-{icon_key}"
     if extra_class:
         class_attr = f"{class_attr} {extra_class}"
-    return f'<span class="{class_attr}" aria-hidden="true"></span>'
+    if icon_key == "chevron":
+        return f'<span class="{class_attr}" aria-hidden="true"></span>'
+    return (
+        f'<span class="{class_attr}" aria-hidden="true">'
+        f'<img class="achievement-icon-img" src="{achievement_icon_src(icon_key)}" alt="" decoding="async">'
+        "</span>"
+    )
 
 
 def render_achievement_notifications(notifications):
@@ -237,7 +241,6 @@ def render_achievement_notifications(notifications):
 
 
 def render_global_styles():
-    st.html(f"<style>{achievement_icon_css()}</style>")
     st.html(
         """
 <style>
@@ -722,6 +725,11 @@ h3 {
   height: 1.55rem;
 }
 
+.achievement-toast .achievement-icon-img {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+
 .achievement-toast-title {
   display: block;
   color: var(--text);
@@ -1012,20 +1020,11 @@ h3 {
   line-height: 1;
 }
 
-.achievement-icon::before {
-  content: "";
+.achievement-icon-img {
   display: block;
   width: 1.38rem;
   height: 1.38rem;
-  background: currentColor;
-  -webkit-mask-image: var(--achievement-icon-mask);
-  mask-image: var(--achievement-icon-mask);
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: contain;
-  mask-size: contain;
+  object-fit: contain;
 }
 
 .achievement-icon-rocket,
@@ -1067,8 +1066,13 @@ h3 {
 }
 
 .achievement-toggle::before {
-  width: 1rem;
-  height: 1rem;
+  content: "";
+  display: block;
+  width: 0.68rem;
+  height: 0.68rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(225deg);
 }
 
 .achievement-row.is-locked .achievement-icon {
