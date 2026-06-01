@@ -271,9 +271,9 @@ def render_global_styles():
   --radius-sm: 6px;
   --radius: 8px;
   --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-  --shadow-xs: 0 1px 0 rgba(7, 24, 35, 0.05);
-  --shadow-sm: 0 1px 2px rgba(7, 24, 35, 0.05), 0 12px 30px -22px rgba(7, 24, 35, 0.30);
-  --shadow-md: 0 20px 50px -36px rgba(7, 24, 35, 0.38);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
 }
 
 /* ── Base ─────────────────────────────────── */
@@ -345,7 +345,7 @@ html, body, .stApp {
 /* ── Sidebar ──────────────────────────────── */
 [data-testid="stSidebar"] {
   border-right: 1px solid var(--line-soft);
-  box-shadow: 10px 0 36px -28px rgba(7, 24, 35, 0.45);
+  box-shadow: none;
 }
 
 [data-testid="stSidebar"] > div:first-child {
@@ -679,7 +679,7 @@ h3 {
   border: 1px solid var(--frame-border-soft);
   border-radius: 8px;
   background: var(--frame-bg-strong);
-  box-shadow: 0 16px 40px rgba(7, 24, 35, 0.14), 0 2px 6px rgba(7, 24, 35, 0.08);
+  box-shadow: none;
   animation: achievementToast 7s ease both;
   animation-delay: calc(var(--toast-index) * 130ms);
 }
@@ -823,7 +823,7 @@ h3 {
 }
 
 .terminal-progress-block.is-active {
-  box-shadow: 0 0 14px var(--primary-light);
+  box-shadow: none;
 }
 
 .terminal-progress-status {
@@ -1206,7 +1206,7 @@ h3 {
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
   border-color: var(--primary-strong);
   color: var(--surface);
-  box-shadow: 0 2px 8px rgba(0, 167, 87, 0.22), 0 1px 2px rgba(0, 167, 87, 0.16);
+  box-shadow: none;
 }
 
 .stButton > button[kind="primary"] *,
@@ -1217,7 +1217,7 @@ h3 {
 
 .stButton > button[kind="primary"]:hover:not(:disabled) {
   background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
-  box-shadow: 0 6px 18px rgba(0, 167, 87, 0.30), 0 2px 6px rgba(0, 167, 87, 0.16);
+  box-shadow: none;
 }
 
 /* ── Form controls ────────────────────────── */
@@ -1228,7 +1228,7 @@ h3 {
 [data-testid="stSlider"] [role="slider"] {
   background-color: var(--primary);
   border-color: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0, 167, 87, 0.14), 0 2px 5px rgba(0, 167, 87, 0.22);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 [data-testid="stSlider"] div[data-testid="stTickBar"] div {
@@ -1335,7 +1335,7 @@ h3 {
   border-radius: 8px;
   background: var(--primary);
   border-color: var(--primary-strong);
-  box-shadow: 0 8px 18px rgba(0, 136, 70, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10);
+  box-shadow: none;
   transition: none !important;
 }
 
@@ -1343,7 +1343,7 @@ h3 {
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:active:not(:disabled),
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:focus:not(:disabled) {
   background: var(--primary) !important;
-  box-shadow: 0 8px 18px rgba(0, 136, 70, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
+  box-shadow: none !important;
   transform: none !important;
 }
 
@@ -1945,7 +1945,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   padding: 14px 18px 14px;
   margin: 0 0 12px;
   background: var(--frame-bg);
-  box-shadow: 0 1px 2px rgba(7,24,35,0.05), 0 20px 42px -34px rgba(7,24,35,0.38);
+  box-shadow: none;
 }}
 .policy-panels {{
   display: flex;
@@ -1958,14 +1958,14 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   border-radius: 8px;
   padding: 10px 12px;
   background: var(--frame-bg-soft);
-  box-shadow: 0 1px 2px rgba(7,24,35,0.04);
+  box-shadow: none;
   transition: border-color 200ms ease, box-shadow 200ms ease;
 }}
 .policy-panel[data-ready="true"] {{
   border-color: var(--primary-border);
   border-left-color: var(--primary);
   border-left-width: 3px;
-  box-shadow: 0 2px 10px rgba(0,167,87,0.07);
+  box-shadow: none;
 }}
 .policy-panel-title {{
   color: var(--text);
@@ -2046,7 +2046,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
 }}
 .policy-panel.show-final .life-dot.changed-prevented {{
   background: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0,167,87,0.24);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }}
 .policy-panel.show-final .life-dot.changed-harmed {{
   box-shadow: 0 0 0 3px var(--accent-border);
@@ -2508,7 +2508,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 [data-testid="stSidebar"] .stButton > button:not([kind="primary"]):disabled {
   background: var(--amber) !important;
   border-color: var(--amber) !important;
-  box-shadow: 0 8px 18px rgba(240, 138, 0, 0.22), 0 2px 4px rgba(7, 24, 35, 0.10) !important;
+  box-shadow: none !important;
   opacity: 1 !important;
 }
 </style>
