@@ -1807,6 +1807,9 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > d
 
 .st-key-results_content_panel h3 {
   margin-top: 0 !important;
+  font-size: 0.82rem !important;
+  letter-spacing: 0.14em !important;
+  line-height: 1.35 !important;
 }
 
 @media (max-width: 700px) {
