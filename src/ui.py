@@ -190,6 +190,11 @@ def render_global_styles():
   --accent: #dd2538;
   --amber: #f08a00;
   --success: #00a757;
+  --frame-border: rgba(53, 88, 72, 0.17);
+  --frame-border-soft: rgba(53, 88, 72, 0.12);
+  --frame-bg: rgba(255, 255, 255, 0.86);
+  --frame-bg-soft: rgba(255, 255, 255, 0.78);
+  --frame-bg-strong: rgba(255, 255, 255, 0.94);
   --primary-border: rgba(0, 167, 87, 0.32);
   --amber-light: rgba(240, 138, 0, 0.07);
   --amber-border: rgba(240, 138, 0, 0.28);
@@ -199,6 +204,12 @@ def render_global_styles():
   --risk-safe-soft: rgba(157, 190, 168, 0.58);
   --disabled-fill: #c8d4cf;
   --disabled-border: #b0bfba;
+  --disabled-surface: rgba(53, 88, 72, 0.035);
+  --disabled-surface-active: rgba(53, 88, 72, 0.065);
+  --disabled-border-soft: rgba(53, 88, 72, 0.12);
+  --disabled-border-active: rgba(53, 88, 72, 0.22);
+  --disabled-text: rgba(72, 97, 106, 0.44);
+  --disabled-text-active: rgba(72, 97, 106, 0.62);
   --disabled-track: rgba(200, 212, 207, 0.55);
   --disabled-tag: rgba(200, 212, 207, 0.50);
   --radius-sm: 6px;
@@ -256,9 +267,9 @@ html, body, .stApp {
   width: 2.2rem;
   height: 2.2rem;
   place-items: center;
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
   pointer-events: auto;
 }
@@ -271,8 +282,8 @@ html, body, .stApp {
 [data-testid="stMainBlockContainer"],
 .block-container {
   max-width: 1232px;
-  padding-top: 1.5rem;
-  padding-bottom: 4rem;
+  padding-top: 1.2rem;
+  padding-bottom: 3rem;
 }
 
 /* ── Sidebar ──────────────────────────────── */
@@ -285,7 +296,7 @@ html, body, .stApp {
   background:
     linear-gradient(rgba(0, 167, 87, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 167, 87, 0.05) 1px, transparent 1px),
-    rgba(255, 255, 255, 0.86);
+    var(--frame-bg);
   background-size: 28px 28px, 28px 28px, auto;
   backdrop-filter: blur(14px);
   padding-top: 1.75rem;
@@ -304,15 +315,15 @@ h1, h2, h3 {
 
 h1 {
   max-width: 760px;
-  margin-top: 1.4rem;
-  margin-bottom: 1.35rem;
+  margin-top: 1.1rem;
+  margin-bottom: 1rem;
   font-size: 4.1rem;
   line-height: 1.04;
   font-weight: 750;
 }
 
 h2 {
-  margin-top: 1.65rem;
+  margin-top: 1.1rem;
   font-size: 1.28rem;
   font-family: var(--mono);
   text-transform: uppercase;
@@ -320,7 +331,7 @@ h2 {
 }
 
 h3 {
-  margin-top: 1.65rem;
+  margin-top: 1.05rem;
   font-size: 0.98rem;
   font-family: var(--mono);
   text-transform: uppercase;
@@ -352,8 +363,8 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 0 1.25rem;
-  margin: -0.25rem 0 2.1rem;
+  padding: 0.8rem 0 0.95rem;
+  margin: -0.25rem 0 1.35rem;
   border-bottom: 1px solid var(--line-soft);
 }
 
@@ -368,9 +379,9 @@ h3 {
   width: 2rem;
   height: 2rem;
   place-items: center;
-  border: 1px solid rgba(0, 167, 87, 0.44);
+  border: 1px solid var(--primary-border);
   border-radius: 7px;
-  background: rgba(0, 167, 87, 0.11);
+  background: var(--primary-light);
   color: var(--primary);
   font-family: var(--mono);
   font-size: 0.8rem;
@@ -403,7 +414,7 @@ h3 {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.55rem;
-  margin: 0 0 0.85rem;
+  margin: 0 0 0.65rem;
 }
 
 .hero-copy {
@@ -430,7 +441,7 @@ h3 {
 
 .hero-subtitle {
   max-width: 760px;
-  margin: 0.85rem 0 0;
+  margin: 0.65rem 0 0;
   color: var(--text-muted);
   font-size: 1.28rem;
   line-height: 1.55;
@@ -443,38 +454,38 @@ h3 {
   padding: 0.25rem 0.7rem;
   border: 1px solid var(--line-soft);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--frame-bg-soft);
   color: var(--text-muted);
   font-size: 0.67rem;
   font-weight: 600;
 }
 
 .badge-live {
-  border-color: rgba(0, 167, 87, 0.48);
+  border-color: var(--primary-border);
   color: var(--primary);
 }
 
 .section-gap {
-  height: 1.6rem;
+  height: 0.85rem;
 }
 
 .section-gap-lg {
-  height: 2.2rem;
+  height: 1.15rem;
 }
 
 .hero-stat-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin: 2.35rem 0 1.4rem;
+  gap: 0.7rem;
+  margin: 1.55rem 0 0.95rem;
 }
 
 .hero-stat-card {
   min-height: 7.2rem;
   padding: 1.05rem 1.2rem;
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--frame-bg-soft);
   box-shadow: var(--shadow-xs);
 }
 
@@ -516,11 +527,11 @@ h3 {
 }
 
 .population-overview {
-  margin: 1.2rem 0 1.05rem;
-  padding: 1.35rem 1.55rem 1.45rem;
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  margin: 0.75rem 0 0.8rem;
+  padding: 1.15rem 1.35rem 1.25rem;
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
 }
 
@@ -545,8 +556,8 @@ h3 {
 .population-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.72rem 1.28rem;
-  margin-top: 1.35rem;
+  gap: 0.52rem 1.05rem;
+  margin-top: 0.95rem;
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.86rem;
@@ -609,9 +620,9 @@ h3 {
   align-items: center;
   gap: 0.7rem;
   padding: 1rem 1.1rem;
-  border: 1px solid rgba(53, 88, 72, 0.14);
+  border: 1px solid var(--frame-border-soft);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--frame-bg-strong);
   box-shadow: 0 16px 40px rgba(7, 24, 35, 0.14), 0 2px 6px rgba(7, 24, 35, 0.08);
   animation: achievementToast 7s ease both;
   animation-delay: calc(var(--toast-index) * 130ms);
@@ -673,11 +684,11 @@ h3 {
 
 /* ── Terminal progress ────────────────────── */
 .terminal-progress-card {
-  margin: 0.5rem 0 1.65rem;
-  padding: 1.15rem 1.25rem 1.25rem;
-  border: 1px solid var(--primary-light);
+  margin: 0.25rem 0 1rem;
+  padding: 1rem 1.15rem 1.1rem;
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
 }
 
@@ -686,7 +697,7 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.9rem;
+  margin-bottom: 0.7rem;
   color: var(--primary);
   font-family: var(--mono);
 }
@@ -760,7 +771,7 @@ h3 {
 }
 
 .terminal-progress-status {
-  margin-top: 0.9rem;
+  margin-top: 0.7rem;
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.9rem;
@@ -768,7 +779,7 @@ h3 {
 }
 
 .terminal-progress-note {
-  margin-top: 0.8rem;
+  margin-top: 0.65rem;
   padding: 0.78rem 0.9rem;
   border: 1px solid var(--primary-light);
   border-radius: 8px;
@@ -800,10 +811,10 @@ h3 {
 
 .achievement-shell {
   overflow: hidden;
-  margin-bottom: 1rem;
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
 }
 
@@ -816,7 +827,7 @@ h3 {
   padding: 0.9rem 1rem;
   cursor: pointer;
   list-style: none;
-  border-bottom: 1px solid rgba(53, 88, 72, 0.13);
+  border-bottom: 1px solid var(--frame-border-soft);
 }
 
 .achievement-shell summary::-webkit-details-marker {
@@ -896,7 +907,7 @@ h3 {
   grid-template-columns: 1.6rem minmax(0, 1fr);
   gap: 0.75rem;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid rgba(53, 88, 72, 0.08);
+  border-bottom: 1px solid var(--frame-border-soft);
 }
 
 .achievement-row:last-child {
@@ -966,27 +977,26 @@ h3 {
 /* -- Sidebar simulation params --------------- */
 [data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]:has(.settings-panel-title) {
   overflow: hidden;
-  margin-bottom: 1rem;
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(250, 253, 251, 0.86) 100%);
+  background: var(--frame-bg);
   box-shadow: var(--shadow-xs);
 }
 
 [data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]:has(.settings-panel-title) > div {
-  padding: 1rem;
+  padding: 0.9rem;
 }
 
 [data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"]:has(.settings-panel-title) [data-testid="stVerticalBlock"] {
-  gap: 0.55rem;
+  gap: 0.42rem;
 }
 
 .settings-panel-title {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.55rem;
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.73rem;
@@ -1009,7 +1019,7 @@ h3 {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-top: 0.55rem;
+  margin-top: 0.38rem;
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 0.7rem;
@@ -1027,7 +1037,7 @@ h3 {
 }
 
 .settings-field-copy {
-  margin: 0.15rem 0 0.45rem;
+  margin: 0.12rem 0 0.32rem;
   color: var(--text-muted);
   font-size: 0.78rem;
   line-height: 1.35;
@@ -1035,8 +1045,8 @@ h3 {
 
 .settings-panel-divider {
   height: 1px;
-  margin: 0.7rem 0 0.25rem;
-  background: rgba(53, 88, 72, 0.14);
+  margin: 0.52rem 0 0.18rem;
+  background: var(--frame-border-soft);
 }
 
 .settings-kv {
@@ -1065,8 +1075,8 @@ h3 {
 
 /* ── Expanders ────────────────────────────── */
 [data-testid="stExpander"] details {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  background: var(--frame-bg-soft);
+  border: 1px solid var(--frame-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-xs);
   transition: box-shadow 180ms ease, border-color 180ms ease;
@@ -1087,7 +1097,7 @@ h3 {
   font-weight: 600;
   font-size: 0.75rem;
   color: var(--text);
-  padding: 0.85rem 1rem;
+  padding: 0.72rem 0.9rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -1107,7 +1117,7 @@ h3 {
 }
 
 .stButton > button:hover:not(:disabled) {
-  border-color: rgba(0, 167, 87, 0.44);
+  border-color: var(--primary-border);
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
@@ -1194,7 +1204,7 @@ h3 {
   padding-right: 0.18rem;
   border: 0 !important;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--frame-bg-soft);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-muted);
   font-family: var(--mono);
@@ -1235,7 +1245,7 @@ h3 {
 
 [data-testid="stSidebar"] [data-baseweb="select"] > div {
   border-color: var(--line);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--frame-bg-soft);
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"] {
@@ -1274,12 +1284,18 @@ h3 {
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled {
   background: var(--disabled-fill) !important;
   border-color: var(--disabled-border) !important;
+  color: var(--disabled-text-active) !important;
   box-shadow: none !important;
   opacity: 1 !important;
   cursor: not-allowed !important;
   pointer-events: auto !important;
   transform: none !important;
   transition: none !important;
+}
+
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled *,
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled p {
+  color: var(--disabled-text-active) !important;
 }
 
 [data-testid="stSidebar"] .stButton > button[kind="primary"]:disabled:hover,
@@ -1309,27 +1325,44 @@ h3 {
   background: var(--disabled-track) !important;
 }
 
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind^="segmented_control"]:disabled,
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind^="segmented_control"][disabled],
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind^="segmented_control"][aria-disabled="true"],
 [data-testid="stSidebar"] [data-testid="stSegmentedControl"] label:has(input:disabled) > div {
-  background: rgba(53, 88, 72, 0.03) !important;
-  box-shadow: inset 0 0 0 1px rgba(53, 88, 72, 0.12) !important;
-  color: rgba(72, 97, 106, 0.42) !important;
+  background: var(--disabled-surface) !important;
+  box-shadow: inset 0 0 0 1px var(--disabled-border-soft) !important;
+  color: var(--disabled-text) !important;
   cursor: not-allowed !important;
+  opacity: 1 !important;
 }
 
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"]:disabled,
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"][disabled],
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="segmented_controlActive"][aria-disabled="true"],
 [data-testid="stSidebar"] [data-testid="stSegmentedControl"] label:has(input:disabled:checked) > div {
-  background: rgba(53, 88, 72, 0.06) !important;
-  box-shadow: inset 0 0 0 1.5px rgba(53, 88, 72, 0.20) !important;
-  color: rgba(72, 97, 106, 0.60) !important;
+  background: var(--disabled-surface-active) !important;
+  box-shadow: inset 0 0 0 1.5px var(--disabled-border-active) !important;
+  color: var(--disabled-text-active) !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind^="segmented_control"]:disabled p,
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind^="segmented_control"][disabled] p,
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind^="segmented_control"][aria-disabled="true"] p {
+  color: inherit !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="select"] > div {
-  background: rgba(53, 88, 72, 0.03) !important;
-  border-color: rgba(53, 88, 72, 0.12) !important;
+  background: var(--disabled-surface) !important;
+  border-color: var(--disabled-border-soft) !important;
+  color: var(--disabled-text) !important;
   cursor: not-allowed !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stMultiSelect"]:has(input:disabled) [data-baseweb="tag"] {
   background: var(--disabled-tag) !important;
+  color: var(--disabled-text-active) !important;
   opacity: 0.70;
 }
 
@@ -1393,7 +1426,7 @@ h3 {
   padding: 0.5rem 0.5rem;
   border: 0 !important;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--frame-bg-soft);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-muted);
   font-family: var(--mono);
@@ -1427,10 +1460,10 @@ h3 {
 
 /* ── Metric cards ─────────────────────────── */
 div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]) {
-  background: rgba(255, 255, 255, 0.80);
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  background: var(--frame-bg);
+  border: 1px solid var(--frame-border);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 0.9rem 1rem;
   box-shadow: var(--shadow-xs);
   transition: box-shadow 150ms ease;
 }
@@ -1441,7 +1474,7 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 
 /* ── Data tables ──────────────────────────── */
 [data-testid="stDataFrame"] {
-  border: 1px solid rgba(53, 88, 72, 0.16);
+  border: 1px solid var(--frame-border);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: var(--shadow-xs);
@@ -1485,20 +1518,20 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stMetric"]):hover {
 /* ── Results panel (Policy comparison + Averages card) ── */
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel {
   overflow: hidden;
-  margin-top: 0.5rem;
-  margin-bottom: 1.75rem;
-  border: 1px solid rgba(53, 88, 72, 0.16) !important;
+  margin-top: 0.25rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid var(--frame-border) !important;
   border-radius: var(--radius) !important;
-  background: rgba(255, 255, 255, 0.92) !important;
+  background: var(--frame-bg-strong) !important;
   box-shadow: var(--shadow-sm) !important;
 }
 
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
-  padding: 1.5rem 1.75rem;
+  padding: 1.2rem 1.45rem;
 }
 
 .st-key-results_panel [data-testid="stVerticalBlock"] {
-  gap: 0.85rem;
+  gap: 0.65rem;
 }
 
 .st-key-results_panel h3 {
@@ -1526,7 +1559,7 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
   .block-container {
     padding-left: 1rem;
     padding-right: 1rem;
-    padding-top: 1.25rem;
+    padding-top: 1rem;
   }
 
   h1 {
@@ -1543,7 +1576,7 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
   .app-topbar {
     align-items: flex-start;
     flex-direction: column;
-    margin-bottom: 1.4rem;
+    margin-bottom: 1rem;
   }
 
   .app-status-chips {
@@ -1560,12 +1593,12 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
   }
 
   .hero-subtitle {
-    margin-top: 1.4rem;
+    margin-top: 0.8rem;
     font-size: 1.05rem;
   }
 
   .population-overview {
-    padding: 1.15rem;
+    padding: 1rem;
   }
 
   .population-overview-heading {
@@ -1831,29 +1864,30 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
     return f"""
 <style>
 .life-course-card {{
-  border: 1px solid rgba(53,88,72,0.16);
+  border: 1px solid var(--frame-border);
   border-radius: 8px;
-  padding: 18px 20px 16px;
-  margin: 0 0 20px;
-  background: rgba(255,255,255,0.84);
+  padding: 14px 18px 14px;
+  margin: 0 0 12px;
+  background: var(--frame-bg);
   box-shadow: 0 1px 2px rgba(7,24,35,0.05), 0 20px 42px -34px rgba(7,24,35,0.38);
 }}
 .policy-panels {{
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }}
 .policy-panel {{
-  border: 1px solid rgba(53,88,72,0.14);
-  border-left: 3px solid rgba(0,167,87,0.72);
+  border: 1px solid var(--frame-border-soft);
+  border-left: 3px solid var(--primary);
   border-radius: 8px;
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.78);
+  padding: 10px 12px;
+  background: var(--frame-bg-soft);
   box-shadow: 0 1px 2px rgba(7,24,35,0.04);
   transition: border-color 200ms ease, box-shadow 200ms ease;
 }}
 .policy-panel[data-ready="true"] {{
-  border-color: rgba(0,167,87,0.28);
+  border-color: var(--primary-border);
+  border-left-color: var(--primary);
   border-left-width: 3px;
   box-shadow: 0 2px 10px rgba(0,167,87,0.07);
 }}
@@ -1869,7 +1903,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   color: var(--text-muted);
   font-size: 0.75rem;
   line-height: 1.4;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }}
 .policy-grid {{
   display: grid;
@@ -1878,12 +1912,12 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
   gap: 4px;
   align-items: center;
   justify-items: center;
-  padding: 12px 10px;
+  padding: 10px 9px;
   position: relative;
   overflow: hidden;
   border-radius: 6px;
-  background: rgba(247,252,249,0.72);
-  border: 1px solid rgba(53,88,72,0.12);
+  background: var(--surface-panel);
+  border: 1px solid var(--frame-border-soft);
   contain: layout style paint;
   content-visibility: auto;
   contain-intrinsic-block-size: 200px;
@@ -1943,7 +1977,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
 }}
 @media (max-width: 700px) {{
   .life-course-card {{
-    padding: 14px;
+    padding: 12px;
     border-radius: 10px;
   }}
 
