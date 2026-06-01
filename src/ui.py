@@ -1669,10 +1669,10 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel {
   overflow: hidden;
   margin-top: 0.25rem;
   margin-bottom: 0.25rem;
-  border: 1px solid var(--frame-border) !important;
+  border: 0 !important;
   border-radius: var(--radius) !important;
-  background: var(--frame-bg-strong) !important;
-  box-shadow: var(--shadow-sm) !important;
+  background: var(--frame-bg) !important;
+  box-shadow: none !important;
 }
 
 div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_panel > div {
