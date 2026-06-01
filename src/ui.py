@@ -335,6 +335,18 @@ html, body, .stApp {
   pointer-events: auto;
 }
 
+[data-testid="stSidebarCollapseButton"],
+[data-testid="collapsedControl"] {
+  top: 0.7rem !important;
+  z-index: 999999 !important;
+}
+
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="collapsedControl"] button {
+  width: 2.2rem !important;
+  height: 2.2rem !important;
+}
+
 /* ── Main content ─────────────────────────── */
 [data-testid="stMainBlockContainer"],
 .block-container {
