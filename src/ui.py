@@ -35,7 +35,6 @@ from src.llm import (
 )
 from src.simulation import (
     clamp_count,
-    clean_llm_district_results,
     clean_llm_run_results,
     compact_aggregate_metrics,
     derived_flagged_count,
@@ -2452,7 +2451,7 @@ def display_combined_policy_totals_table(run_results, population_size):
     )
 
 
-def render_charts(run_results, district_results):
+def render_charts(run_results):
     chart_left, chart_right = st.columns(2)
 
     with chart_left:
@@ -2514,7 +2513,6 @@ def render_results_fragment(settings):
     if not latest_result:
         return
     latest_run_results = latest_result["run_results"]
-    latest_district_results = latest_result["district_results"]
 
     st.subheader("Policy comparison")
     st.caption("Average outcomes per run. Use this to compare policies side by side.")
@@ -2525,14 +2523,13 @@ def render_results_fragment(settings):
         for selected_policy, policy_tab in zip(POLICIES, st.tabs(POLICIES), strict=True):
             with policy_tab:
                 policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
-                policy_districts = latest_district_results[latest_district_results["policy"] == selected_policy]
-                if policy_runs.empty or policy_districts.empty:
+                if policy_runs.empty:
                     st.caption("No results for this policy in the current session.")
                 else:
                     policy_average_table = average_results_table(policy_runs)
                     st.subheader("Averages")
                     display_average_table(policy_average_table)
-                    render_charts(policy_runs, policy_districts)
+                    render_charts(policy_runs)
                     render_interpretation(
                         selected_policy,
                         policy_average_table,
@@ -2631,7 +2628,7 @@ def render_terminal_progress(
 def _run_simulation(settings, selected_models, progress_slot, update_slot, live_population):
     parameter_summary = compact_parameter_summary(settings)
     total_calls = len(selected_models) * len(POLICIES)
-    run_frames, district_frames, model_summaries = [], [], []
+    run_frames, model_summaries = [], []
     agents, debrief_parts, errors = [], [], []
     completed = 0
     progress_note = ""
@@ -2653,14 +2650,15 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             try:
                 raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
                 run_results = clean_llm_run_results(raw.get("run_results", []))
-                district_results = clean_llm_district_results(raw.get("district_results", []))
-                validate_llm_tables(run_results, district_results, policy_settings)
-                run_results, district_results = normalize_llm_metrics(run_results, district_results, policy_settings)
-                run_results, district_results = attach_model_label(run_results, district_results, model)
-                run_results, district_results = attach_policy_label(run_results, district_results, policy)
+                validate_llm_tables(run_results, policy_settings, enforce_bounds=False)
+                run_results = normalize_llm_metrics(run_results, policy_settings)
+                validate_llm_tables(run_results, policy_settings)
+                run_results = attach_model_label(run_results, model)
+                run_results = attach_policy_label(run_results, policy)
                 policy_agents = normalize_representative_agents(
                     raw.get("representative_agents", [])[:int(settings["llm_representative_agents"])],
                     model,
+                    policy,
                 )
                 debrief = str(raw.get("debrief_text", "")).strip()
                 completed += 1
@@ -2669,7 +2667,6 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 render_terminal_progress(progress_slot, completed, total_calls, f"Received {model} / {policy}.", note=progress_note)
                 aggregate = compact_aggregate_metrics(run_results)
                 run_frames.append(run_results)
-                district_frames.append(district_results)
                 agents.extend(policy_agents)
                 if debrief:
                     debrief_parts.append(f"{model} | {policy}: {debrief}")
@@ -2688,14 +2685,12 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 
     if run_frames:
         combined_runs = pd.concat(run_frames, ignore_index=True, copy=False)
-        combined_districts = pd.concat(district_frames, ignore_index=True, copy=False)
-        combined_runs, combined_districts = optimize_result_frames(combined_runs, combined_districts)
+        combined_runs = optimize_result_frames(combined_runs)
         debrief_combined = "\n\n".join(debrief_parts)
         aggregate = compact_aggregate_metrics(combined_runs)
 
         st.session_state["llm_agent_latest_result"] = {
             "run_results": combined_runs,
-            "district_results": combined_districts,
             "model_results": model_summaries,
             "representative_agents": agents,
             "debrief_text": debrief_combined,
@@ -2726,7 +2721,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 
         if errors:
             notices.append(("warning", "LLM-agent simulation generated for the successful model agents."))
-        del run_frames, district_frames
+        del run_frames
     elif errors:
         notices.append(("warning", "No LLM-agent simulation results were generated."))
 
@@ -2913,10 +2908,9 @@ def sidebar_inputs():
         "population_size": population_size,
         "true_high_risk_rate": true_high_risk_rate,
         "prediction_noise": prediction_noise,
-        "bias_against_district_c": 0.0,
         "policy_effect_strength": policy_effect_strength or "Medium",
         "llm_simulation_runs": 5,
-        "llm_representative_agents": 2,
+        "llm_representative_agents": 6,
     }
     settings["high_risk_threshold"] = derived_flagged_count(settings) / population_size
     settings["llm_agent_models"] = selected_models

@@ -32,8 +32,8 @@ SETTING_DESCRIPTIONS = {
         "Even a small error rate creates many wrong flags, because low-risk children far outnumber high-risk ones."
     ),
     "Intervention strength": (
-        "How strongly the policy is applied. "
-        "Low = mild effect on crime, help, and harm; High = strong effect on all three."
+        "Which intensity tier is used when choosing the concrete intervention measure. "
+        "Low = light-touch; Medium = structured or recurring; High = intensive, broad, or restrictive."
     ),
 }
 
@@ -78,7 +78,6 @@ CHECK_DESCRIPTIONS = {
     ),
 }
 
-DISTRICTS = ["A", "B", "C"]
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 DEFAULT_LLM_MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
 DEFAULT_DEBRIEF_WORD_LIMIT = 250
@@ -94,7 +93,6 @@ RUN_METRIC_COLUMNS = [
     "children_helped",
     "children_harmed",
 ]
-DISTRICT_METRIC_COLUMNS = ["run", "district", "false_positives", "children_harmed", "crimes"]
 RUN_COUNT_COLUMNS = [
     "baseline_crimes",
     "crimes_after_policy",
@@ -104,13 +102,10 @@ RUN_COUNT_COLUMNS = [
     "children_helped",
     "children_harmed",
 ]
-DISTRICT_COUNT_COLUMNS = ["false_positives", "children_harmed", "crimes"]
-NON_NEGATIVE_DISTRICT_COLUMNS = DISTRICT_COUNT_COLUMNS
 DEFAULT_TRUE_HIGH_RISK_RATE = 0.125
 POPULATION_DOT_ANIMATION_SECONDS = 0.18
 POPULATION_DOT_STAGGER_GROUP = 12
 POPULATION_DOT_STAGGER_SECONDS = 0.0005
-POLICY_EFFECT_REDUCTION_RATES = {"Low": 0.05, "Medium": 0.15, "High": 0.28}
 
 RUN_METRIC_LABELS = {
     "baseline_crimes": "Would offend without intervention",
