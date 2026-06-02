@@ -916,6 +916,10 @@ h3 {
   line-height: 1.45;
 }
 
+.terminal-progress-case {
+  margin-top: 0.4rem;
+}
+
 .terminal-progress-prompt {
   color: var(--primary);
   font-weight: 700;
@@ -2687,11 +2691,18 @@ def representative_agent_progress_note(model, policy, policy_agents, max_agents=
     if not agents:
         return ""
 
-    vignettes = [
-        representative_agent_case_vignette(agent, index)
-        for index, agent in enumerate(agents, start=1)
-    ]
-    return f"{model} | {policy}: " + " ".join(vignettes)
+    lines = [f"<div>{escape(model)} | {escape(policy)}:</div>"]
+    for index, agent in enumerate(agents, start=1):
+        vignette = representative_agent_case_vignette(agent, index)
+        name = agent_display_name(agent, index)
+        if vignette.lower().startswith(name.lower()):
+            name_text = vignette[:len(name)]
+            rest = vignette[len(name):]
+            line = f"<strong>{escape(name_text)}</strong>{escape(rest)}"
+        else:
+            line = f"<strong>{escape(name)}</strong>: {escape(vignette)}"
+        lines.append(f'<div class="terminal-progress-case">{line}</div>')
+    return "".join(lines)
 
 
 def render_representative_agents(representative_agents):
@@ -2812,6 +2823,7 @@ def render_terminal_progress(
     status: str = "",
     title: str | None = None,
     note: str = "",
+    note_is_html: bool = False,
 ):
     total_safe = max(total, 1)
     progress_ratio = completed / total_safe
@@ -2828,7 +2840,11 @@ def render_terminal_progress(
         if index == filled - 1 and filled > 0:
             classes.append("is-active")
         blocks.append(f'<span class="{" ".join(classes)}"></span>')
-    note_html = f'<div class="terminal-progress-note">{escape(note)}</div>' if note else ""
+    if note:
+        note_content = note if note_is_html else escape(note)
+        note_html = f'<div class="terminal-progress-note">{note_content}</div>'
+    else:
+        note_html = ""
 
     slot.html(
         f"""
@@ -3060,10 +3076,10 @@ def sidebar_inputs():
     prediction_error_key = "prediction_error_percent"
     intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
-    true_rate_default = DEFAULT_TRUE_HIGH_RISK_RATE * 100
-    prediction_error_default = 2.5
-    true_rate_value = float(st.session_state.get(true_rate_key, true_rate_default))
-    prediction_error_value = float(st.session_state.get(prediction_error_key, prediction_error_default))
+    true_rate_default = round(DEFAULT_TRUE_HIGH_RISK_RATE * 100)
+    prediction_error_default = 3
+    true_rate_value = int(st.session_state.get(true_rate_key, true_rate_default))
+    prediction_error_value = int(st.session_state.get(prediction_error_key, prediction_error_default))
     intensity_value = st.session_state.get(intensity_key, "Medium")
     is_running = bool(st.session_state.get("simulation_running", False))
 
@@ -3082,11 +3098,11 @@ def sidebar_inputs():
         render_settings_field_header("True high-risk rate", format_percent(true_rate_value))
         true_high_risk_rate = st.slider(
             "Percentage of true high-risk children (%)",
-            0.0,
-            100.0,
+            0,
+            100,
             true_rate_default,
-            step=0.1,
-            format="%.1f%%",
+            step=1,
+            format="%d%%",
             key=true_rate_key,
             help=SETTING_DESCRIPTIONS["Percentage of true high-risk children (%)"],
             label_visibility="collapsed",
@@ -3099,11 +3115,11 @@ def sidebar_inputs():
         render_settings_field_header("Prediction error", format_percent(prediction_error_value))
         prediction_noise = st.slider(
             "Prediction error rate (%)",
-            0.0,
-            100.0,
+            0,
+            100,
             prediction_error_default,
-            step=0.1,
-            format="%.1f%%",
+            step=1,
+            format="%d%%",
             key=prediction_error_key,
             help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
             label_visibility="collapsed",
