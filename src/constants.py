@@ -93,6 +93,13 @@ RUN_METRIC_COLUMNS = [
     "children_helped",
     "children_harmed",
 ]
+POLICY_EFFECT_COLUMNS = [
+    "run",
+    "prevented_outcomes",
+    "policy_caused_outcomes",
+    "children_helped",
+    "children_harmed",
+]
 RUN_COUNT_COLUMNS = [
     "baseline_crimes",
     "crimes_after_policy",

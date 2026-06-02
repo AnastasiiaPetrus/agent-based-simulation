@@ -37,12 +37,14 @@ from src.llm import (
 )
 from src.simulation import (
     clamp_count,
-    clean_llm_run_results,
+    clean_llm_policy_effects,
     compact_aggregate_metrics,
     derived_flagged_count,
-    normalize_llm_metrics,
+    normalize_llm_policy_effects,
     optimize_result_frames,
     risk_signal_counts,
+    run_results_from_policy_effects,
+    validate_llm_policy_effects,
     validate_llm_tables,
 )
 from src.state import (
@@ -2874,9 +2876,11 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             user_prompt = build_llm_simulation_prompt(policy_settings)
             try:
                 raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
-                run_results = clean_llm_run_results(raw.get("run_results", []))
-                validate_llm_tables(run_results, policy_settings, enforce_bounds=False)
-                run_results = normalize_llm_metrics(run_results, policy_settings)
+                policy_effects = clean_llm_policy_effects(raw.get("policy_effects", []))
+                validate_llm_policy_effects(policy_effects, policy_settings, enforce_bounds=False)
+                policy_effects = normalize_llm_policy_effects(policy_effects, policy_settings)
+                validate_llm_policy_effects(policy_effects, policy_settings)
+                run_results = run_results_from_policy_effects(policy_effects, policy_settings)
                 validate_llm_tables(run_results, policy_settings)
                 run_results = attach_model_label(run_results, model)
                 run_results = attach_policy_label(run_results, policy)
