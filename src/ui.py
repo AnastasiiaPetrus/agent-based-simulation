@@ -2875,11 +2875,13 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     agents, debrief_parts, errors = [], [], []
     completed = 0
     progress_note = ""
+    progress_note_is_html = False
 
     render_terminal_progress(
         progress_slot, 0, total_calls,
         f"Running {len(POLICIES)} policies × {len(selected_models)} model(s)...",
         note=progress_note,
+        note_is_html=progress_note_is_html,
     )
     scroll_to_anchor("simulation-progress-anchor")
     children = baseline_children(settings)
@@ -2888,7 +2890,12 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     for model in selected_models:
         for policy in POLICIES:
             policy_settings = {**settings, "policy": policy}
-            render_terminal_progress(progress_slot, completed, total_calls, f"Running {model} on {policy}...", note=progress_note)
+            render_terminal_progress(
+                progress_slot, completed, total_calls,
+                f"Running {model} on {policy}...",
+                note=progress_note,
+                note_is_html=progress_note_is_html,
+            )
             user_prompt = build_llm_simulation_prompt(policy_settings)
             try:
                 raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
@@ -2910,9 +2917,16 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 case_note = representative_agent_progress_note(model, policy, policy_agents)
                 if case_note:
                     progress_note = case_note
+                    progress_note_is_html = True
                 elif debrief:
                     progress_note = f"{model} | {policy}: {compact_sentence(debrief, 320)}"
-                render_terminal_progress(progress_slot, completed, total_calls, f"Received {model} / {policy}.", note=progress_note)
+                    progress_note_is_html = False
+                render_terminal_progress(
+                    progress_slot, completed, total_calls,
+                    f"Received {model} / {policy}.",
+                    note=progress_note,
+                    note_is_html=progress_note_is_html,
+                )
                 aggregate = compact_aggregate_metrics(run_results)
                 run_frames.append(run_results)
                 agents.extend(policy_agents)
@@ -2925,7 +2939,13 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 completed += 1
                 msg = friendly_llm_error(error)
                 progress_note = msg
-                render_terminal_progress(progress_slot, completed, total_calls, f"Error: {model} / {policy}.", note=progress_note)
+                progress_note_is_html = False
+                render_terminal_progress(
+                    progress_slot, completed, total_calls,
+                    f"Error: {model} / {policy}.",
+                    note=progress_note,
+                    note_is_html=progress_note_is_html,
+                )
                 errors.append((f"{model} | {policy}", msg))
 
     progress_slot.empty()
