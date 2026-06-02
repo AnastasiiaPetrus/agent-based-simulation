@@ -131,7 +131,8 @@ All counts are integers, at least 0 and at most population_size, except crimes_p
 Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated cohort, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a false positive harmed, a false positive not made worse, a false negative who received no intervention, and a true negative for contrast. Each selected case must correspond to a category that actually occurs in the internally simulated cohort.
 
 Each agent object must contain:
-- agent_id: string
+- agent_id: fictional first name or fictional first name plus compact identifier
+- case_vignette: one compact sentence, 25-45 words, that names the agent, states the prediction status, names the selected policy measure if applied, includes one relevant life context, and gives the outcome by age 30
 - starting_profile: neutral description at starting_age
 - prediction_status: one of "true positive", "false positive", "false negative", "true negative"
 - no_policy_counterfactual: whether the predicted outcome would occur by outcome_age with no policy, plus a brief path
@@ -173,6 +174,7 @@ Return this shape with concrete values:
   "representative_agents": [
     {
       "agent_id": "<string>",
+      "case_vignette": "<string>",
       "starting_profile": "<string>",
       "prediction_status": "true positive | false positive | false negative | true negative",
       "no_policy_counterfactual": "<string>",

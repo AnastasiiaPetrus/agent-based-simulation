@@ -80,6 +80,7 @@ CHECK_DESCRIPTIONS = {
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 DEFAULT_LLM_MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
+MAX_LLM_MODEL_AGENTS = 2
 MAX_RUN_LOG_SIZE = 5
 
 RUN_METRIC_COLUMNS = [

@@ -18,6 +18,7 @@ from src.constants import (
     DEFAULT_TRUE_HIGH_RISK_RATE,
     LLM_MODEL,
     DEFAULT_LLM_MODEL_OPTIONS,
+    MAX_LLM_MODEL_AGENTS,
     MAX_RUN_LOG_SIZE,
     POLICY_DESCRIPTIONS,
     POLICIES,
@@ -1939,7 +1940,7 @@ def llm_model_options():
 def default_llm_agent_models(model_options):
     preferred_models = unique_values([LLM_MODEL, "gpt-4.1-mini"])
     defaults = [model for model in preferred_models if model in model_options]
-    return defaults or model_options[:1]
+    return (defaults or model_options[:1])[:MAX_LLM_MODEL_AGENTS]
 
 
 def glossary_markdown(items):
@@ -2427,6 +2428,13 @@ def render_settings_field_header(label, value=None):
     )
 
 
+def format_percent(value):
+    value = float(value)
+    if value.is_integer():
+        return f"{int(value)}%"
+    return f"{value:.1f}%"
+
+
 def render_settings_field_copy(text):
     st.html(f'<div class="settings-field-copy">{escape(text)}</div>')
 
@@ -2567,6 +2575,34 @@ def agent_text(value):
     return str(value)
 
 
+CASE_STORY_NAMES = [
+    "Alex",
+    "Maya",
+    "Sam",
+    "Nina",
+    "Leo",
+    "Iris",
+    "Owen",
+    "Rina",
+]
+
+
+def compact_sentence(value, max_length=170):
+    text = " ".join(agent_text(value).split())
+    if len(text) <= max_length:
+        return text
+
+    clipped = text[:max_length].rsplit(" ", 1)[0].rstrip(".,;:")
+    return f"{clipped}..."
+
+
+def agent_display_name(agent, index):
+    raw_name = agent_text(agent.get("agent_id")).strip()
+    if raw_name and not raw_name.lower().startswith(("agent", "case", "id-")):
+        return raw_name.split()[0]
+    return CASE_STORY_NAMES[(index - 1) % len(CASE_STORY_NAMES)]
+
+
 def policy_effect_text(effect):
     if not isinstance(effect, dict):
         return agent_text(effect)
@@ -2624,6 +2660,38 @@ def representative_agent_title(index, agent):
     return " | ".join(part for part in title_parts if part)
 
 
+def representative_agent_case_vignette(agent, index):
+    explicit_vignette = compact_sentence(agent.get("case_vignette"), 260)
+    if explicit_vignette:
+        return explicit_vignette
+
+    name = agent_display_name(agent, index)
+    status = agent_text(agent.get("prediction_status")) or "representative case"
+    profile = compact_sentence(agent.get("starting_profile"), 95)
+    mechanism = compact_sentence(agent.get("mechanism_summary"), 120)
+    outcome = "the predicted outcome occurred" if agent.get("predicted_outcome_occurred") else "the predicted outcome did not occur"
+
+    pieces = [f"{name} was a {status}."]
+    if profile:
+        pieces.append(profile)
+    if mechanism:
+        pieces.append(mechanism)
+    pieces.append(f"By age 30, {outcome}.")
+    return " ".join(pieces)
+
+
+def representative_agent_progress_note(model, policy, policy_agents, max_agents=3):
+    agents = [representative_agent_dict(agent) for agent in policy_agents[:max_agents]]
+    if not agents:
+        return ""
+
+    vignettes = [
+        representative_agent_case_vignette(agent, index)
+        for index, agent in enumerate(agents, start=1)
+    ]
+    return f"{model} | {policy}: " + " ".join(vignettes)
+
+
 def render_representative_agents(representative_agents):
     agents = [representative_agent_dict(agent) for agent in representative_agents]
     summary_rows = [representative_agent_summary(agent) for agent in agents]
@@ -2633,6 +2701,10 @@ def render_representative_agents(representative_agents):
         with st.expander(representative_agent_title(index, agent), expanded=False):
             if agent.get("description"):
                 st.write(agent_text(agent.get("description")))
+
+            if agent.get("case_vignette"):
+                st.markdown("**Case vignette**")
+                st.write(agent_text(agent.get("case_vignette")))
 
             st.markdown("**Starting profile**")
             st.write(agent_text(agent.get("starting_profile")))
@@ -2815,8 +2887,11 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 )
                 debrief = str(raw.get("debrief_text", "")).strip()
                 completed += 1
-                if debrief:
-                    progress_note = f"{model} | {policy}: {debrief}"
+                case_note = representative_agent_progress_note(model, policy, policy_agents)
+                if case_note:
+                    progress_note = case_note
+                elif debrief:
+                    progress_note = f"{model} | {policy}: {compact_sentence(debrief, 320)}"
                 render_terminal_progress(progress_slot, completed, total_calls, f"Received {model} / {policy}.", note=progress_note)
                 aggregate = compact_aggregate_metrics(run_results)
                 run_frames.append(run_results)
@@ -2981,9 +3056,9 @@ def sidebar_inputs():
     prediction_error_key = "prediction_error_percent"
     intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
-    true_rate_default = int(DEFAULT_TRUE_HIGH_RISK_RATE * 100)
-    prediction_error_default = 5
-    true_rate_value = int(st.session_state.get(true_rate_key, true_rate_default))
+    true_rate_default = DEFAULT_TRUE_HIGH_RISK_RATE * 100
+    prediction_error_default = 2
+    true_rate_value = float(st.session_state.get(true_rate_key, true_rate_default))
     prediction_error_value = int(st.session_state.get(prediction_error_key, prediction_error_default))
     intensity_value = st.session_state.get(intensity_key, "Medium")
     is_running = bool(st.session_state.get("simulation_running", False))
@@ -3000,13 +3075,14 @@ def sidebar_inputs():
             """
         )
 
-        render_settings_field_header("True high-risk rate", f"{true_rate_value}%")
+        render_settings_field_header("True high-risk rate", format_percent(true_rate_value))
         true_high_risk_rate = st.slider(
             "Percentage of true high-risk children (%)",
-            0,
-            100,
+            0.0,
+            100.0,
             true_rate_default,
-            step=1,
+            step=0.1,
+            format="%.1f%%",
             key=true_rate_key,
             help=SETTING_DESCRIPTIONS["Percentage of true high-risk children (%)"],
             label_visibility="collapsed",
@@ -3048,7 +3124,9 @@ def sidebar_inputs():
             "LLM model agent(s)",
             options=model_options,
             default=default_llm_agent_models(model_options),
+            max_selections=MAX_LLM_MODEL_AGENTS,
             key=model_key,
+            help=f"Select up to {MAX_LLM_MODEL_AGENTS} model agents at once.",
             label_visibility="collapsed",
             disabled=is_running,
         )
