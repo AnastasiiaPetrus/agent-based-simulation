@@ -3,6 +3,7 @@ import os
 from textwrap import dedent
 
 from src.constants import POLICY_EFFECT_COLUMNS
+from src.life_contexts import choose_life_context_assignments
 from src.policy_scenarios import choose_policy_scenario, policy_intensity_value
 from src.simulation import metric_value, prediction_base_rows
 
@@ -82,10 +83,13 @@ Generative parameters:
 - prediction_noise: how well flagging tracks the true counterfactual; 0 means flags concentrate on would-be-outcome agents, higher values create more false positives and false negatives
 - policy_effect_strength: intervention intensity or dose, from 0 to 1. It is non-directional and does not determine whether the policy helps, harms, prevents, or increases the predicted outcome. Whether greater intensity improves or worsens a given agent's trajectory is decided by that agent's simulated life course.
 - fixed_prediction_counts_by_run: Python-computed base counts for every run
+- profile_life_contexts_by_run: Python-selected background life contexts that may be assigned to weighted profiles
 - required_policy_effect_columns: each policy_effects item must contain exactly these fields
 
 ## 6. Starting characteristics
 Give agents varied starting traits so they react differently. Vary across temperament and resilience, family or household stability, trust or distrust toward institutions, engagement with ordinary life domains, peer and social relationships, and sensitivity to pressure, support, monitoring, or restriction. These traits are synthetic and must not be demographic stereotypes.
+
+Use profile_life_contexts_by_run as independent background context for internal weighted profiles. Some profiles have no extra context; some have one; some have combinations of several contexts. These contexts are serious life circumstances or opportunities that may shape trajectories, but they are not policy measures, not reactions to policy, and not direct outcomes. Do not turn them into surveillance, support, coercion, monitoring, compliance, punishment, service provision, or any other selected_policy_scenario action.
 
 ## 7. Life-stage simulation per agent
 Each agent or weighted profile is carried through these stages: 10-13, 14-17, 18-21, 22-25, 26-30. At each stage, any of the following may change: trust in institutions, engagement in education, work, or community, family relationships, peer relationships, life stability, autonomy, opportunities, stress, reaction to the policy, and the probability of the predicted outcome.
@@ -236,6 +240,7 @@ def build_llm_simulation_prompt(settings):
         "prediction_noise": metric_value(settings["prediction_noise"]),
         "policy_effect_strength": policy_intensity_value(policy_intensity_tier),
         "fixed_prediction_counts_by_run": prediction_base_rows(settings),
+        "profile_life_contexts_by_run": choose_life_context_assignments(run_count),
         "required_policy_effect_columns": POLICY_EFFECT_COLUMNS,
     }
 

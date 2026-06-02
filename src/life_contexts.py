@@ -1,0 +1,130 @@
+import random
+
+
+LIFE_CONTEXT_DEFINITIONS = [
+    ("Change of residence", "The person changes their place of residence."),
+    ("Change of daily environment", "The person begins spending time in a different regular environment."),
+    ("Change in household composition", "The people living with the person change."),
+    ("New household responsibility", "The person takes on a new responsibility within the household."),
+    ("Change in caregiving responsibilities", "The person's caregiving responsibilities change."),
+    ("Household schedule change", "The household's daily schedule changes."),
+    ("Household financial change", "The household's financial situation changes."),
+    ("Temporary housing uncertainty", "The person experiences a period of uncertainty about their living arrangement."),
+    ("Health event in household", "Someone in the household experiences a health-related event."),
+    ("Personal health event", "The person experiences a health-related event."),
+    ("Bereavement", "Someone known to the person dies."),
+    ("New close relationship", "The person forms a new close relationship."),
+    ("End of close relationship", "A close relationship in the person's life ends."),
+    ("Change in peer group", "The person's peer group changes."),
+    ("Peer conflict", "The person has a conflict with peers."),
+    ("Peer reconciliation", "The person and peers resume contact after a period of conflict or distance."),
+    ("Period of social isolation", "The person has a period with limited social contact."),
+    ("New group membership", "The person joins a new group, club, team, community, or informal circle."),
+    ("Exit from group membership", "The person leaves a group, club, team, community, or informal circle."),
+    ("Change in education setting", "The person changes education setting or learning environment."),
+    ("Change in work setting", "The person changes work setting or work-related environment."),
+    (
+        "Start of training activity",
+        "The person starts a training, learning, or skill-building activity outside the selected policy.",
+    ),
+    ("End of training activity", "The person stops a training, learning, or skill-building activity."),
+    ("New regular routine", "The person begins a new recurring routine."),
+    ("Loss of regular routine", "A recurring routine in the person's life ends."),
+    ("Schedule disruption", "The person's regular schedule is disrupted."),
+    ("Increase in unstructured time", "The person has more time without fixed activities or obligations."),
+    ("Decrease in unstructured time", "The person has less time without fixed activities or obligations."),
+    ("New commute or travel pattern", "The person's regular travel or commute pattern changes."),
+    ("Change in access to transportation", "The person's access to transportation changes."),
+    ("Administrative process", "The person becomes involved in an ordinary administrative process."),
+    ("Administrative delay", "An ordinary administrative process involving the person is delayed."),
+    (
+        "Administrative error",
+        "An ordinary administrative record or process involving the person contains an error.",
+    ),
+    ("New service contact", "The person has contact with a service provider unrelated to the selected policy."),
+    (
+        "End of service contact",
+        "The person stops having contact with a service provider unrelated to the selected policy.",
+    ),
+    (
+        "Institutional misunderstanding",
+        "The person has a misunderstanding with an institution unrelated to the selected policy.",
+    ),
+    ("Formal recognition", "The person receives formal recognition in an ordinary setting."),
+    ("Public attention", "The person receives attention from others in an ordinary setting."),
+    ("Public mistake", "The person makes a visible mistake in an ordinary setting."),
+    ("Missed opportunity", "The person misses an opportunity unrelated to the selected policy."),
+    ("New opportunity", "The person receives an opportunity unrelated to the selected policy."),
+    ("Competitive selection", "The person participates in a selection process for an opportunity."),
+    ("Rejection from opportunity", "The person is not selected for an opportunity."),
+    ("Acceptance into opportunity", "The person is selected for an opportunity."),
+    ("Change in local environment", "The local environment where the person spends time changes."),
+    ("Conflict in local environment", "A conflict occurs in a place where the person regularly spends time."),
+    ("Change in access to regular place", "The person's access to a place they regularly use changes."),
+    ("Loss of access to regular place", "The person loses access to a place they regularly use."),
+    ("New access to regular place", "The person gains access to a place they may use regularly."),
+    ("Encounter with new adult", "The person has recurring contact with a new adult outside the selected policy."),
+    ("Encounter with new peer", "The person has recurring contact with a new peer."),
+    ("Change in family contact", "The person's contact with family members changes."),
+    ("Family disagreement", "A disagreement occurs within the person's family or close network."),
+    (
+        "Family reconciliation",
+        "A family or close-network relationship resumes after conflict or distance.",
+    ),
+    (
+        "Legal-administrative contact",
+        "The person has contact with a legal or administrative process unrelated to the selected policy.",
+    ),
+    ("Loss of personal item", "The person loses an item that matters for daily routines."),
+    ("Acquisition of personal resource", "The person obtains a resource that matters for daily routines."),
+    ("Digital access change", "The person's access to digital tools or online spaces changes."),
+    ("Online conflict", "The person is involved in a conflict in an online space."),
+    ("Online group change", "The person joins, leaves, or changes participation in an online group."),
+    ("Personal achievement", "The person completes a task, project, or goal in an ordinary setting."),
+    ("Personal setback", "The person does not complete a task, project, or goal as expected."),
+    ("Change in expectations from others", "People around the person change what they expect from them."),
+    ("Change in personal obligations", "The person's ordinary obligations change."),
+    ("Period of increased demands", "The person has a period with more ordinary demands than usual."),
+    ("Period of reduced demands", "The person has a period with fewer ordinary demands than usual."),
+    ("Exposure to a new setting", "The person spends time in a setting they had not previously been part of."),
+    ("Return to a previous setting", "The person returns to a setting they had previously left."),
+    ("Change in sleep routine", "The person's sleep routine changes."),
+    ("Change in physical activity", "The person's level of physical activity changes."),
+    ("Change in leisure activity", "The person starts, stops, or changes a leisure activity."),
+    ("Shared project", "The person participates in a shared project with others."),
+    ("Project breakdown", "A shared project involving the person ends unexpectedly."),
+    ("New leadership role", "The person takes on a leadership or coordination role in an ordinary setting."),
+    ("Loss of role", "The person loses a role they previously held in an ordinary setting."),
+    ("Change in personal privacy", "The person's level of privacy in ordinary life changes."),
+    ("Change in personal space", "The person's access to personal space changes."),
+    ("Relocation of someone close", "Someone close to the person moves away."),
+    ("Arrival of someone close", "Someone close to the person moves nearby or becomes more present."),
+    ("Major transition", "The person goes through a major life transition unrelated to the selected policy."),
+]
+
+
+LIFE_CONTEXT_LIBRARY = [
+    {"name": name, "description": description}
+    for name, description in LIFE_CONTEXT_DEFINITIONS
+]
+
+
+def choose_life_context_assignments(run_count, profiles_per_run=6, max_contexts_per_profile=3):
+    assignments = []
+    for run in range(1, int(run_count) + 1):
+        profile_contexts = []
+        for profile_index in range(1, profiles_per_run + 1):
+            context_count = random.choices(
+                [0, 1, 2, max_contexts_per_profile],
+                weights=[0.2, 0.45, 0.25, 0.1],
+                k=1,
+            )[0]
+            contexts = random.sample(LIFE_CONTEXT_LIBRARY, context_count) if context_count else []
+            profile_contexts.append(
+                {
+                    "profile_id": f"run-{run}-profile-{profile_index}",
+                    "life_contexts": contexts,
+                }
+            )
+        assignments.append({"run": run, "profile_contexts": profile_contexts})
+    return assignments
