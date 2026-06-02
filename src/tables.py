@@ -7,22 +7,22 @@ from src.constants import POLICIES, RUN_METRIC_LABELS
 
 POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
-    "baseline_crimes": "Would offend without intervention",
-    "false_positives": "Wrongly flagged",
-    "false_negatives": "Missed by prediction",
-    "children_helped": "Received support",
-    "children_harmed": "Harmed by intervention",
+    "baseline_crimes": "Would offend without intervention (avg count)",
+    "false_positives": "Wrongly flagged (avg count)",
+    "false_negatives": "Missed by prediction (avg count)",
+    "children_helped": "Received support (avg count)",
+    "children_harmed": "Harmed by intervention (avg count)",
 }
 PERCENT_COLUMNS = {"Offense reduction (%)", "Harmed (% of flagged)"}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
     "Offense reduction (%)",
     "Harmed (% of flagged)",
-    "Would offend without intervention",
-    "Wrongly flagged",
-    "Missed by prediction",
-    "Received support",
-    "Harmed by intervention",
+    "Would offend without intervention (avg count)",
+    "Wrongly flagged (avg count)",
+    "Missed by prediction (avg count)",
+    "Received support (avg count)",
+    "Harmed by intervention (avg count)",
 ]
 
 
