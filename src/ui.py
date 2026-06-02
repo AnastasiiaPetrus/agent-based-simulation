@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from base64 import b64encode
@@ -1980,9 +1981,12 @@ def policy_transition_metrics(run_results, policy, settings):
     flagged = clamp_count(averages.get("children_flagged"), population_size)
     if flagged == 0:
         flagged = clamp_count(baseline - false_negatives + false_positives, population_size)
+    prevented_value = averages.get("crimes_prevented")
+    prevented = 0 if pd.isna(prevented_value) else int(round(float(prevented_value)))
+    prevented = max(-population_size, min(population_size, prevented))
 
     return {
-        "prevented": clamp_count(averages.get("crimes_prevented"), population_size),
+        "prevented": prevented,
         "harmed": clamp_count(averages.get("children_harmed"), population_size),
         "baseline": baseline,
         "flagged": flagged,
@@ -1997,10 +2001,14 @@ def seeded_subset(indices, count, seed_text):
     if count == 0:
         return set()
 
-    seed = sum(ord(char) for char in seed_text) + len(indices) * 97 + count * 193
+    seed = stable_seed(seed_text) + len(indices) * 97 + count * 193
     rng = np.random.default_rng(seed)
     rng.shuffle(indices)
     return set(indices[:count])
+
+
+def stable_seed(seed_text):
+    return int.from_bytes(hashlib.blake2s(seed_text.encode("utf-8"), digest_size=8).digest(), "big")
 
 
 def _panel_changes(children, policy, metrics):
@@ -2009,10 +2017,12 @@ def _panel_changes(children, policy, metrics):
     low_flagged_set = set(low_flagged)
 
     if metrics is None:
-        return set(), set(), "Waiting for this policy result. Baseline is shown.", False
+        return set(), set(), set(), "Waiting for this policy result. Baseline is shown.", False
 
-    prevented = min(metrics["prevented"], len(high_flagged))
+    prevented = min(max(0, metrics["prevented"]), len(high_flagged))
     prevented_indices = seeded_subset(high_flagged, prevented, f"{policy}-prevented")
+    added = min(max(0, -metrics["prevented"]), len(low_flagged))
+    added_indices = seeded_subset(low_flagged, added, f"{policy}-additional-outcomes")
     high_flagged_remaining = [i for i in high_flagged if i not in prevented_indices]
     harmed_pool = low_flagged + high_flagged_remaining
     harmed = min(metrics["harmed"], len(harmed_pool))
@@ -2020,37 +2030,45 @@ def _panel_changes(children, policy, metrics):
 
     harmed_fp = sum(1 for i in harmed_indices if i in low_flagged_set)
     harmed_tp = len(harmed_indices) - harmed_fp
-    final_high = sum(
-        1 for i, c in enumerate(children)
-        if c["base"] == "high" and i not in prevented_indices and i not in harmed_indices
-    )
+    final_high_indices = {
+        i for i, c in enumerate(children)
+        if c["base"] == "high" and i not in prevented_indices
+    } | harmed_indices | added_indices
+    final_high = len(final_high_indices)
     harmed_total = harmed_fp + harmed_tp
+    added_summary = f"{len(added_indices)} added (green→red); " if added_indices else ""
     summary = (
         f"{len(prevented_indices)} prevented (red→green); "
+        f"{added_summary}"
         f"{harmed_total} harmed by intervention (→red, outlined); "
         f"{final_high} red remain."
     )
-    return prevented_indices, harmed_indices, summary, True
+    return prevented_indices, added_indices, harmed_indices, summary, True
 
 
 def policy_panel_html(children, policy, metrics, panel_index):
-    prevented_indices, harmed_indices, summary, has_result = _panel_changes(children, policy, metrics)
+    prevented_indices, added_indices, harmed_indices, summary, has_result = _panel_changes(children, policy, metrics)
 
     dots = []
     for index, child in enumerate(children):
         delay = (index % POPULATION_DOT_STAGGER_GROUP) * POPULATION_DOT_STAGGER_SECONDS
         base_class = "base-high" if child["base"] == "high" else "base-low"
         final_class = base_class.replace("base-", "final-")
-        change_class = ""
+        change_classes = []
         if index in prevented_indices:
             final_class = "final-low"
-            change_class = "changed-prevented"
+            change_classes.append("changed-prevented")
+        elif index in added_indices:
+            final_class = "final-high"
+            change_classes.append("changed-worsened")
         elif index in harmed_indices:
             final_class = "final-high"
-            change_class = "changed-harmed"
+        if index in harmed_indices:
+            change_classes.append("changed-harmed")
         flagged_class = " flagged-dot" if child["flagged"] else ""
+        change_class = f" {' '.join(change_classes)}" if change_classes else ""
         dots.append(
-            f'<span class="life-dot {base_class} {final_class} {change_class}{flagged_class}" '
+            f'<span class="life-dot {base_class} {final_class}{change_class}{flagged_class}" '
             f'style="--delay:{delay:.3f}s"></span>'
         )
 
@@ -2067,7 +2085,7 @@ def policy_panel_html(children, policy, metrics, panel_index):
 
 
 def population_update_script(root_id, policy, panel_index, children, metrics):
-    prevented_indices, harmed_indices, summary, _ = _panel_changes(children, policy, metrics)
+    prevented_indices, added_indices, harmed_indices, summary, _ = _panel_changes(children, policy, metrics)
     return f"""<script>
 (function() {{
   var root = document.getElementById({json.dumps(root_id)});
@@ -2076,13 +2094,18 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
   if (!panel) return;
   var dots = Array.from(panel.querySelectorAll('.life-dot'));
   dots.forEach(function(dot) {{
-    dot.classList.remove('final-low','final-high','changed-prevented','changed-harmed');
+    dot.classList.remove('final-low','final-high','changed-prevented','changed-worsened','changed-harmed');
     dot.classList.add(dot.classList.contains('base-high') ? 'final-high' : 'final-low');
   }});
   {json.dumps(sorted(prevented_indices))}.forEach(function(i) {{
     if (!dots[i]) return;
     dots[i].classList.remove('final-high');
     dots[i].classList.add('final-low','changed-prevented');
+  }});
+  {json.dumps(sorted(added_indices))}.forEach(function(i) {{
+    if (!dots[i]) return;
+    dots[i].classList.remove('final-low');
+    dots[i].classList.add('final-high','changed-worsened');
   }});
   {json.dumps(sorted(harmed_indices))}.forEach(function(i) {{
     if (!dots[i]) return;
@@ -2109,7 +2132,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
     children = baseline_children(settings)
     if root_id is None:
         seed_text = f"{title}-{animation_key}"
-        animation_id = abs(sum(ord(char) for char in seed_text) + len(children) * 17) % 100000
+        animation_id = (stable_seed(seed_text) + len(children) * 17) % 100000
         root_id = f"policyTransition{animation_id}"
     panels = [
         policy_panel_html(
@@ -2231,6 +2254,10 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
 .policy-panel.show-final .life-dot.changed-prevented {{
   background: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-light);
+}}
+.policy-panel.show-final .life-dot.changed-worsened {{
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(226, 35, 55, 0.18);
 }}
 .policy-panel.show-final .life-dot.changed-harmed {{
   box-shadow: 0 0 0 3px var(--accent-border);
@@ -3015,7 +3042,8 @@ def sidebar_inputs():
         "llm_simulation_runs": 5,
         "llm_representative_agents": 6,
     }
-    settings["high_risk_threshold"] = derived_flagged_count(settings) / population_size
+    settings["derived_flagged_rate"] = derived_flagged_count(settings) / population_size
+    settings["high_risk_threshold"] = settings["derived_flagged_rate"]
     settings["llm_agent_models"] = selected_models
 
     return settings, run_info_slot, run_button_slot

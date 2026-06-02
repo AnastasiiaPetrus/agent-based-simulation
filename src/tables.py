@@ -49,7 +49,7 @@ def combined_policy_totals_table(run_results, population_size):
     flagged_denominator = (
         table["children_flagged"].replace(0, np.nan)
         if "children_flagged" in table.columns
-        else max(int(population_size), 1)
+        else np.nan
     )
     table["harmed_pct"] = (table["children_harmed"] / flagged_denominator) * 100
 

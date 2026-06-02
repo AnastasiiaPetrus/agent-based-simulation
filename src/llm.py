@@ -215,19 +215,21 @@ Before responding, verify:
 
 
 def compact_parameter_summary(settings):
+    derived_flagged_rate = settings.get("derived_flagged_rate", settings.get("high_risk_threshold", 0.0))
     return (
         f"population_size={int(settings['population_size'])}; "
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
         f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
         f"true_predicted_outcome_rate={settings['true_high_risk_rate']:.3f}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
-        f"derived_flagged_rate={settings['high_risk_threshold']:.2f}; "
+        f"derived_flagged_rate={derived_flagged_rate:.2f}; "
         f"policy_intensity={settings['policy_effect_strength']}"
     )
 
 
 def build_llm_simulation_prompt(settings):
     run_count = int(settings["llm_simulation_runs"])
+    derived_flagged_rate = settings.get("derived_flagged_rate", settings.get("high_risk_threshold", 0.0))
     selected_policy_scenario = choose_policy_scenario(
         settings["policy"],
         settings["policy_effect_strength"],
@@ -242,7 +244,7 @@ def build_llm_simulation_prompt(settings):
         "synthetic_runs_to_generate": run_count,
         "representative_agents_to_generate": int(settings["llm_representative_agents"]),
         "true_predicted_outcome_rate": metric_value(settings["true_high_risk_rate"]),
-        "derived_flagged_rate": metric_value(settings["high_risk_threshold"]),
+        "derived_flagged_rate": metric_value(derived_flagged_rate),
         "prediction_noise": metric_value(settings["prediction_noise"]),
         "policy_effect_strength": policy_intensity_value(settings["policy_effect_strength"]),
         "required_run_metric_columns": RUN_METRIC_COLUMNS,
