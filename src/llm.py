@@ -216,6 +216,8 @@ Before responding, verify:
 
 def compact_parameter_summary(settings):
     derived_flagged_rate = settings.get("derived_flagged_rate", settings.get("high_risk_threshold", 0.0))
+    policy_intensity_tier = settings.get("policy_intensity_tier", settings.get("policy_effect_strength", "Medium"))
+    policy_effect_strength = policy_intensity_value(policy_intensity_tier)
     return (
         f"population_size={int(settings['population_size'])}; "
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
@@ -223,16 +225,18 @@ def compact_parameter_summary(settings):
         f"true_predicted_outcome_rate={settings['true_high_risk_rate']:.3f}; "
         f"prediction_noise={settings['prediction_noise']:.2f}; "
         f"derived_flagged_rate={derived_flagged_rate:.2f}; "
-        f"policy_intensity={settings['policy_effect_strength']}"
+        f"policy_intensity_tier={policy_intensity_tier}; "
+        f"policy_effect_strength={policy_effect_strength:.1f}"
     )
 
 
 def build_llm_simulation_prompt(settings):
     run_count = int(settings["llm_simulation_runs"])
     derived_flagged_rate = settings.get("derived_flagged_rate", settings.get("high_risk_threshold", 0.0))
+    policy_intensity_tier = settings.get("policy_intensity_tier", settings.get("policy_effect_strength", "Medium"))
     selected_policy_scenario = choose_policy_scenario(
         settings["policy"],
-        settings["policy_effect_strength"],
+        policy_intensity_tier,
     )
     prompt_payload = {
         "selected_policy": settings["policy"],
@@ -246,7 +250,7 @@ def build_llm_simulation_prompt(settings):
         "true_predicted_outcome_rate": metric_value(settings["true_high_risk_rate"]),
         "derived_flagged_rate": metric_value(derived_flagged_rate),
         "prediction_noise": metric_value(settings["prediction_noise"]),
-        "policy_effect_strength": policy_intensity_value(settings["policy_effect_strength"]),
+        "policy_effect_strength": policy_intensity_value(policy_intensity_tier),
         "required_run_metric_columns": RUN_METRIC_COLUMNS,
     }
 

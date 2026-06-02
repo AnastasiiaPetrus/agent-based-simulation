@@ -10,19 +10,19 @@ POLICY_TOTAL_AVERAGE_LABELS = {
     "baseline_crimes": "Would offend without intervention (avg count)",
     "false_positives": "Wrongly flagged (avg count)",
     "false_negatives": "Missed by prediction (avg count)",
-    "children_helped": "Received support (avg count)",
-    "children_harmed": "Harmed by intervention (avg count)",
+    "children_helped": "Helped by policy (avg count)",
+    "children_harmed": "Harmed by policy (avg count)",
 }
-PERCENT_COLUMNS = {"Offense reduction (%)", "Harmed (% of flagged)"}
+PERCENT_COLUMNS = {"Offense reduction (%)", "Harmed by policy (% of flagged)"}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
     "Offense reduction (%)",
-    "Harmed (% of flagged)",
+    "Harmed by policy (% of flagged)",
     "Would offend without intervention (avg count)",
     "Wrongly flagged (avg count)",
     "Missed by prediction (avg count)",
-    "Received support (avg count)",
-    "Harmed by intervention (avg count)",
+    "Helped by policy (avg count)",
+    "Harmed by policy (avg count)",
 ]
 
 
@@ -57,7 +57,7 @@ def combined_policy_totals_table(run_results, population_size):
         columns={
             "policy": "Policy",
             "crime_reduction_pct": "Offense reduction (%)",
-            "harmed_pct": "Harmed (% of flagged)",
+            "harmed_pct": "Harmed by policy (% of flagged)",
             **POLICY_TOTAL_AVERAGE_LABELS,
         }
     )

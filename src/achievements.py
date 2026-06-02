@@ -25,7 +25,7 @@ ACHIEVEMENTS = [
         "id": "false_alarm",
         "icon": "🚨",
         "name": "False Alarm",
-        "description": "More children wrongly flagged on average than offenses prevented.",
+        "description": "More children wrongly flagged on average than predicted outcomes prevented.",
     },
     {
         "id": "tinkerer",
@@ -37,13 +37,13 @@ ACHIEVEMENTS = [
         "id": "crime_preventer",
         "icon": "🛡️",
         "name": "Crime Fighter",
-        "description": "Prevent an average of 20+ offenses per run under any policy.",
+        "description": "Prevent an average of 20+ predicted outcomes per run under any policy.",
     },
     {
         "id": "crime_crusher",
         "icon": "💥",
         "name": "Crime Crusher",
-        "description": "Achieve 25%+ average crime reduction under any policy.",
+        "description": "Achieve 25%+ average predicted outcome reduction under any policy.",
     },
     {
         "id": "base_rate_trap",
@@ -55,7 +55,7 @@ ACHIEVEMENTS = [
         "id": "schrodinger",
         "icon": "🐱",
         "name": "Schrödinger",
-        "description": "Total prediction errors (FP + FN) exceed the number of children who would actually offend.",
+        "description": "Total prediction errors (FP + FN) exceed the number of children who would have the predicted outcome.",
     },
     {
         "id": "helping_hundreds",

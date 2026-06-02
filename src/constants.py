@@ -8,22 +8,22 @@ POLICIES = [
 
 POLICY_DESCRIPTIONS = {
     "Targeted support for high-risk children": (
-        "Flagged children receive voluntary help — counselling, mentoring, or social support. "
-        "Children wrongly flagged get unnecessary help; children the system missed get nothing."
+        "Flagged children are offered voluntary support such as counselling, mentoring, skills, "
+        "or practical assistance. The simulated outcome can be helpful, neutral, mixed, or harmful."
     ),
     "Surveillance of high-risk children": (
-        "Flagged children are monitored without consent. "
-        "May deter some offenses, but creates stigma and erodes trust — even for those flagged by mistake."
+        "Flagged children are monitored, reviewed, or recorded more closely. The simulated outcome can "
+        "include deterrence, stigma, trust loss, no change, or mixed effects."
     ),
     "Coercive preventive intervention for high-risk children": (
-        "Flagged children are restricted before committing any offense. "
-        "Strongest crime reduction — and the highest harm, especially for children wrongly flagged."
+        "Flagged children face mandatory requirements or restrictions before the predicted outcome occurs. "
+        "The simulation may show prevention, harm, backfire effects, or no meaningful change."
     ),
 }
 
 SETTING_DESCRIPTIONS = {
     "Percentage of true high-risk children (%)": (
-        "How many of the 1 000 children would actually go on to commit a violent offense by age 30 "
+        "How many of the 1 000 children would have the predicted serious harmful outcome by age 30 "
         "if no policy were applied. This is the ground truth the prediction tool is trying to identify."
     ),
     "Prediction error rate (%)": (
@@ -31,7 +31,7 @@ SETTING_DESCRIPTIONS = {
         "and the same % of low-risk children are wrongly flagged. "
         "Even a small error rate creates many wrong flags, because low-risk children far outnumber high-risk ones."
     ),
-    "Intervention strength": (
+    "Intervention intensity": (
         "Which intensity tier is used when choosing the concrete intervention measure. "
         "Low = light-touch; Medium = structured or recurring; High = intensive, broad, or restrictive."
     ),
@@ -39,8 +39,8 @@ SETTING_DESCRIPTIONS = {
 
 RESULT_METRIC_DESCRIPTIONS = {
     "Would offend without intervention": (
-        "How many children would commit a violent offense if no policy were applied. "
-        "Every other metric compares against this number."
+        "How many children would have the predicted serious harmful outcome if no policy were applied. "
+        "In average tables, this is an average count per synthetic run."
     ),
     "Flagged as high-risk": (
         "Total children identified as high-risk by the prediction tool — "
@@ -55,22 +55,22 @@ RESULT_METRIC_DESCRIPTIONS = {
         "They receive no intervention under any targeted policy."
     ),
     "Offenses prevented": (
-        "How many fewer offenses occur compared to doing nothing — "
-        "the direct benefit of the policy."
+        "How many fewer predicted outcomes occur compared to doing nothing. "
+        "This can be negative if a policy worsens outcomes."
     ),
-    "Received support": (
-        "Children who received help under the targeted support policy. "
-        "Includes both correctly and wrongly flagged children."
+    "Helped by policy": (
+        "Flagged children whose simulated life-course outcome improves because of the policy. "
+        "This is not the same as merely receiving a service, and it can overlap with harm in mixed cases."
     ),
-    "Harmed by intervention": (
-        "Children harmed by the policy itself — through surveillance stigma or coercive restriction. "
-        "Zero under targeted support."
+    "Harmed by policy": (
+        "Flagged children whose simulated life-course outcome worsens because of the policy. "
+        "This can occur under any policy type and can overlap with help in mixed cases."
     ),
 }
 
 CHECK_DESCRIPTIONS = {
     "Policy trade-off": (
-        "How many offenses each policy prevents versus how many children it wrongly flags or harms."
+        "How many predicted outcomes each policy prevents versus how many children it wrongly flags, helps, or harms."
     ),
     "Prediction error": (
         "How many children are wrongly flagged (flagged despite not being at risk) "
@@ -112,6 +112,6 @@ RUN_METRIC_LABELS = {
     "false_positives": "Wrongly flagged",
     "false_negatives": "Missed by prediction",
     "crimes_prevented": "Offenses prevented",
-    "children_helped": "Received support",
-    "children_harmed": "Harmed by intervention",
+    "children_helped": "Helped by policy",
+    "children_harmed": "Harmed by policy",
 }

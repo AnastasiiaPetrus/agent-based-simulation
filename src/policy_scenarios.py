@@ -316,12 +316,12 @@ POLICY_SCENARIO_LIBRARY = {
 }
 
 
-def choose_policy_scenario(policy, strength):
+def choose_policy_scenario(policy, intensity_tier):
     policy_entry = POLICY_SCENARIO_LIBRARY.get(policy)
     if not policy_entry:
         return None
 
-    measures = policy_entry.get(strength)
+    measures = policy_entry.get(intensity_tier)
     if not measures:
         return None
 
@@ -334,5 +334,5 @@ def choose_policy_scenario(policy, strength):
     }
 
 
-def policy_intensity_value(strength):
-    return POLICY_INTENSITY_VALUES.get(strength, POLICY_INTENSITY_VALUES["Medium"])
+def policy_intensity_value(intensity_tier):
+    return POLICY_INTENSITY_VALUES.get(intensity_tier, POLICY_INTENSITY_VALUES["Medium"])

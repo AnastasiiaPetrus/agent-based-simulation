@@ -116,7 +116,7 @@ def render_hero_statement():
 </div>
 <section class="hero-copy">
   <h1 class="hero-question">
-    <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will become a violent criminal by age <span class="hero-accent">30</span></span>.
+    <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will commit a serious harmful act by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
     <em>What should we do with that information?</em><br>Run a synthetic population of 1,000 children through three policies &mdash;<br>and watch what a few percentage points of error actually cost.
@@ -136,8 +136,8 @@ def render_population_view_overview(settings):
   <div class="population-overview-heading">{population_size:,} synthetic children &middot; {policy_count} parallel policies</div>
   <div class="population-legend">
     <span class="population-legend-item"><span class="population-legend-dot is-safe"></span>Not flagged &middot; safe</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; offenses prevented</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged and high-risk</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; outcome prevented</span>
+    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged true positive &middot; outcome remains</span>
     <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed by prediction (false negative)</span>
     <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged (false positive)</span>
   </div>
@@ -2445,6 +2445,16 @@ def render_settings_stat_rows(population_size, policy_count):
 
 def render_reference_guide():
     with st.expander("How this works", expanded=False):
+        st.markdown(
+            """
+A fictional prediction tool scans 1,000 children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children are actually at risk and how often the tool is wrong. Then the simulation compares three policies — three possible things society could do with those flags.
+
+An AI then simulates how each child's life unfolds under each policy. The results show how many predicted outcomes were prevented, how many flagged children were helped or harmed, and how many were flagged by mistake.
+
+The goal is not to find the right answer — it's to see what the trade-offs actually cost.
+            """
+        )
+
         st.markdown("### Three policies")
         st.markdown(glossary_markdown(POLICY_DESCRIPTIONS))
 
@@ -2500,37 +2510,48 @@ def render_charts(run_results):
                     run_results,
                     "run",
                     "children_harmed",
-                    "Children exposed to harmful intervention by run",
-                    "Children exposed",
+                    "Children harmed by policy by run",
+                    "Children harmed",
                 ),
                 clear_figure=True,
             )
+
+
+def prevented_outcome_phrase(value):
+    rounded = abs(value)
+    if value < 0:
+        return f"adds {rounded:.0f} predicted outcomes per run compared with no policy"
+    return f"prevents {rounded:.0f} predicted outcomes per run"
 
 
 def render_interpretation(policy, average_table):
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
     crimes_prevented = values.get("Offenses prevented", 0.0)
     false_positives = values.get("Wrongly flagged", 0.0)
-    children_helped = values.get("Received support", 0.0)
-    children_harmed = values.get("Harmed by intervention", 0.0)
+    children_helped = values.get("Helped by policy", 0.0)
+    children_harmed = values.get("Harmed by policy", 0.0)
+    outcome_phrase = prevented_outcome_phrase(crimes_prevented)
 
     if policy == "Coercive preventive intervention for high-risk children":
         st.info(
-            f"On average, {crimes_prevented:.0f} offenses are prevented per run — "
-            f"but {children_harmed:.0f} children are restricted before committing any offense, "
-            f"including {false_positives:.0f} who would not have offended at all."
+            f"On average, this policy {outcome_phrase}. "
+            f"{children_helped:.0f} flagged children are helped by it and "
+            f"{children_harmed:.0f} are harmed by mandatory requirements or restrictions. "
+            f"{false_positives:.0f} children are wrongly flagged."
         )
     elif policy == "Targeted support for high-risk children":
         st.info(
-            f"On average, {crimes_prevented:.0f} offenses are prevented per run "
-            f"and {children_helped:.0f} children receive help. "
-            f"Of those, {false_positives:.0f} are wrongly flagged and receive unnecessary support."
+            f"On average, this policy {outcome_phrase}. "
+            f"{children_helped:.0f} flagged children have improved life-course outcomes and "
+            f"{children_harmed:.0f} are harmed or experience negative side effects. "
+            f"{false_positives:.0f} children are wrongly flagged."
         )
     elif policy == "Surveillance of high-risk children":
         st.info(
-            f"On average, {crimes_prevented:.0f} offenses are prevented per run, "
-            f"but {children_harmed:.0f} children are monitored — including {false_positives:.0f} "
-            "who would not have offended and have no basis to be watched."
+            f"On average, this policy {outcome_phrase}. "
+            f"{children_helped:.0f} flagged children are helped by the monitoring response and "
+            f"{children_harmed:.0f} are harmed by scrutiny, stigma, or trust loss. "
+            f"{false_positives:.0f} children are wrongly flagged."
         )
 
 
@@ -2956,13 +2977,13 @@ def sidebar_inputs():
     population_size = 1000
     true_rate_key = "true_high_risk_rate_percent"
     prediction_error_key = "prediction_error_percent"
-    strength_key = "policy_effect_strength"
+    intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
     true_rate_default = int(DEFAULT_TRUE_HIGH_RISK_RATE * 100)
     prediction_error_default = 5
     true_rate_value = int(st.session_state.get(true_rate_key, true_rate_default))
     prediction_error_value = int(st.session_state.get(prediction_error_key, prediction_error_default))
-    strength_value = st.session_state.get(strength_key, "Medium")
+    intensity_value = st.session_state.get(intensity_key, "Medium")
     is_running = bool(st.session_state.get("simulation_running", False))
 
     model_options = llm_model_options()
@@ -2990,7 +3011,7 @@ def sidebar_inputs():
             disabled=is_running,
         ) / 100
         render_settings_field_copy(
-            "Share of children who would commit violence by age 30 with no intervention."
+            "Share of children who would commit the predicted serious harmful act with no intervention."
         )
 
         render_settings_field_header("Prediction error", f"{prediction_error_value}%")
@@ -3007,14 +3028,14 @@ def sidebar_inputs():
         ) / 100
         render_settings_field_copy("Rate at which the age-10 prediction misclassifies a child.")
 
-        render_settings_field_header("Intervention strength", strength_value)
-        policy_effect_strength = st.segmented_control(
-            "Intervention strength",
+        render_settings_field_header("Intervention intensity", intensity_value)
+        policy_intensity_tier = st.segmented_control(
+            "Intervention intensity",
             options=["Low", "Medium", "High"],
             default="Medium",
             required=True,
-            key=strength_key,
-            help=SETTING_DESCRIPTIONS["Intervention strength"],
+            key=intensity_key,
+            help=SETTING_DESCRIPTIONS["Intervention intensity"],
             label_visibility="collapsed",
             width="stretch",
             disabled=is_running,
@@ -3038,7 +3059,7 @@ def sidebar_inputs():
         "population_size": population_size,
         "true_high_risk_rate": true_high_risk_rate,
         "prediction_noise": prediction_noise,
-        "policy_effect_strength": policy_effect_strength or "Medium",
+        "policy_intensity_tier": policy_intensity_tier or "Medium",
         "llm_simulation_runs": 5,
         "llm_representative_agents": 6,
     }
