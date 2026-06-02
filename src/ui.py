@@ -119,7 +119,7 @@ def render_hero_statement():
     <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will commit a serious harmful act by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
-    <em>What should we do with that information?</em><br>Run 1,000 synthetic lives through three policy responses &mdash;<br>and watch the trade-offs come alive: prevented outcomes, false alarms, missed cases, help, and harm.
+    <em>What should we do with that information?</em><br>Run 1,000 synthetic lives through three policy responses &mdash; and watch the trade-offs come alive: prevented outcomes, false alarms, missed cases, help, and harm.
   </p>
 </section>
         """
