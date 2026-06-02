@@ -3057,9 +3057,9 @@ def sidebar_inputs():
     intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
     true_rate_default = DEFAULT_TRUE_HIGH_RISK_RATE * 100
-    prediction_error_default = 2
+    prediction_error_default = 0.2
     true_rate_value = float(st.session_state.get(true_rate_key, true_rate_default))
-    prediction_error_value = int(st.session_state.get(prediction_error_key, prediction_error_default))
+    prediction_error_value = float(st.session_state.get(prediction_error_key, prediction_error_default))
     intensity_value = st.session_state.get(intensity_key, "Medium")
     is_running = bool(st.session_state.get("simulation_running", False))
 
@@ -3092,13 +3092,14 @@ def sidebar_inputs():
             "Share of children who would commit the predicted serious harmful act with no intervention."
         )
 
-        render_settings_field_header("Prediction error", f"{prediction_error_value}%")
+        render_settings_field_header("Prediction error", format_percent(prediction_error_value))
         prediction_noise = st.slider(
             "Prediction error rate (%)",
-            0,
-            100,
+            0.0,
+            100.0,
             prediction_error_default,
-            step=1,
+            step=0.1,
+            format="%.1f%%",
             key=prediction_error_key,
             help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
             label_visibility="collapsed",
