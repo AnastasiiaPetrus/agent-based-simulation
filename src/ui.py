@@ -3057,7 +3057,7 @@ def sidebar_inputs():
     intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
     true_rate_default = DEFAULT_TRUE_HIGH_RISK_RATE * 100
-    prediction_error_default = 0.2
+    prediction_error_default = 2.5
     true_rate_value = float(st.session_state.get(true_rate_key, true_rate_default))
     prediction_error_value = float(st.session_state.get(prediction_error_key, prediction_error_default))
     intensity_value = st.session_state.get(intensity_key, "Medium")
