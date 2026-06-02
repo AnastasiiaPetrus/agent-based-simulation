@@ -2507,6 +2507,109 @@ def render_interpretation(policy, average_table):
         )
 
 
+def agent_text(value):
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def policy_effect_text(effect):
+    if not isinstance(effect, dict):
+        return agent_text(effect)
+
+    value = "Yes" if effect.get("value") else "No"
+    detail = agent_text(effect.get("detail")).strip()
+    if not detail:
+        return value
+    return f"{value}: {detail}"
+
+
+def life_stage_rows(life_stages):
+    if not isinstance(life_stages, list):
+        return [{"Stage": "", "Summary": agent_text(life_stages)}]
+
+    rows = []
+    for item in life_stages:
+        if isinstance(item, dict):
+            rows.append(
+                {
+                    "Stage": agent_text(item.get("stage")),
+                    "Summary": agent_text(item.get("summary")),
+                }
+            )
+        else:
+            rows.append({"Stage": "", "Summary": agent_text(item)})
+    return rows
+
+
+def representative_agent_dict(agent):
+    if isinstance(agent, dict):
+        return agent
+    return {"description": agent_text(agent)}
+
+
+def representative_agent_summary(agent):
+    return {
+        "Policy": agent_text(agent.get("policy")),
+        "Model": agent_text(agent.get("llm_model")),
+        "Agent": agent_text(agent.get("agent_id")),
+        "Prediction status": agent_text(agent.get("prediction_status")),
+        "Outcome occurred": agent_text(agent.get("predicted_outcome_occurred")),
+        "Helped": policy_effect_text(agent.get("helped_by_policy")),
+        "Harmed": policy_effect_text(agent.get("harmed_by_policy")),
+        "Mixed": policy_effect_text(agent.get("mixed_effects")),
+    }
+
+
+def representative_agent_title(index, agent):
+    title_parts = [
+        agent_text(agent.get("agent_id")) or f"Agent {index}",
+        agent_text(agent.get("policy")),
+        agent_text(agent.get("prediction_status")),
+    ]
+    return " | ".join(part for part in title_parts if part)
+
+
+def render_representative_agents(representative_agents):
+    agents = [representative_agent_dict(agent) for agent in representative_agents]
+    summary_rows = [representative_agent_summary(agent) for agent in agents]
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+
+    for index, agent in enumerate(agents, start=1):
+        with st.expander(representative_agent_title(index, agent), expanded=False):
+            if agent.get("description"):
+                st.write(agent_text(agent.get("description")))
+
+            st.markdown("**Starting profile**")
+            st.write(agent_text(agent.get("starting_profile")))
+
+            st.markdown("**No-policy counterfactual**")
+            st.write(agent_text(agent.get("no_policy_counterfactual")))
+
+            st.markdown("**Life stages**")
+            st.dataframe(
+                pd.DataFrame(life_stage_rows(agent.get("life_stages"))),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.markdown("**Policy effects**")
+            st.write(f"Helped by policy: {policy_effect_text(agent.get('helped_by_policy'))}")
+            st.write(f"Harmed by policy: {policy_effect_text(agent.get('harmed_by_policy'))}")
+            st.write(f"Mixed effects: {policy_effect_text(agent.get('mixed_effects'))}")
+
+            st.markdown("**Outcome**")
+            st.write(f"Predicted outcome occurred: {agent_text(agent.get('predicted_outcome_occurred'))}")
+            st.write(agent_text(agent.get("life_course_outcome")))
+
+            st.markdown("**Mechanism summary**")
+            st.write(agent_text(agent.get("mechanism_summary")))
+
+
 @st.fragment
 def render_results_fragment(settings):
     latest_result = st.session_state.get("llm_agent_latest_result")
@@ -2552,7 +2655,7 @@ def render_results_fragment(settings):
     representative_agents = latest_result.get("representative_agents", [])
     if representative_agents:
         with st.expander("Representative LLM synthetic agents used", expanded=False):
-            st.dataframe(pd.DataFrame(representative_agents), use_container_width=True, hide_index=True)
+            render_representative_agents(representative_agents)
 
 
 @st.fragment
