@@ -2447,7 +2447,7 @@ def render_reference_guide():
     with st.expander("How this works", expanded=False):
         st.markdown(
             """
-A fictional prediction tool scans 1,000 children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children are actually at risk, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
+A fictional prediction tool scans 1,000 children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
 
 For each policy, an AI simulates a full synthetic cohort. Each child receives a starting profile, a no-policy counterfactual, a prediction status, and either exposure or non-exposure to that policy. The model then follows the child through life stages from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, restriction, and the final predicted outcome.
 
