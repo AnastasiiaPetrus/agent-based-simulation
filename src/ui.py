@@ -2215,7 +2215,7 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
 
 
 @st.cache_data(show_spinner=False)
-def population_animation_html(run_results, true_high_risk_rate, prediction_noise, population_size, title, animation_key="", root_id=None):
+def population_animation_html(policy_metrics_by_policy, true_high_risk_rate, prediction_noise, population_size, title, animation_key="", root_id=None):
     settings = {
         "population_size": population_size,
         "true_high_risk_rate": true_high_risk_rate,
@@ -2230,7 +2230,7 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
         policy_panel_html(
             children,
             policy,
-            policy_transition_metrics(run_results, policy, settings),
+            policy_metrics_by_policy.get(policy) if isinstance(policy_metrics_by_policy, dict) else None,
             panel_index,
         )
         for panel_index, policy in enumerate(POLICIES)
@@ -2429,9 +2429,9 @@ def population_animation_html(run_results, true_high_risk_rate, prediction_noise
 """
 
 
-def render_population_animation(container, run_results, settings, title, animation_key="", root_id=None):
+def render_population_animation(container, policy_metrics_by_policy, settings, title, animation_key="", root_id=None):
     html = population_animation_html(
-        run_results,
+        policy_metrics_by_policy,
         settings["true_high_risk_rate"],
         settings["prediction_noise"],
         settings["population_size"],
@@ -2602,12 +2602,58 @@ def display_average_table(average_table):
     st.dataframe(display_table, use_container_width=True, hide_index=True)
 
 
-def display_combined_policy_totals_table(run_results, population_size):
-    st.dataframe(
-        combined_policy_totals_table(run_results, population_size),
-        use_container_width=True,
-        hide_index=True,
+def dataframe_to_payload(dataframe):
+    return {
+        "columns": list(dataframe.columns),
+        "records": dataframe.to_dict("records"),
+    }
+
+
+def dataframe_from_payload(payload):
+    if not isinstance(payload, dict):
+        return pd.DataFrame()
+    return pd.DataFrame(
+        payload.get("records", []),
+        columns=payload.get("columns", []),
     )
+
+
+def display_dataframe_payload(payload):
+    st.dataframe(dataframe_from_payload(payload), use_container_width=True, hide_index=True)
+
+
+def chart_rows_payload(policy_runs):
+    chart_columns = [
+        column
+        for column in ["run", "crimes_prevented", "children_harmed", "llm_model"]
+        if column in policy_runs.columns
+    ]
+    return dataframe_to_payload(policy_runs[chart_columns].copy())
+
+
+def latest_result_payload(combined_runs, settings):
+    policy_results = {}
+    population_metrics_by_policy = {}
+    for policy in POLICIES:
+        policy_runs = combined_runs[combined_runs["policy"] == policy]
+        if policy_runs.empty:
+            continue
+
+        policy_results[policy] = {
+            "average_table": dataframe_to_payload(average_results_table(policy_runs)),
+            "chart_rows": chart_rows_payload(policy_runs),
+        }
+        population_metrics_by_policy[policy] = policy_transition_metrics(combined_runs, policy, settings)
+
+    return {
+        "schema_version": 2,
+        "comparison_table": dataframe_to_payload(
+            combined_policy_totals_table(combined_runs, settings["population_size"])
+        ),
+        "policy_results": policy_results,
+        "population_metrics_by_policy": population_metrics_by_policy,
+        "settings_signature": simulation_settings_signature(settings),
+    }
 
 
 def render_charts(run_results):
@@ -2860,24 +2906,24 @@ def render_results_fragment(settings):
     latest_result = st.session_state.get("llm_agent_latest_result")
     if not latest_result or not latest_result_has_current_schema(latest_result, settings):
         return
-    latest_run_results = latest_result["run_results"]
 
     st.subheader("Policy comparison")
     st.caption("Average outcomes per run. Use this to compare policies side by side.")
 
     with st.container(border=False, key="results_content_panel"):
-        display_combined_policy_totals_table(latest_run_results, settings["population_size"])
+        display_dataframe_payload(latest_result.get("comparison_table"))
 
         for selected_policy, policy_tab in zip(POLICIES, st.tabs(POLICIES), strict=True):
             with policy_tab:
-                policy_runs = latest_run_results[latest_run_results["policy"] == selected_policy]
-                if policy_runs.empty:
+                policy_result = latest_result.get("policy_results", {}).get(selected_policy)
+                if not policy_result:
                     st.caption("No results for this policy in the current session.")
                 else:
-                    policy_average_table = average_results_table(policy_runs)
+                    policy_average_table = dataframe_from_payload(policy_result.get("average_table"))
+                    chart_rows = dataframe_from_payload(policy_result.get("chart_rows"))
                     st.subheader("Averages")
                     display_average_table(policy_average_table)
-                    render_charts(policy_runs)
+                    render_charts(chart_rows)
                     render_interpretation(
                         selected_policy,
                         policy_average_table,
@@ -3009,6 +3055,7 @@ def run_llm_policy_task(settings, model, policy):
 
 
 def _run_simulation(settings, selected_models, progress_slot, update_slot, live_population):
+    st.session_state.pop("llm_agent_latest_result", None)
     parameter_summary = compact_parameter_summary(settings)
     total_calls = len(selected_models) * len(POLICIES)
     run_frames, model_summaries = [], []
@@ -3114,14 +3161,16 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             text for _, text in sorted(debrief_parts, key=lambda item: item[0])
         )
         aggregate = compact_aggregate_metrics(combined_runs)
+        latest_payload = latest_result_payload(combined_runs, settings)
+        latest_payload.update(
+            {
+                "model_results": model_summaries_for_display,
+                "representative_agents": agents,
+                "debrief_text": debrief_combined,
+            }
+        )
 
-        st.session_state["llm_agent_latest_result"] = {
-            "run_results": combined_runs,
-            "model_results": model_summaries_for_display,
-            "representative_agents": agents,
-            "debrief_text": debrief_combined,
-            "settings_signature": simulation_settings_signature(settings),
-        }
+        st.session_state["llm_agent_latest_result"] = latest_payload
 
         entry = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -3148,6 +3197,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 
         if errors:
             notices.append(("warning", "LLM-agent simulation generated for the successful model agents."))
+        del combined_runs
         del run_frames
     elif errors:
         notices.append(("warning", "No LLM-agent simulation results were generated."))
@@ -3174,7 +3224,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 
     latest_result = st.session_state.get("llm_agent_latest_result")
     has_valid_result = latest_result and latest_result_has_current_schema(latest_result, settings)
-    initial_runs = latest_result["run_results"] if has_valid_result else None
+    initial_policy_metrics = latest_result.get("population_metrics_by_policy") if has_valid_result else None
     initial_title = "Latest synthetic population view" if has_valid_result else "Live synthetic population view"
 
     live_population = None
@@ -3183,7 +3233,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         render_population_view_overview(settings)
         live_population = st.empty()
         update_slot = st.empty()
-        render_population_animation(live_population, initial_runs, settings, initial_title, "initial", root_id=_LIVE_GRID_ID)
+        render_population_animation(live_population, initial_policy_metrics, settings, initial_title, "initial", root_id=_LIVE_GRID_ID)
     st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
     progress_slot = st.empty()
 

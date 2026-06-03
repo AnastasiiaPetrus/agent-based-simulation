@@ -1,7 +1,5 @@
 import streamlit as st
 
-from src.constants import RUN_METRIC_COLUMNS
-
 
 def initialize_llm_state():
     if "llm_agent_run_log" not in st.session_state:
@@ -30,12 +28,16 @@ def simulation_settings_signature(settings):
 
 
 def latest_result_has_current_schema(latest_result, settings=None):
-    run_results = latest_result.get("run_results")
-    if run_results is None:
+    if not isinstance(latest_result, dict):
         return False
 
-    required_run_columns = set(RUN_METRIC_COLUMNS + ["children_flagged", "policy", "llm_model"])
-    if not required_run_columns.issubset(run_results.columns):
+    if latest_result.get("schema_version") != 2:
+        return False
+
+    if not isinstance(latest_result.get("comparison_table"), dict):
+        return False
+
+    if not isinstance(latest_result.get("policy_results"), dict):
         return False
 
     if settings is not None:
