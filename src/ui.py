@@ -2027,8 +2027,14 @@ def glossary_markdown(items):
     return "\n".join(f"- **{item}:** {meaning}" for item, meaning in items.items())
 
 
-def baseline_children(settings):
-    population_size = int(settings["population_size"])
+@st.cache_data(show_spinner=False)
+def cached_baseline_children(population_size, true_high_risk_rate, prediction_noise):
+    settings = {
+        "population_size": int(population_size),
+        "true_high_risk_rate": float(true_high_risk_rate),
+        "prediction_noise": float(prediction_noise),
+    }
+    population_size = settings["population_size"]
     true_high = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
     false_positives, false_negatives, flagged = risk_signal_counts(true_high, settings)
     true_positive = max(0, true_high - false_negatives)
@@ -2044,6 +2050,14 @@ def baseline_children(settings):
     rng = np.random.default_rng(seed)
     rng.shuffle(children)
     return children
+
+
+def baseline_children(settings):
+    return cached_baseline_children(
+        int(settings["population_size"]),
+        float(settings["true_high_risk_rate"]),
+        float(settings["prediction_noise"]),
+    )
 
 
 def policy_transition_metrics(run_results, policy, settings):
