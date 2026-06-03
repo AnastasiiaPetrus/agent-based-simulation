@@ -72,7 +72,7 @@ The app keeps the metrics count-based to avoid false precision:
 
 - **Children who would offend (no intervention)**: baseline count before the policy.
 - **Offenses prevented by policy**: baseline offenses minus offenses after policy.
-- **Crime reduction (%)**: offenses prevented as a percentage of baseline offenses.
+- **Net outcome effect**: offenses prevented or added as a percentage of baseline offenses.
 - **Children incorrectly flagged**: false positives, meaning flagged children who would not have committed the modeled offense.
 - **Children missed by risk signal**: false negatives, meaning unflagged children who would have committed the modeled offense.
 - **Children receiving support**: children reached by voluntary support.
@@ -87,7 +87,7 @@ After a successful run, the app shows:
 - Live progress while model-policy calls complete.
 - Animated 10,000-child population view based on the latest received aggregate result.
 - Combined totals across all selected model agents and synthetic runs.
-- Crime reduction percentage for each policy.
+- Net outcome effect for each policy.
 - Per-policy average tables.
 - Line charts across synthetic runs.
 - Per-policy interpretation text.

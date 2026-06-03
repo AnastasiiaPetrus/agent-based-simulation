@@ -13,10 +13,11 @@ POLICY_TOTAL_AVERAGE_LABELS = {
     "children_helped": "Helped by policy (avg count)",
     "children_harmed": "Harmed by policy (avg count)",
 }
-PERCENT_COLUMNS = {"Offense reduction (%)", "Harmed by policy (% of flagged)"}
+OUTCOME_EFFECT_COLUMN = "Net outcome effect"
+PERCENT_COLUMNS = {"Harmed by policy (% of flagged)"}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
-    "Offense reduction (%)",
+    OUTCOME_EFFECT_COLUMN,
     "Harmed by policy (% of flagged)",
     "Would offend without intervention (avg count)",
     "Wrongly flagged (avg count)",
@@ -24,6 +25,16 @@ ORDERED_POLICY_TOTAL_COLUMNS = [
     "Helped by policy (avg count)",
     "Harmed by policy (avg count)",
 ]
+
+
+def format_outcome_effect(value):
+    if pd.isna(value):
+        return "N/A"
+    if value < 0:
+        return f"{abs(value):.1f}% added"
+    if value > 0:
+        return f"{value:.1f}% prevented"
+    return "0.0% net change"
 
 
 def average_results_table(run_results):
@@ -56,7 +67,7 @@ def combined_policy_totals_table(run_results, population_size):
     display_table = table.rename(
         columns={
             "policy": "Policy",
-            "crime_reduction_pct": "Offense reduction (%)",
+            "crime_reduction_pct": OUTCOME_EFFECT_COLUMN,
             "harmed_pct": "Harmed by policy (% of flagged)",
             **POLICY_TOTAL_AVERAGE_LABELS,
         }
@@ -66,6 +77,9 @@ def combined_policy_totals_table(run_results, population_size):
     display_table = display_table[[c for c in ORDERED_POLICY_TOTAL_COLUMNS if c in display_table.columns]]
     for column in display_table.columns:
         if column == "Policy":
+            continue
+        if column == OUTCOME_EFFECT_COLUMN:
+            display_table[column] = display_table[column].map(format_outcome_effect)
             continue
         if column in PERCENT_COLUMNS:
             display_table[column] = display_table[column].map(
