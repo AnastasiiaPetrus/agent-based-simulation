@@ -71,6 +71,7 @@ from src.tables import average_results_table, combined_policy_totals_table
 
 
 _LIVE_GRID_ID = "livePopGrid"
+_HOW_THIS_WORKS_EXPANDED_KEY = "how_this_works_expanded"
 # Temporarily hide the dot-based synthetic population view.
 SHOW_POPULATION_DOT_VIEW = False
 
@@ -2564,7 +2565,13 @@ def render_settings_stat_rows(population_size, policy_count):
 
 
 def render_reference_guide():
-    with st.expander("How this works", expanded=False):
+    if _HOW_THIS_WORKS_EXPANDED_KEY not in st.session_state:
+        st.session_state[_HOW_THIS_WORKS_EXPANDED_KEY] = True
+
+    with st.expander(
+        "How this works",
+        expanded=bool(st.session_state[_HOW_THIS_WORKS_EXPANDED_KEY]),
+    ):
         st.markdown(
             f"""
 A fictional prediction tool scans {DEFAULT_POPULATION_SIZE:,} children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
@@ -3314,6 +3321,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
             run_requested = st.button("▶ Run simulation", key="run_simulation_start", disabled=run_disabled, type="primary", use_container_width=True)
 
     if run_requested:
+        st.session_state[_HOW_THIS_WORKS_EXPANDED_KEY] = False
         st.session_state["simulation_running"] = True
         st.session_state["simulation_pending"] = True
         st.rerun()
