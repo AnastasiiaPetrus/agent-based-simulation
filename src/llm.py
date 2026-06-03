@@ -19,25 +19,18 @@ DEFAULT_SYSTEM_PROMPT = (
 AGENT_BASED_SIMULATION_PROMPT = """
 # Agent-Based Policy-Effect Simulation
 
-## 0. Role and output contract
-You are an agent-based life-course simulation engine for a fictional society.
-
-- Every person, family, institution, policy, risk, and outcome is fictional and synthetic. Never reference real jurisdictions, real predictive systems, real organizations, or real people.
-- The age-10 prediction is a fictional premise only. It is never present guilt, moral blame, or destiny. The simulation does not say a policy is "correct"; it shows the consequences of the chosen response across many individual lives.
+## 0. Contract
+- Everything is fictional and synthetic. Never reference real jurisdictions, real systems, real organizations, or real people.
+- The age-10 prediction is a fictional premise only: not guilt, blame, destiny, or a policy recommendation.
 - Return exactly one valid JSON object with these top-level keys and nothing else:
   - policy_effects
   - representative_agents
   - debrief_text
-- Output JSON only. No markdown, no code fences, no comments, no preamble, no trailing text, and no visible reasoning. Begin your reply with "{" and end it with "}".
+- Output JSON only. No markdown, comments, preamble, trailing text, or visible reasoning.
+- Use neutral terms only: person, individual, agent, family, peers, institution, authority, provider, support worker, monitoring body, program. Avoid stigmatizing, accusatory, deterministic, demographic, or real-world claims.
 
-## 1. The thought experiment
-The simulation explores: "Suppose society could predict, at age 10, who will commit a serious harmful act by age 30 - what should be done with that information?" The point is not to answer it, but to make the trade-offs visible: not only "did predicted outcomes go down?" but "what happened to the lives of the people the system flagged?" - who was helped, who was harmed, who was flagged in error, who was missed, and how trust, autonomy, opportunity, and relationships changed.
-
-## 2. Neutral terminology
-Use only neutral terms in all narrative text: person, individual, agent, family, peers, institution, authority, service provider, support worker, monitoring body, program. Do not use stigmatizing, accusatory, or deterministic language. Some output field names are fixed for backend compatibility; that does not change the neutral framing of the content.
-
-## 3. Core methodology - Python owns arithmetic, you simulate policy effects
-This is the most important rule. Do not invent the base prediction numbers or final result table.
+## 1. Core methodology - Python owns arithmetic
+Do not invent base prediction numbers or final result tables.
 
 Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_crimes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, unflagged_agents, and relevant_agents. Treat them as facts.
 
@@ -48,13 +41,12 @@ You do not simulate every person in the full population. Detailed life-course si
 
 true_negatives are not relevant for detailed policy evaluation in this run. They remain constant background counts fixed by Python: they are not flagged, not reached by policy, not helped by policy, not harmed by policy, and not selected as representative agents.
 
-Your job is narrower:
-1. Use the fixed counts for each run.
-2. Simulate how the selected policy scenario affects the flagged agents it reaches.
-3. Simulate false negatives only as missed cases following their no-policy path without policy exposure.
-4. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, and children_harmed.
-5. Select representative_agents afterward from those simulated relevant categories.
-6. Write debrief_text grounded in the fixed counts and your policy effects.
+Your job:
+1. Simulate how selected_policy_scenario affects flagged agents.
+2. Simulate false negatives only as missed cases following their no-policy path.
+3. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, children_harmed.
+4. Select representative_agents from those simulated relevant categories.
+5. Write debrief_text grounded only in fixed counts, policy effects, and representative agents.
 
 Python will compute the final result table after your response:
 - crimes_after_policy = baseline_crimes - prevented_outcomes + policy_caused_outcomes
@@ -63,50 +55,18 @@ Python will compute the final result table after your response:
 
 Tractable method for large populations: partition only the relevant agents in each run into weighted agent profiles that sum to true_positives + false_positives + false_negatives. Simulate trajectories for these relevant profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort, the relevant internal cohort, or the profiles.
 
-Multiple runs: each policy_effects row is an independent realization of policy response on the same fixed prediction structure. Effects may vary run to run, but must remain plausible and within the fixed bounds.
-
-## 4. Policy constraint
+## 2. Policy and trajectory rules
 - selected_policy names the policy category; selected_policy_scenario is the specific configured intervention to simulate.
 - Simulate only that intervention. Do not add measures from other policies, categories, or intensity levels.
 - The policy type defines what the intervention does. It must not by itself decide whether the policy helps, harms, prevents the predicted outcome, increases it, or has no effect.
 - Surveillance is not automatically harmful; support is not automatically helpful; coercion is not automatically protective.
-- Each agent's outcome, and therefore the aggregate effect of the policy, must emerge from the simulated trajectories, not from the policy label or any input parameter.
+- Effects must emerge from simulated trajectories, not from policy label, intensity, or desired outcome.
+- Give agents varied synthetic starting traits: resilience, household stability, institutional trust, engagement, peer ties, sensitivity to pressure/support/monitoring/restriction.
+- Use profile_life_contexts_by_run only as independent background context. These are not policy measures, policy reactions, or direct outcomes.
+- Carry relevant profiles through stages 10-13, 14-17, 18-21, 22-25, 26-30. Track changes in trust, autonomy, relationships, opportunity, stability, stress, and predicted-outcome probability.
+- Mechanisms may include individual response, self-concept, household dynamics, peers, institutional behavior, opportunity pathways, legitimacy, autonomy, risk displacement, timing, chance, false positives/negatives, and implementation quality.
 
-## 5. Input — settings schema
-CURRENT SETTINGS JSON is the source of truth.
-
-Core fields:
-- selected_policy: the policy category
-- selected_policy_scenario: the specific configured intervention to simulate, with policy, measure, description, and applies_to
-- population_size: cohort size
-- starting_age: starting age, usually 10
-- outcome_age: target age, usually 30
-- predicted_outcome: the fictional predicted outcome measured by outcome_age
-- synthetic_runs_to_generate: number of policy_effects items
-- representative_agents_to_generate: number of representative_agents items
-
-Generative parameters:
-- true_predicted_outcome_rate: expected fraction of agents whose no-policy counterfactual outcome occurs
-- derived_flagged_rate: expected fraction of agents flagged
-- prediction_noise: how well flagging tracks the true counterfactual; 0 means flags concentrate on would-be-outcome agents, higher values create more false positives and false negatives
-- policy_effect_strength: intervention intensity or dose, from 0 to 1. It is non-directional and does not determine whether the policy helps, harms, prevents, or increases the predicted outcome. Whether greater intensity improves or worsens a given agent's trajectory is decided by that agent's simulated life course.
-- fixed_prediction_counts_by_run: Python-computed base counts for every run, including relevant_agents
-- profile_life_contexts_by_run: Python-selected background life contexts that may be assigned to weighted profiles
-- required_policy_effect_columns: each policy_effects item must contain exactly these fields
-
-## 6. Starting characteristics
-Give agents varied starting traits so they react differently. Vary across temperament and resilience, family or household stability, trust or distrust toward institutions, engagement with ordinary life domains, peer and social relationships, and sensitivity to pressure, support, monitoring, or restriction. These traits are synthetic and must not be demographic stereotypes.
-
-Use profile_life_contexts_by_run as independent background context for internal weighted profiles. Some profiles have no extra context; some have one; some have combinations of several contexts. These contexts are serious life circumstances or opportunities that may shape trajectories, but they are not policy measures, not reactions to policy, and not direct outcomes. Do not turn them into surveillance, support, coercion, monitoring, compliance, punishment, service provision, or any other selected_policy_scenario action.
-
-## 7. Life-stage simulation per agent
-Each relevant agent or weighted profile is carried through these stages: 10-13, 14-17, 18-21, 22-25, 26-30. At each stage, any of the following may change: trust in institutions, engagement in education, work, or community, family relationships, peer relationships, life stability, autonomy, opportunities, stress, reaction to the policy, and the probability of the predicted outcome.
-
-The effect emerges from the trajectory, not from the policy name. For example, the same monitoring measure might lead one agent to greater caution and fewer conflicts, another to a sense of constant control and lower trust, and a third to almost no change.
-
-Mechanism catalog: individual response; self-concept and identity; family or household dynamics; peers and social ties; institutional behavior; opportunity pathways; trust and legitimacy; autonomy and control; risk displacement within the same agent; timing and life stage; chance and contingency; false positives and false negatives; implementation quality; aggregate dynamics.
-
-## 8. policy_effects - the only numeric counts you return
+## 3. policy_effects - the only numeric counts you return
 Produce exactly synthetic_runs_to_generate rows. Each row must contain exactly:
 run, prevented_outcomes, policy_caused_outcomes, children_helped, children_harmed.
 
@@ -125,7 +85,7 @@ Hard bounds for each row:
 
 children_helped and children_harmed are independent counts over flagged agents and may overlap. An agent who is both helped and harmed in different respects is counted in both. A prevented outcome does not by itself make an agent helped, and an agent never on the no-policy outcome path can still be helped or harmed. Unflagged agents are not reached by the policy and are never counted as helped or harmed.
 
-## 9. representative_agents - selected from the simulated policy-effect categories
+## 4. representative_agents - selected from simulated relevant groups
 Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated relevant groups, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a true positive whose outcome was not prevented, a false positive helped, a false positive harmed, a false positive not meaningfully changed, and a false negative who received no intervention. Each selected case must correspond to a relevant category that actually occurs in the internally simulated relevant groups.
 
 Each agent object must contain:
@@ -149,10 +109,10 @@ Prediction status definitions:
 - false positive: flagged, but it would not
 - false negative: not flagged, but it would occur
 
-## 10. debrief_text
-Return a single plain-text string with no markdown, headings, or bullets. Ground it only in the fixed prediction counts, policy_effects, and representative agents. Cover how the policy reshapes life-course pathways among the relevant groups; who benefits, who is harmed, who has mixed effects, and who sees little change; how false positives and false negatives matter; effects on trust, opportunity, autonomy, relationships, and institutions; whether predicted outcomes decrease, increase, or stay similar after Python's arithmetic; the trade-offs made visible; and where results are uncertain or sensitive to assumptions. Do not declare the policy morally correct or incorrect. Aim for roughly 180-320 words.
+## 5. debrief_text
+Return one plain-text string with no markdown, headings, or bullets. In 80-140 words, summarize the main mechanism, who is helped or harmed, how false positives/false negatives matter, and whether predicted outcomes decrease, increase, or stay similar after Python's arithmetic. Do not declare the policy morally correct or incorrect.
 
-## 11. Output format
+## 6. Output format
 Return this shape with concrete values:
 
 {
@@ -192,7 +152,7 @@ Return this shape with concrete values:
 
 Do not include run_results or any key not listed above. Never output the full internal cohort.
 
-## 12. Validation checklist
+## 7. Validation checklist
 Before responding, verify:
 - Output is a single valid JSON object with exactly policy_effects, representative_agents, and debrief_text.
 - policy_effects has exactly synthetic_runs_to_generate items.
@@ -200,11 +160,11 @@ Before responding, verify:
 - The full cohort, true-negative background, and internal relevant profiles are not output.
 - You do not return baseline_crimes, crimes_after_policy, crimes_prevented, false_positives, false_negatives, or children_flagged.
 - All policy_effect counts are integers and within the fixed bounds.
-- Each representative agent has all required fields and is a genuine instance from the internally simulated relevant groups.
+- Each representative agent has all required fields and comes from the internally simulated relevant groups.
 - The aggregate effect emerged from simulated trajectories, not from the policy label.
 - All entities remain fictional and neutral terminology is used.
 
-## 13. Current settings JSON
+## 8. Current settings JSON
 <CURRENT_SETTINGS_JSON>
 """
 

@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from base64 import b64encode
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from functools import lru_cache
 from html import escape
@@ -21,6 +22,7 @@ from src.constants import (
     LLM_MODEL,
     DEFAULT_LLM_MODEL_OPTIONS,
     MAX_LLM_MODEL_AGENTS,
+    MAX_PARALLEL_LLM_CALLS,
     MAX_RUN_LOG_SIZE,
     POLICY_DESCRIPTIONS,
     POLICIES,
@@ -2962,6 +2964,36 @@ def render_terminal_progress(
     )
 
 
+def run_llm_policy_task(settings, model, policy):
+    policy_settings = {**settings, "policy": policy}
+    user_prompt = build_llm_simulation_prompt(policy_settings)
+    raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
+    policy_effects = clean_llm_policy_effects(raw.get("policy_effects", []))
+    validate_llm_policy_effects(policy_effects, policy_settings, enforce_bounds=False)
+    policy_effects = normalize_llm_policy_effects(policy_effects, policy_settings)
+    validate_llm_policy_effects(policy_effects, policy_settings)
+    run_results = run_results_from_policy_effects(policy_effects, policy_settings)
+    validate_llm_tables(run_results, policy_settings)
+    run_results = attach_model_label(run_results, model)
+    run_results = attach_policy_label(run_results, policy)
+    policy_agents = normalize_representative_agents(
+        raw.get("representative_agents", [])[:int(settings["llm_representative_agents"])],
+        model,
+        policy,
+    )
+    debrief = str(raw.get("debrief_text", "")).strip()
+    aggregate = compact_aggregate_metrics(run_results)
+
+    return {
+        "model": model,
+        "policy": policy,
+        "run_results": run_results,
+        "agents": policy_agents,
+        "debrief_text": debrief,
+        "aggregate_metrics": aggregate,
+    }
+
+
 def _run_simulation(settings, selected_models, progress_slot, update_slot, live_population):
     parameter_summary = compact_parameter_summary(settings)
     total_calls = len(selected_models) * len(POLICIES)
@@ -2982,33 +3014,33 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     if SHOW_POPULATION_DOT_VIEW and live_population is not None:
         render_population_animation(live_population, None, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
 
-    for model in selected_models:
-        for policy in POLICIES:
-            policy_settings = {**settings, "policy": policy}
-            render_terminal_progress(
-                progress_slot, completed, total_calls,
-                f"Running {model} on {policy}...",
-                note=progress_note,
-                note_is_html=progress_note_is_html,
-            )
-            user_prompt = build_llm_simulation_prompt(policy_settings)
+    tasks = [
+        (task_index, model, policy)
+        for task_index, (model, policy) in enumerate(
+            (model, policy) for model in selected_models for policy in POLICIES
+        )
+    ]
+    max_workers = max(1, min(MAX_PARALLEL_LLM_CALLS, total_calls))
+    render_terminal_progress(
+        progress_slot, 0, total_calls,
+        f"Running up to {max_workers} LLM call(s) in parallel...",
+        note=progress_note,
+        note_is_html=progress_note_is_html,
+    )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_task = {
+            executor.submit(run_llm_policy_task, settings, model, policy): (task_index, model, policy)
+            for task_index, model, policy in tasks
+        }
+
+        for future in as_completed(future_to_task):
+            task_index, model, policy = future_to_task[future]
             try:
-                raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
-                policy_effects = clean_llm_policy_effects(raw.get("policy_effects", []))
-                validate_llm_policy_effects(policy_effects, policy_settings, enforce_bounds=False)
-                policy_effects = normalize_llm_policy_effects(policy_effects, policy_settings)
-                validate_llm_policy_effects(policy_effects, policy_settings)
-                run_results = run_results_from_policy_effects(policy_effects, policy_settings)
-                validate_llm_tables(run_results, policy_settings)
-                run_results = attach_model_label(run_results, model)
-                run_results = attach_policy_label(run_results, policy)
-                policy_agents = normalize_representative_agents(
-                    raw.get("representative_agents", [])[:int(settings["llm_representative_agents"])],
-                    model,
-                    policy,
-                )
-                debrief = str(raw.get("debrief_text", "")).strip()
+                result = future.result()
                 completed += 1
+                policy_agents = result["agents"]
+                debrief = result["debrief_text"]
                 case_note = representative_agent_progress_note(model, policy, policy_agents)
                 if case_note:
                     progress_note = case_note
@@ -3022,12 +3054,21 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                     note=progress_note,
                     note_is_html=progress_note_is_html,
                 )
-                aggregate = compact_aggregate_metrics(run_results)
+                aggregate = result["aggregate_metrics"]
+                run_results = result["run_results"]
                 run_frames.append(run_results)
                 agents.extend(policy_agents)
                 if debrief:
-                    debrief_parts.append(f"{model} | {policy}: {debrief}")
-                model_summaries.append({"llm_model": model, "policy": policy, "aggregate_metrics": aggregate, "debrief_text": debrief})
+                    debrief_parts.append((task_index, f"{model} | {policy}: {debrief}"))
+                model_summaries.append(
+                    {
+                        "task_index": task_index,
+                        "llm_model": model,
+                        "policy": policy,
+                        "aggregate_metrics": aggregate,
+                        "debrief_text": debrief,
+                    }
+                )
                 if SHOW_POPULATION_DOT_VIEW and update_slot is not None:
                     metrics = policy_transition_metrics(run_results, policy, settings)
                     render_population_update(update_slot, _LIVE_GRID_ID, policy, POLICIES.index(policy), children, metrics)
@@ -3050,12 +3091,19 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     if run_frames:
         combined_runs = pd.concat(run_frames, ignore_index=True, copy=False)
         combined_runs = optimize_result_frames(combined_runs)
-        debrief_combined = "\n\n".join(debrief_parts)
+        model_summaries = sorted(model_summaries, key=lambda item: item["task_index"])
+        model_summaries_for_display = [
+            {key: value for key, value in summary.items() if key != "task_index"}
+            for summary in model_summaries
+        ]
+        debrief_combined = "\n\n".join(
+            text for _, text in sorted(debrief_parts, key=lambda item: item[0])
+        )
         aggregate = compact_aggregate_metrics(combined_runs)
 
         st.session_state["llm_agent_latest_result"] = {
             "run_results": combined_runs,
-            "model_results": model_summaries,
+            "model_results": model_summaries_for_display,
             "representative_agents": agents,
             "debrief_text": debrief_combined,
             "settings_signature": simulation_settings_signature(settings),
@@ -3066,7 +3114,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             "policy_summary": "All policies",
             "parameter_summary": parameter_summary,
             "representative_agent_count": len(agents),
-            "llm_model": ", ".join(unique_values(s["llm_model"] for s in model_summaries)),
+            "llm_model": ", ".join(unique_values(s["llm_model"] for s in model_summaries_for_display)),
             "aggregate_metrics": aggregate,
             "debrief_text": debrief_combined,
         }
