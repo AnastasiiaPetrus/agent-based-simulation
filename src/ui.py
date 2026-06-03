@@ -67,6 +67,8 @@ from src.tables import average_results_table, combined_policy_totals_table
 
 
 _LIVE_GRID_ID = "livePopGrid"
+# Temporarily hide the dot-based synthetic population view.
+SHOW_POPULATION_DOT_VIEW = False
 
 
 def render_app_header():
@@ -145,11 +147,41 @@ def render_population_view_overview(settings):
   <div class="population-overview-title">LIVE_SYNTHETIC_POPULATION_VIEW</div>
   <div class="population-overview-heading">{population_size:,} synthetic children &middot; {policy_count} parallel policies</div>
   <div class="population-legend">
-    <span class="population-legend-item"><span class="population-legend-dot is-safe"></span>Not flagged &middot; safe</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-diverted"></span>Flagged true positive &middot; outcome prevented</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-violent"></span>Flagged true positive &middot; outcome remains</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-missed"></span>Missed by prediction (false negative)</span>
-    <span class="population-legend-item"><span class="population-legend-dot is-wrong"></span>Wrongly flagged (false positive)</span>
+    <span class="population-legend-item">
+      <span class="population-legend-dot is-safe"></span>
+      <span class="population-legend-text">
+        <span class="population-legend-label">Not flagged &middot; safe</span>
+        <span class="population-legend-desc">No predicted risk — not subject to any policy action</span>
+      </span>
+    </span>
+    <span class="population-legend-item">
+      <span class="population-legend-dot is-diverted"></span>
+      <span class="population-legend-text">
+        <span class="population-legend-label">True positive &middot; outcome prevented</span>
+        <span class="population-legend-desc">Correctly flagged high-risk — policy appears to have worked</span>
+      </span>
+    </span>
+    <span class="population-legend-item">
+      <span class="population-legend-dot is-violent"></span>
+      <span class="population-legend-text">
+        <span class="population-legend-label">True positive &middot; outcome remains</span>
+        <span class="population-legend-desc">Correctly flagged high-risk — policy did not prevent the outcome</span>
+      </span>
+    </span>
+    <span class="population-legend-item">
+      <span class="population-legend-dot is-missed"></span>
+      <span class="population-legend-text">
+        <span class="population-legend-label">Missed by prediction (false negative)</span>
+        <span class="population-legend-desc">Would have the predicted outcome but was not flagged — receives no intervention</span>
+      </span>
+    </span>
+    <span class="population-legend-item">
+      <span class="population-legend-dot is-wrong"></span>
+      <span class="population-legend-text">
+        <span class="population-legend-label">Wrongly flagged (false positive)</span>
+        <span class="population-legend-desc">No real risk — flagged and subject to policy action anyway</span>
+      </span>
+    </span>
   </div>
 </section>
         """
@@ -683,9 +715,9 @@ h3 {
 }
 
 .population-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.52rem 1.05rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 0.7rem 1.2rem;
   margin-top: 0.95rem;
   color: var(--text-muted);
   font-family: var(--mono);
@@ -694,9 +726,26 @@ h3 {
 }
 
 .population-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.population-legend-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.population-legend-label {
+  color: var(--text-primary, inherit);
+  font-weight: 500;
+}
+
+.population-legend-desc {
+  font-size: 0.77rem;
+  opacity: 0.72;
+  line-height: 1.3;
 }
 
 .population-legend-dot {
@@ -706,6 +755,7 @@ h3 {
   flex: 0 0 auto;
   border-radius: 999px;
   box-sizing: border-box;
+  margin-top: 0.18rem;
 }
 
 .population-legend-dot.is-safe {
@@ -2928,8 +2978,9 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
         note_is_html=progress_note_is_html,
     )
     scroll_to_anchor("simulation-progress-anchor")
-    children = baseline_children(settings)
-    render_population_animation(live_population, None, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
+    children = baseline_children(settings) if SHOW_POPULATION_DOT_VIEW else []
+    if SHOW_POPULATION_DOT_VIEW and live_population is not None:
+        render_population_animation(live_population, None, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
 
     for model in selected_models:
         for policy in POLICIES:
@@ -2977,8 +3028,9 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 if debrief:
                     debrief_parts.append(f"{model} | {policy}: {debrief}")
                 model_summaries.append({"llm_model": model, "policy": policy, "aggregate_metrics": aggregate, "debrief_text": debrief})
-                metrics = policy_transition_metrics(run_results, policy, settings)
-                render_population_update(update_slot, _LIVE_GRID_ID, policy, POLICIES.index(policy), children, metrics)
+                if SHOW_POPULATION_DOT_VIEW and update_slot is not None:
+                    metrics = policy_transition_metrics(run_results, policy, settings)
+                    render_population_update(update_slot, _LIVE_GRID_ID, policy, POLICIES.index(policy), children, metrics)
             except Exception as error:
                 completed += 1
                 msg = friendly_llm_error(error)
@@ -3062,10 +3114,13 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
     initial_runs = latest_result["run_results"] if has_valid_result else None
     initial_title = "Latest synthetic population view" if has_valid_result else "Live synthetic population view"
 
-    render_population_view_overview(settings)
-    live_population = st.empty()
-    update_slot = st.empty()
-    render_population_animation(live_population, initial_runs, settings, initial_title, "initial", root_id=_LIVE_GRID_ID)
+    live_population = None
+    update_slot = None
+    if SHOW_POPULATION_DOT_VIEW:
+        render_population_view_overview(settings)
+        live_population = st.empty()
+        update_slot = st.empty()
+        render_population_animation(live_population, initial_runs, settings, initial_title, "initial", root_id=_LIVE_GRID_ID)
     st.html('<div id="simulation-progress-anchor" style="height: 1px;"></div>')
     progress_slot = st.empty()
 
