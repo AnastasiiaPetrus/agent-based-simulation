@@ -23,13 +23,15 @@ POLICY_DESCRIPTIONS = {
 
 SETTING_DESCRIPTIONS = {
     "Percentage of true high-risk children (%)": (
-        "How many of the 1 000 children would have the predicted serious harmful outcome by age 30 "
-        "if no policy were applied. This is the ground truth the prediction tool is trying to identify."
+        "How many of the 10,000 children would have the predicted serious harmful outcome by age 30 "
+        "if no policy were applied. This is the ground truth the prediction tool is trying to identify. "
+        "The simulator keeps this between 1% and 10%."
     ),
     "Prediction error rate (%)": (
-        "How often the prediction is wrong. This % of truly high-risk children are missed, "
-        "and the same % of low-risk children are wrongly flagged. "
-        "Even a small error rate creates many wrong flags, because low-risk children far outnumber high-risk ones."
+        "A simplified symmetric error setting: this % of children on the predicted-outcome path are missed, "
+        "and the same % of children not on that path are wrongly flagged. "
+        "Because most children are not on the predicted-outcome path, even a small rate can create many false alarms. "
+        "0-3% = ideal, 3-6% = very reliable, 6-10% = reliable."
     ),
     "Intervention intensity": (
         "Which intensity tier is used when choosing the concrete intervention measure. "
@@ -48,7 +50,7 @@ RESULT_METRIC_DESCRIPTIONS = {
     ),
     "Wrongly flagged": (
         "Children flagged as high-risk who would not have offended. "
-        "They bear the full cost of the policy for no reason."
+        "They are exposed to the policy despite not being on the predicted-outcome path."
     ),
     "Missed by prediction": (
         "Children who would have offended but were not flagged. "
@@ -82,6 +84,13 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 DEFAULT_LLM_MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
 MAX_LLM_MODEL_AGENTS = 2
 MAX_RUN_LOG_SIZE = 5
+DEFAULT_POPULATION_SIZE = 10_000
+DEFAULT_TRUE_HIGH_RISK_RATE = 0.01
+DEFAULT_PREDICTION_ERROR_RATE = 0.025
+TRUE_HIGH_RISK_RATE_MIN = 0.01
+TRUE_HIGH_RISK_RATE_MAX = 0.10
+PREDICTION_ERROR_RATE_MIN = 0.0
+PREDICTION_ERROR_RATE_MAX = 0.10
 
 RUN_METRIC_COLUMNS = [
     "run",
@@ -109,7 +118,6 @@ RUN_COUNT_COLUMNS = [
     "children_helped",
     "children_harmed",
 ]
-DEFAULT_TRUE_HIGH_RISK_RATE = 0.125
 POPULATION_DOT_ANIMATION_SECONDS = 0.18
 POPULATION_DOT_STAGGER_GROUP = 12
 POPULATION_DOT_STAGGER_SECONDS = 0.0005

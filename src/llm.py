@@ -10,7 +10,7 @@ from src.simulation import metric_value, prediction_base_rows
 DEFAULT_SYSTEM_PROMPT = (
     "You are an agent-based life-course simulation engine for a fictional society. "
     "Use English only. Return exactly one valid JSON object and no other text. "
-    "Use the fixed prediction counts supplied by Python, simulate policy effects on life courses, "
+    "Use the fixed prediction counts supplied by Python, simulate only the relevant prediction groups, "
     "and select representative examples afterward. "
     "Never claim to predict real people, assign guilt, use demographic characteristics, or recommend punishment. "
     "Treat all output as synthetic thought-experiment data."
@@ -39,21 +39,29 @@ Use only neutral terms in all narrative text: person, individual, agent, family,
 ## 3. Core methodology - Python owns arithmetic, you simulate policy effects
 This is the most important rule. Do not invent the base prediction numbers or final result table.
 
-Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_crimes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, and unflagged_agents. Treat them as facts.
+Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_crimes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, unflagged_agents, and relevant_agents. Treat them as facts.
+
+You do not simulate every person in the full population. Detailed life-course simulation is only needed for the relevant groups:
+- true_positives: flagged agents who would have the predicted outcome with no policy
+- false_positives: flagged agents who would not have the predicted outcome with no policy
+- false_negatives: unflagged agents who would have the predicted outcome with no policy
+
+true_negatives are not relevant for detailed policy evaluation in this run. They remain constant background counts fixed by Python: they are not flagged, not reached by policy, not helped by policy, not harmed by policy, and not selected as representative agents.
 
 Your job is narrower:
 1. Use the fixed counts for each run.
 2. Simulate how the selected policy scenario affects the flagged agents it reaches.
-3. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, and children_harmed.
-4. Select representative_agents afterward from those simulated policy-effect categories.
-5. Write debrief_text grounded in the fixed counts and your policy effects.
+3. Simulate false negatives only as missed cases following their no-policy path without policy exposure.
+4. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, and children_harmed.
+5. Select representative_agents afterward from those simulated relevant categories.
+6. Write debrief_text grounded in the fixed counts and your policy effects.
 
 Python will compute the final result table after your response:
 - crimes_after_policy = baseline_crimes - prevented_outcomes + policy_caused_outcomes
 - crimes_prevented = baseline_crimes - crimes_after_policy
 - false_positives, false_negatives, baseline_crimes, and children_flagged come from Python, not from you.
 
-Tractable method for large populations: partition each run into weighted agent profiles that sum to the fixed counts. Simulate trajectories for these profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort or the profiles.
+Tractable method for large populations: partition only the relevant agents in each run into weighted agent profiles that sum to true_positives + false_positives + false_negatives. Simulate trajectories for these relevant profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort, the relevant internal cohort, or the profiles.
 
 Multiple runs: each policy_effects row is an independent realization of policy response on the same fixed prediction structure. Effects may vary run to run, but must remain plausible and within the fixed bounds.
 
@@ -82,7 +90,7 @@ Generative parameters:
 - derived_flagged_rate: expected fraction of agents flagged
 - prediction_noise: how well flagging tracks the true counterfactual; 0 means flags concentrate on would-be-outcome agents, higher values create more false positives and false negatives
 - policy_effect_strength: intervention intensity or dose, from 0 to 1. It is non-directional and does not determine whether the policy helps, harms, prevents, or increases the predicted outcome. Whether greater intensity improves or worsens a given agent's trajectory is decided by that agent's simulated life course.
-- fixed_prediction_counts_by_run: Python-computed base counts for every run
+- fixed_prediction_counts_by_run: Python-computed base counts for every run, including relevant_agents
 - profile_life_contexts_by_run: Python-selected background life contexts that may be assigned to weighted profiles
 - required_policy_effect_columns: each policy_effects item must contain exactly these fields
 
@@ -92,7 +100,7 @@ Give agents varied starting traits so they react differently. Vary across temper
 Use profile_life_contexts_by_run as independent background context for internal weighted profiles. Some profiles have no extra context; some have one; some have combinations of several contexts. These contexts are serious life circumstances or opportunities that may shape trajectories, but they are not policy measures, not reactions to policy, and not direct outcomes. Do not turn them into surveillance, support, coercion, monitoring, compliance, punishment, service provision, or any other selected_policy_scenario action.
 
 ## 7. Life-stage simulation per agent
-Each agent or weighted profile is carried through these stages: 10-13, 14-17, 18-21, 22-25, 26-30. At each stage, any of the following may change: trust in institutions, engagement in education, work, or community, family relationships, peer relationships, life stability, autonomy, opportunities, stress, reaction to the policy, and the probability of the predicted outcome.
+Each relevant agent or weighted profile is carried through these stages: 10-13, 14-17, 18-21, 22-25, 26-30. At each stage, any of the following may change: trust in institutions, engagement in education, work, or community, family relationships, peer relationships, life stability, autonomy, opportunities, stress, reaction to the policy, and the probability of the predicted outcome.
 
 The effect emerges from the trajectory, not from the policy name. For example, the same monitoring measure might lead one agent to greater caution and fewer conflicts, another to a sense of constant control and lower trust, and a third to almost no change.
 
@@ -118,13 +126,13 @@ Hard bounds for each row:
 children_helped and children_harmed are independent counts over flagged agents and may overlap. An agent who is both helped and harmed in different respects is counted in both. A prevented outcome does not by itself make an agent helped, and an agent never on the no-policy outcome path can still be helped or harmed. Unflagged agents are not reached by the policy and are never counted as helped or harmed.
 
 ## 9. representative_agents - selected from the simulated policy-effect categories
-Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated cohort, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a false positive harmed, a false positive not made worse, a false negative who received no intervention, and a true negative for contrast. Each selected case must correspond to a category that actually occurs in the internally simulated cohort.
+Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated relevant groups, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a true positive whose outcome was not prevented, a false positive helped, a false positive harmed, a false positive not meaningfully changed, and a false negative who received no intervention. Each selected case must correspond to a relevant category that actually occurs in the internally simulated relevant groups.
 
 Each agent object must contain:
 - agent_id: fictional first name or fictional first name plus compact identifier
 - case_vignette: one compact sentence, 25-45 words, that names the agent, states the prediction status, names the selected policy measure if applied, includes one relevant life context, and gives the outcome by age 30
 - starting_profile: neutral description at starting_age
-- prediction_status: one of "true positive", "false positive", "false negative", "true negative"
+- prediction_status: one of "true positive", "false positive", "false negative"
 - no_policy_counterfactual: whether the predicted outcome would occur by outcome_age with no policy, plus a brief path
 - life_stages: one entry per stage, each with stage and summary
 - predicted_outcome_occurred: boolean
@@ -140,10 +148,9 @@ Prediction status definitions:
 - true positive: flagged, and the predicted outcome would occur by outcome_age with no policy
 - false positive: flagged, but it would not
 - false negative: not flagged, but it would occur
-- true negative: not flagged, and it would not
 
 ## 10. debrief_text
-Return a single plain-text string with no markdown, headings, or bullets. Ground it only in the fixed prediction counts, policy_effects, and representative agents. Cover how the policy reshapes life-course pathways; who benefits, who is harmed, who has mixed effects, and who is largely unaffected; how false positives and false negatives matter; effects on trust, opportunity, autonomy, relationships, and institutions; whether predicted outcomes decrease, increase, or stay similar after Python's arithmetic; the trade-offs made visible; and where results are uncertain or sensitive to assumptions. Do not declare the policy morally correct or incorrect. Aim for roughly 180-320 words.
+Return a single plain-text string with no markdown, headings, or bullets. Ground it only in the fixed prediction counts, policy_effects, and representative agents. Cover how the policy reshapes life-course pathways among the relevant groups; who benefits, who is harmed, who has mixed effects, and who sees little change; how false positives and false negatives matter; effects on trust, opportunity, autonomy, relationships, and institutions; whether predicted outcomes decrease, increase, or stay similar after Python's arithmetic; the trade-offs made visible; and where results are uncertain or sensitive to assumptions. Do not declare the policy morally correct or incorrect. Aim for roughly 180-320 words.
 
 ## 11. Output format
 Return this shape with concrete values:
@@ -163,7 +170,7 @@ Return this shape with concrete values:
       "agent_id": "<string>",
       "case_vignette": "<string>",
       "starting_profile": "<string>",
-      "prediction_status": "true positive | false positive | false negative | true negative",
+      "prediction_status": "true positive | false positive | false negative",
       "no_policy_counterfactual": "<string>",
       "life_stages": [
         { "stage": "10-13", "summary": "<string>" },
@@ -183,17 +190,17 @@ Return this shape with concrete values:
   "debrief_text": "<string>"
 }
 
-Do not include run_results, district_results, or any key not listed above. Never output the full internal cohort.
+Do not include run_results or any key not listed above. Never output the full internal cohort.
 
 ## 12. Validation checklist
 Before responding, verify:
 - Output is a single valid JSON object with exactly policy_effects, representative_agents, and debrief_text.
 - policy_effects has exactly synthetic_runs_to_generate items.
 - representative_agents has exactly representative_agents_to_generate items.
-- The full cohort is not output.
+- The full cohort, true-negative background, and internal relevant profiles are not output.
 - You do not return baseline_crimes, crimes_after_policy, crimes_prevented, false_positives, false_negatives, or children_flagged.
 - All policy_effect counts are integers and within the fixed bounds.
-- Each representative agent has all required fields and is a genuine instance from the internally simulated cohort.
+- Each representative agent has all required fields and is a genuine instance from the internally simulated relevant groups.
 - The aggregate effect emerged from simulated trajectories, not from the policy label.
 - All entities remain fictional and neutral terminology is used.
 
@@ -211,8 +218,8 @@ def compact_parameter_summary(settings):
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
         f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
         f"true_predicted_outcome_rate={settings['true_high_risk_rate']:.3f}; "
-        f"prediction_noise={settings['prediction_noise']:.2f}; "
-        f"derived_flagged_rate={derived_flagged_rate:.2f}; "
+        f"prediction_noise={settings['prediction_noise']:.3f}; "
+        f"derived_flagged_rate={derived_flagged_rate:.3f}; "
         f"policy_intensity_tier={policy_intensity_tier}; "
         f"policy_effect_strength={policy_effect_strength:.1f}"
     )
@@ -240,6 +247,12 @@ def build_llm_simulation_prompt(settings):
         "prediction_noise": metric_value(settings["prediction_noise"]),
         "policy_effect_strength": policy_intensity_value(policy_intensity_tier),
         "fixed_prediction_counts_by_run": prediction_base_rows(settings),
+        "relevant_groups_for_life_course_simulation": [
+            "true_positives",
+            "false_positives",
+            "false_negatives",
+        ],
+        "constant_background_group": "true_negatives",
         "profile_life_contexts_by_run": choose_life_context_assignments(run_count),
         "required_policy_effect_columns": POLICY_EFFECT_COLUMNS,
     }

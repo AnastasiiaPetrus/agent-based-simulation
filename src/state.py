@@ -17,13 +17,31 @@ def add_llm_run_log_entry(entry, max_entries):
     trim_llm_run_log(max_entries)
 
 
-def latest_result_has_current_schema(latest_result):
+def simulation_settings_signature(settings):
+    return {
+        "population_size": int(settings["population_size"]),
+        "true_high_risk_rate": round(float(settings["true_high_risk_rate"]), 6),
+        "prediction_noise": round(float(settings["prediction_noise"]), 6),
+        "policy_intensity_tier": str(settings.get("policy_intensity_tier", "")),
+        "llm_simulation_runs": int(settings["llm_simulation_runs"]),
+        "llm_representative_agents": int(settings["llm_representative_agents"]),
+        "llm_agent_models": tuple(settings.get("llm_agent_models", [])),
+    }
+
+
+def latest_result_has_current_schema(latest_result, settings=None):
     run_results = latest_result.get("run_results")
     if run_results is None:
         return False
 
-    required_run_columns = set(RUN_METRIC_COLUMNS + ["policy", "llm_model"])
-    return required_run_columns.issubset(run_results.columns)
+    required_run_columns = set(RUN_METRIC_COLUMNS + ["children_flagged", "policy", "llm_model"])
+    if not required_run_columns.issubset(run_results.columns):
+        return False
+
+    if settings is not None:
+        return latest_result.get("settings_signature") == simulation_settings_signature(settings)
+
+    return True
 
 
 def attach_model_label(run_results, model):

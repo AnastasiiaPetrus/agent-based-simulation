@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from src.constants import POLICIES
+from src.constants import POLICIES, TRUE_HIGH_RISK_RATE_MAX
 
 ACHIEVEMENTS = [
     {
@@ -53,9 +53,9 @@ ACHIEVEMENTS = [
     },
     {
         "id": "schrodinger",
-        "icon": "🐱",
-        "name": "Schrödinger",
-        "description": "Total prediction errors (FP + FN) exceed the number of children who would have the predicted outcome.",
+        "icon": "🧩",
+        "name": "Base Rate Warning",
+        "description": "Wrongly flagged children outnumber missed children by at least 10 to 1.",
     },
     {
         "id": "helping_hundreds",
@@ -67,7 +67,7 @@ ACHIEVEMENTS = [
         "id": "overreaction",
         "icon": "😱",
         "name": "Overreaction",
-        "description": "More than half the population (500+) flagged as high-risk in a single run.",
+        "description": "Flag at least five times as many children as would have the predicted outcome.",
     },
     {
         "id": "sharp_signal",
@@ -79,7 +79,7 @@ ACHIEVEMENTS = [
         "id": "high_risk_world",
         "icon": "⚠️",
         "name": "High-Risk World",
-        "description": "Simulate a population where 30%+ of children are truly high-risk.",
+        "description": "Simulate a population at the maximum true high-risk rate.",
     },
     {
         "id": "night_owl",
@@ -149,20 +149,24 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if avg_fp > avg_tp:
         earned.add("base_rate_trap")
 
-    if (avg_fp + avg_fn) > avg_baseline:
+    if avg_fp > 0 and (avg_fn == 0 or avg_fp >= (10 * avg_fn)):
         earned.add("schrodinger")
 
     if not targeted.empty and targeted["children_helped"].mean() >= 200:
         earned.add("helping_hundreds")
 
     if "children_flagged" in combined_run_results.columns:
-        if combined_run_results["children_flagged"].max() > 500:
+        flagged_to_baseline_ratio = (
+            combined_run_results["children_flagged"]
+            / combined_run_results["baseline_crimes"].replace(0, float("nan"))
+        )
+        if flagged_to_baseline_ratio.max() >= 5:
             earned.add("overreaction")
 
     if float(settings["prediction_noise"]) <= 0.02:
         earned.add("sharp_signal")
 
-    if float(settings["true_high_risk_rate"]) >= 0.30:
+    if float(settings["true_high_risk_rate"]) >= TRUE_HIGH_RISK_RATE_MAX:
         earned.add("high_risk_world")
 
     now = datetime.now()

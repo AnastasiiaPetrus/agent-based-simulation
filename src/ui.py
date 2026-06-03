@@ -15,6 +15,8 @@ from src.achievements import ACHIEVEMENT_INDEX, ACHIEVEMENTS, check_achievements
 from src.charts import line_chart
 from src.constants import (
     CHECK_DESCRIPTIONS,
+    DEFAULT_POPULATION_SIZE,
+    DEFAULT_PREDICTION_ERROR_RATE,
     DEFAULT_TRUE_HIGH_RISK_RATE,
     LLM_MODEL,
     DEFAULT_LLM_MODEL_OPTIONS,
@@ -25,8 +27,12 @@ from src.constants import (
     POPULATION_DOT_ANIMATION_SECONDS,
     POPULATION_DOT_STAGGER_GROUP,
     POPULATION_DOT_STAGGER_SECONDS,
+    PREDICTION_ERROR_RATE_MAX,
+    PREDICTION_ERROR_RATE_MIN,
     RESULT_METRIC_DESCRIPTIONS,
     SETTING_DESCRIPTIONS,
+    TRUE_HIGH_RISK_RATE_MAX,
+    TRUE_HIGH_RISK_RATE_MIN,
 )
 from src.llm import (
     DEFAULT_SYSTEM_PROMPT,
@@ -54,6 +60,7 @@ from src.state import (
     initialize_llm_state,
     latest_result_has_current_schema,
     normalize_representative_agents,
+    simulation_settings_signature,
     trim_llm_run_log,
 )
 from src.tables import average_results_table, combined_policy_totals_table
@@ -74,7 +81,7 @@ def render_app_header():
     </div>
   </div>
   <div class="app-status-chips">
-    <span class="badge-chip">N = 1,000</span>
+    <span class="badge-chip">N = {DEFAULT_POPULATION_SIZE:,}</span>
     <span class="badge-chip">{len(POLICIES)} policies</span>
     <span class="badge-chip badge-live badge-live-status">live</span>
   </div>
@@ -110,7 +117,7 @@ def render_hero_summary(settings):
 
 def render_hero_statement():
     st.html(
-        """
+        f"""
 <div class="hero-badges">
   <span class="badge-chip badge-live">Thought Experiment</span>
   <span class="badge-chip">Statistical</span>
@@ -122,7 +129,7 @@ def render_hero_statement():
     <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will commit a serious harmful act by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
-    <em>What should we do with that information?</em><br>Run 1,000 synthetic lives through three policy responses &mdash; and watch the trade-offs come alive: prevented outcomes, false alarms, missed cases, help, and harm.
+    <em>What should we do with that information?</em><br>Run {DEFAULT_POPULATION_SIZE:,} synthetic lives through three policy responses &mdash; and watch the trade-offs come alive: prevented outcomes, false alarms, missed cases, help, and harm.
   </p>
 </section>
         """
@@ -158,7 +165,7 @@ ACHIEVEMENT_ICON_BY_ID = {
     "crime_preventer": "hero",
     "crime_crusher": "burst",
     "base_rate_trap": "trap",
-    "schrodinger": "cat",
+    "schrodinger": "puzzle",
     "helping_hundreds": "handshake",
     "overreaction": "shocked",
     "sharp_signal": "target",
@@ -1944,9 +1951,24 @@ def llm_model_options():
 
 
 def default_llm_agent_models(model_options):
-    preferred_models = unique_values([LLM_MODEL, "gpt-4.1-mini"])
-    defaults = [model for model in preferred_models if model in model_options]
-    return (defaults or model_options[:1])[:MAX_LLM_MODEL_AGENTS]
+    smallest_default = DEFAULT_LLM_MODEL_OPTIONS[0]
+    if smallest_default in model_options:
+        return [smallest_default]
+    if LLM_MODEL in model_options:
+        return [LLM_MODEL]
+    return model_options[:1]
+
+
+def clamp_selected_models(model_key, model_options):
+    selected = st.session_state.get(model_key)
+    if not isinstance(selected, list):
+        return
+
+    valid_selection = [model for model in selected if model in model_options]
+    if len(valid_selection) > MAX_LLM_MODEL_AGENTS:
+        valid_selection = valid_selection[:MAX_LLM_MODEL_AGENTS]
+    if valid_selection != selected:
+        st.session_state[model_key] = valid_selection
 
 
 def glossary_markdown(items):
@@ -2040,14 +2062,14 @@ def _panel_changes(children, policy, metrics):
     final_high_indices = {
         i for i, c in enumerate(children)
         if c["base"] == "high" and i not in prevented_indices
-    } | harmed_indices | added_indices
+    } | added_indices
     final_high = len(final_high_indices)
     harmed_total = harmed_fp + harmed_tp
     added_summary = f"{len(added_indices)} added (green→red); " if added_indices else ""
     summary = (
         f"{len(prevented_indices)} prevented (red→green); "
         f"{added_summary}"
-        f"{harmed_total} harmed by intervention (→red, outlined); "
+        f"{harmed_total} harmed by intervention (outlined); "
         f"{final_high} red remain."
     )
     return prevented_indices, added_indices, harmed_indices, summary, True
@@ -2068,8 +2090,6 @@ def policy_panel_html(children, policy, metrics, panel_index):
         elif index in added_indices:
             final_class = "final-high"
             change_classes.append("changed-worsened")
-        elif index in harmed_indices:
-            final_class = "final-high"
         if index in harmed_indices:
             change_classes.append("changed-harmed")
         flagged_class = " flagged-dot" if child["flagged"] else ""
@@ -2116,8 +2136,7 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
   }});
   {json.dumps(sorted(harmed_indices))}.forEach(function(i) {{
     if (!dots[i]) return;
-    dots[i].classList.remove('final-low');
-    dots[i].classList.add('final-high','changed-harmed');
+    dots[i].classList.add('changed-harmed');
   }});
   var el = panel.querySelector('.policy-panel-summary');
   if (el) el.textContent = {json.dumps(summary)};
@@ -2441,6 +2460,25 @@ def format_percent(value):
     return f"{value:.1f}%"
 
 
+def clamp_percent_session_value(key, default_percent, min_percent, max_percent):
+    try:
+        value = float(st.session_state.get(key, default_percent))
+    except (TypeError, ValueError):
+        value = default_percent
+    value = min(max(value, min_percent), max_percent)
+    st.session_state[key] = value
+    return value
+
+
+def prediction_reliability_label(error_percent):
+    error_percent = float(error_percent)
+    if error_percent <= 3:
+        return "Ideal"
+    if error_percent <= 6:
+        return "Very reliable"
+    return "Reliable"
+
+
 def render_settings_field_copy(text):
     st.html(f'<div class="settings-field-copy">{escape(text)}</div>')
 
@@ -2460,10 +2498,12 @@ def render_settings_stat_rows(population_size, policy_count):
 def render_reference_guide():
     with st.expander("How this works", expanded=False):
         st.markdown(
-            """
-A fictional prediction tool scans 1,000 children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
+            f"""
+A fictional prediction tool scans {DEFAULT_POPULATION_SIZE:,} children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
 
-For each policy, an AI simulates a full synthetic cohort. Each child receives a starting profile, a no-policy counterfactual, a prediction status, and either exposure or non-exposure to that policy. The model then follows the child through life stages from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, restriction, and the final predicted outcome.
+Python first fixes the full prediction structure: true positives, wrongly flagged children, missed children, and the large background group that is neither flagged nor on the predicted-outcome path. The AI then simulates only the relevant groups — flagged children plus missed children — as weighted life-course profiles rather than 10,000 separate biographies.
+
+For each relevant profile, the model follows life stages from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, restriction, and the final predicted outcome. The unchanged background group stays in the arithmetic, but it is not individually simulated.
 
 The aggregate results are counted from those simulated lives. They show how many predicted outcomes were prevented or added, how many flagged children were helped or harmed, how many were flagged by mistake, and how many were missed by the prediction tool.
 
@@ -2695,7 +2735,11 @@ def representative_agent_progress_note(model, policy, policy_agents, max_agents=
     for index, agent in enumerate(agents, start=1):
         vignette = representative_agent_case_vignette(agent, index)
         name = agent_display_name(agent, index)
-        if vignette.lower().startswith(name.lower()):
+        name_is_prefix = vignette.casefold().startswith(name.casefold())
+        name_has_boundary = name_is_prefix and (
+            len(vignette) == len(name) or not vignette[len(name)].isalnum()
+        )
+        if name_is_prefix and name_has_boundary:
             name_text = vignette[:len(name)]
             rest = vignette[len(name):]
             line = f"<strong>{escape(name_text)}</strong>{escape(rest)}"
@@ -2748,7 +2792,7 @@ def render_representative_agents(representative_agents):
 @st.fragment
 def render_results_fragment(settings):
     latest_result = st.session_state.get("llm_agent_latest_result")
-    if not latest_result:
+    if not latest_result or not latest_result_has_current_schema(latest_result, settings):
         return
     latest_run_results = latest_result["run_results"]
 
@@ -2962,6 +3006,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             "model_results": model_summaries,
             "representative_agents": agents,
             "debrief_text": debrief_combined,
+            "settings_signature": simulation_settings_signature(settings),
         }
 
         entry = {
@@ -3013,7 +3058,7 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         )
 
     latest_result = st.session_state.get("llm_agent_latest_result")
-    has_valid_result = latest_result and latest_result_has_current_schema(latest_result)
+    has_valid_result = latest_result and latest_result_has_current_schema(latest_result, settings)
     initial_runs = latest_result["run_results"] if has_valid_result else None
     initial_title = "Latest synthetic population view" if has_valid_result else "Live synthetic population view"
 
@@ -3032,14 +3077,11 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
             f"{total_calls} LLM call(s). Each call generates {int(settings['llm_simulation_runs'])} "
             f"synthetic run(s) over {int(settings['population_size']):,} synthetic children."
         )
-    settings_invalid = settings["true_high_risk_rate"] == 0
     with run_info_slot:
         if not selected_models:
             st.warning("Select at least one LLM model agent.")
-        if settings_invalid:
-            st.warning("Set 'Percentage of true high-risk children' above 0% to run a meaningful simulation.")
 
-    run_disabled = not bool(api_key) or not selected_models or settings_invalid
+    run_disabled = not bool(api_key) or not selected_models
     if run_button_slot is None:
         run_button_slot = st.sidebar.empty()
 
@@ -3081,9 +3123,9 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         _run_simulation(settings, selected_models, progress_slot, update_slot, live_population)
 
     latest_result = st.session_state.get("llm_agent_latest_result")
-    if latest_result and not latest_result_has_current_schema(latest_result):
+    if latest_result and not latest_result_has_current_schema(latest_result, settings):
         st.session_state.pop("llm_agent_latest_result", None)
-        st.write("Previous in-session results used an older metric schema. Run the simulation again.")
+        st.write("Previous in-session results used older assumptions. Run the simulation again.")
     else:
         st.html('<div class="section-gap section-gap-results"></div>')
         render_results_fragment(settings)
@@ -3091,19 +3133,34 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 
 
 def sidebar_inputs():
-    population_size = 1000
+    population_size = DEFAULT_POPULATION_SIZE
     true_rate_key = "true_high_risk_rate_percent"
     prediction_error_key = "prediction_error_percent"
     intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
-    true_rate_default = round(DEFAULT_TRUE_HIGH_RISK_RATE * 100)
-    prediction_error_default = 3
-    true_rate_value = int(st.session_state.get(true_rate_key, true_rate_default))
-    prediction_error_value = int(st.session_state.get(prediction_error_key, prediction_error_default))
+    true_rate_default = DEFAULT_TRUE_HIGH_RISK_RATE * 100
+    prediction_error_default = DEFAULT_PREDICTION_ERROR_RATE * 100
+    true_rate_min = TRUE_HIGH_RISK_RATE_MIN * 100
+    true_rate_max = TRUE_HIGH_RISK_RATE_MAX * 100
+    prediction_error_min = PREDICTION_ERROR_RATE_MIN * 100
+    prediction_error_max = PREDICTION_ERROR_RATE_MAX * 100
+    true_rate_value = clamp_percent_session_value(
+        true_rate_key,
+        true_rate_default,
+        true_rate_min,
+        true_rate_max,
+    )
+    prediction_error_value = clamp_percent_session_value(
+        prediction_error_key,
+        prediction_error_default,
+        prediction_error_min,
+        prediction_error_max,
+    )
     intensity_value = st.session_state.get(intensity_key, "Medium")
     is_running = bool(st.session_state.get("simulation_running", False))
 
     model_options = llm_model_options()
+    clamp_selected_models(model_key, model_options)
 
     with st.sidebar.container(border=True, key="simulation_params_panel"):
         st.html(
@@ -3118,11 +3175,11 @@ def sidebar_inputs():
         render_settings_field_header("True high-risk rate", format_percent(true_rate_value))
         true_high_risk_rate = st.slider(
             "Percentage of true high-risk children (%)",
-            0,
-            100,
+            true_rate_min,
+            true_rate_max,
             true_rate_default,
-            step=1,
-            format="%d%%",
+            step=0.5,
+            format="%.1f%%",
             key=true_rate_key,
             help=SETTING_DESCRIPTIONS["Percentage of true high-risk children (%)"],
             label_visibility="collapsed",
@@ -3132,20 +3189,26 @@ def sidebar_inputs():
             "Share of children who would commit the predicted serious harmful act with no intervention."
         )
 
-        render_settings_field_header("Prediction error", format_percent(prediction_error_value))
+        prediction_reliability = prediction_reliability_label(prediction_error_value)
+        render_settings_field_header(
+            "Prediction error",
+            f"{format_percent(prediction_error_value)} · {prediction_reliability}",
+        )
         prediction_noise = st.slider(
             "Prediction error rate (%)",
-            0,
-            100,
+            prediction_error_min,
+            prediction_error_max,
             prediction_error_default,
-            step=1,
-            format="%d%%",
+            step=0.5,
+            format="%.1f%%",
             key=prediction_error_key,
             help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
             label_visibility="collapsed",
             disabled=is_running,
         ) / 100
-        render_settings_field_copy("Rate at which the age-10 prediction misclassifies a child.")
+        render_settings_field_copy(
+            "Symmetric error rate: 0-3% ideal, 3-6% very reliable, 6-10% reliable."
+        )
 
         render_settings_field_header("Intervention intensity", intensity_value)
         policy_intensity_tier = st.segmented_control(
