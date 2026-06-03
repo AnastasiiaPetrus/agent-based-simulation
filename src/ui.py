@@ -7,6 +7,7 @@ from datetime import datetime
 from functools import lru_cache
 from html import escape
 from pathlib import Path
+from time import monotonic
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,7 @@ from src.constants import (
     POPULATION_DOT_STAGGER_SECONDS,
     PREDICTION_ERROR_RATE_MAX,
     PREDICTION_ERROR_RATE_MIN,
+    PROGRESS_NOTE_MIN_SECONDS,
     RESULT_METRIC_DESCRIPTIONS,
     SETTING_DESCRIPTIONS,
     TRUE_HIGH_RISK_RATE_MAX,
@@ -2861,6 +2863,38 @@ def representative_agent_progress_note(model, policy, policy_agents, max_agents=
     return "".join(lines)
 
 
+def progress_note_candidate(model, policy, policy_agents, debrief):
+    case_note = representative_agent_progress_note(model, policy, policy_agents)
+    if case_note:
+        return case_note, True
+    if debrief:
+        return f"{model} | {policy}: {compact_sentence(debrief, 320)}", False
+    return "", False
+
+
+def maybe_update_progress_note(
+    current_note,
+    current_is_html,
+    last_update_at,
+    candidate_note,
+    candidate_is_html,
+    now=None,
+):
+    if not candidate_note:
+        return current_note, current_is_html, last_update_at
+
+    current_time = monotonic() if now is None else float(now)
+    can_update = (
+        not current_note
+        or last_update_at is None
+        or current_time - last_update_at >= PROGRESS_NOTE_MIN_SECONDS
+    )
+    if not can_update:
+        return current_note, current_is_html, last_update_at
+
+    return candidate_note, candidate_is_html, current_time
+
+
 def render_representative_agents(representative_agents):
     agents = [representative_agent_dict(agent) for agent in representative_agents]
     summary_rows = [representative_agent_summary(agent) for agent in agents]
@@ -3063,6 +3097,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     completed = 0
     progress_note = ""
     progress_note_is_html = False
+    progress_note_updated_at = None
 
     render_terminal_progress(
         progress_slot, 0, total_calls,
@@ -3102,13 +3137,14 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 completed += 1
                 policy_agents = result["agents"]
                 debrief = result["debrief_text"]
-                case_note = representative_agent_progress_note(model, policy, policy_agents)
-                if case_note:
-                    progress_note = case_note
-                    progress_note_is_html = True
-                elif debrief:
-                    progress_note = f"{model} | {policy}: {compact_sentence(debrief, 320)}"
-                    progress_note_is_html = False
+                candidate_note, candidate_is_html = progress_note_candidate(model, policy, policy_agents, debrief)
+                progress_note, progress_note_is_html, progress_note_updated_at = maybe_update_progress_note(
+                    progress_note,
+                    progress_note_is_html,
+                    progress_note_updated_at,
+                    candidate_note,
+                    candidate_is_html,
+                )
                 render_terminal_progress(
                     progress_slot, completed, total_calls,
                     f"Received {model} / {policy}.",
@@ -3136,8 +3172,13 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             except Exception as error:
                 completed += 1
                 msg = friendly_llm_error(error)
-                progress_note = msg
-                progress_note_is_html = False
+                progress_note, progress_note_is_html, progress_note_updated_at = maybe_update_progress_note(
+                    progress_note,
+                    progress_note_is_html,
+                    progress_note_updated_at,
+                    msg,
+                    False,
+                )
                 render_terminal_progress(
                     progress_slot, completed, total_calls,
                     f"Error: {model} / {policy}.",
