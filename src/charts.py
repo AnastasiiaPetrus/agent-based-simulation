@@ -1,4 +1,7 @@
+from io import BytesIO
+
 import matplotlib.pyplot as plt
+import streamlit as st
 
 
 SURFACE = "#ffffff"
@@ -11,7 +14,8 @@ ACCENT = "#dd2538"
 AMBER = "#f08a00"
 
 
-def line_chart(data, x_column, y_column, title, y_label):
+@st.cache_data(show_spinner=False)
+def line_chart_png(data, x_column, y_column, title, y_label):
     fig, ax = plt.subplots(figsize=(7, 3.6), facecolor=SURFACE)
     ax.set_facecolor(SURFACE_PANEL)
     columns = [x_column, y_column]
@@ -58,5 +62,16 @@ def line_chart(data, x_column, y_column, title, y_label):
     for spine in ["left", "bottom"]:
         ax.spines[spine].set_color(LINE)
         ax.spines[spine].set_linewidth(0.8)
-    fig.tight_layout()
-    return fig
+    try:
+        fig.tight_layout()
+        buffer = BytesIO()
+        fig.savefig(
+            buffer,
+            format="png",
+            dpi=160,
+            bbox_inches="tight",
+            facecolor=fig.get_facecolor(),
+        )
+        return buffer.getvalue()
+    finally:
+        plt.close(fig)

@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from src.achievements import ACHIEVEMENT_INDEX, ACHIEVEMENTS, check_achievements
-from src.charts import line_chart
+from src.charts import line_chart_png
 from src.constants import (
     CHECK_DESCRIPTIONS,
     DEFAULT_POPULATION_SIZE,
@@ -2614,28 +2614,28 @@ def render_charts(run_results):
     chart_left, chart_right = st.columns(2)
 
     with chart_left:
-        st.pyplot(
-            line_chart(
+        st.image(
+            line_chart_png(
                 run_results,
                 "run",
                 "crimes_prevented",
                 "Offenses prevented by run",
                 "Offenses prevented",
             ),
-            clear_figure=True,
+            use_container_width=True,
         )
 
     if "children_harmed" in run_results.columns and run_results["children_harmed"].sum() > 0:
         with chart_right:
-            st.pyplot(
-                line_chart(
+            st.image(
+                line_chart_png(
                     run_results,
                     "run",
                     "children_harmed",
                     "Children harmed by policy by run",
                     "Children harmed",
                 ),
-                clear_figure=True,
+                use_container_width=True,
             )
 
 
