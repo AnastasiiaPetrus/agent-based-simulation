@@ -3097,10 +3097,11 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 
 def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None):
     initialize_llm_state()
-    st.subheader("Simulation")
     selected_models = settings["llm_agent_models"]
     total_calls = len(selected_models) * len(POLICIES)
-    st.caption(f"{total_calls} LLM call(s) — one per policy × model.")
+    if SHOW_POPULATION_DOT_VIEW:
+        st.subheader("Simulation")
+        st.caption(f"{total_calls} LLM call(s) — one per policy × model.")
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
