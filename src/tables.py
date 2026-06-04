@@ -37,6 +37,7 @@ def format_outcome_effect(value):
     return "0.0% net change"
 
 
+@st.cache_data(show_spinner=False)
 def average_results_table(run_results):
     metric_order = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
     averages = run_results[metric_order].mean(numeric_only=True)
@@ -45,7 +46,20 @@ def average_results_table(run_results):
     return table
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
+def formatted_average_results_table(average_table):
+    display_table = average_table.copy()
+
+    def format_value(value):
+        if pd.isna(value):
+            return "Not applicable"
+        return f"{value:,.3f}"
+
+    display_table["Average per synthetic run"] = display_table["Average per synthetic run"].map(format_value)
+    return display_table
+
+
+@st.cache_data(show_spinner=False)
 def combined_policy_totals_table(run_results, population_size):
     required_metric_columns = [*POLICY_TOTAL_AVERAGE_LABELS, "crimes_prevented", "children_flagged"]
     metric_columns = [column for column in required_metric_columns if column in run_results.columns]

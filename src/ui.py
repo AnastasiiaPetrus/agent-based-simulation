@@ -67,7 +67,7 @@ from src.state import (
     simulation_settings_signature,
     trim_llm_run_log,
 )
-from src.tables import average_results_table, combined_policy_totals_table
+from src.tables import average_results_table, combined_policy_totals_table, formatted_average_results_table
 
 
 _LIVE_GRID_ID = "livePopGrid"
@@ -2600,15 +2600,11 @@ The goal is not to find the right answer — it's to see what the trade-offs act
 
 
 def display_average_table(average_table):
-    display_table = average_table.copy()
-
-    def format_value(value):
-        if pd.isna(value):
-            return "Not applicable"
-        return f"{value:,.3f}"
-
-    display_table["Average per synthetic run"] = display_table["Average per synthetic run"].map(format_value)
-    st.dataframe(display_table, use_container_width=True, hide_index=True)
+    st.dataframe(
+        formatted_average_results_table(average_table),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 def dataframe_to_payload(dataframe):
@@ -2618,6 +2614,7 @@ def dataframe_to_payload(dataframe):
     }
 
 
+@st.cache_data(show_spinner=False)
 def dataframe_from_payload(payload):
     if not isinstance(payload, dict):
         return pd.DataFrame()
