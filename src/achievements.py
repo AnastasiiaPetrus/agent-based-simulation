@@ -36,13 +36,13 @@ ACHIEVEMENTS = [
     {
         "id": "crime_preventer",
         "icon": "🛡️",
-        "name": "Crime Fighter",
+        "name": "Outcome Preventer",
         "description": "Prevent an average of 20+ predicted outcomes per run under any policy.",
     },
     {
         "id": "crime_crusher",
         "icon": "💥",
-        "name": "Crime Crusher",
+        "name": "Outcome Reducer",
         "description": "Achieve 25%+ average predicted outcome reduction under any policy.",
     },
     {

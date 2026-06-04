@@ -72,8 +72,8 @@ from src.tables import average_results_table, combined_policy_totals_table, form
 
 _LIVE_GRID_ID = "livePopGrid"
 _HOW_THIS_WORKS_EXPANDED_KEY = "how_this_works_expanded"
-# Temporarily hide the dot-based synthetic population view.
-SHOW_POPULATION_DOT_VIEW = False
+# Show the aggregate bubble population view.
+SHOW_POPULATION_DOT_VIEW = True
 
 
 def render_app_header():
@@ -155,22 +155,22 @@ def render_population_view_overview(settings):
     <span class="population-legend-item">
       <span class="population-legend-dot is-safe"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">Not flagged &middot; safe</span>
-        <span class="population-legend-desc">No predicted risk — not subject to any policy action</span>
+        <span class="population-legend-label">Not flagged &middot; low-risk</span>
+        <span class="population-legend-desc">Not on the predicted-outcome path and not subject to policy action</span>
       </span>
     </span>
     <span class="population-legend-item">
       <span class="population-legend-dot is-diverted"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">True positive &middot; outcome prevented</span>
-        <span class="population-legend-desc">Correctly flagged high-risk — policy appears to have worked</span>
+        <span class="population-legend-label">Flagged high-risk &middot; outcome prevented</span>
+        <span class="population-legend-desc">On the predicted-outcome path, flagged, and shifted to low-risk</span>
       </span>
     </span>
     <span class="population-legend-item">
-      <span class="population-legend-dot is-violent"></span>
+      <span class="population-legend-dot is-outcome-remains"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">True positive &middot; outcome remains</span>
-        <span class="population-legend-desc">Correctly flagged high-risk — policy did not prevent the outcome</span>
+        <span class="population-legend-label">Flagged high-risk &middot; outcome remains</span>
+        <span class="population-legend-desc">On the predicted-outcome path, flagged, and still high-risk after policy</span>
       </span>
     </span>
     <span class="population-legend-item">
@@ -184,7 +184,7 @@ def render_population_view_overview(settings):
       <span class="population-legend-dot is-wrong"></span>
       <span class="population-legend-text">
         <span class="population-legend-label">Wrongly flagged (false positive)</span>
-        <span class="population-legend-desc">No real risk — flagged and subject to policy action anyway</span>
+        <span class="population-legend-desc">Not on the predicted-outcome path but flagged and subject to policy action</span>
       </span>
     </span>
   </div>
@@ -755,6 +755,8 @@ h3 {
 
 .population-legend-dot {
   display: inline-block;
+  position: relative;
+  overflow: hidden;
   width: 0.72rem;
   height: 0.72rem;
   flex: 0 0 auto;
@@ -763,18 +765,36 @@ h3 {
   margin-top: 0.18rem;
 }
 
+.population-legend-dot::after {
+  content: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.36) 0,
+    rgba(0, 0, 0, 0.36) 1.5px,
+    transparent 1.5px,
+    transparent 5px
+  );
+}
+
 .population-legend-dot.is-safe {
   background: var(--risk-safe);
 }
 
 .population-legend-dot.is-diverted {
   background: var(--primary);
-  outline: 2px solid var(--amber);
 }
 
-.population-legend-dot.is-violent {
+.population-legend-dot.is-diverted::after,
+.population-legend-dot.is-outcome-remains::after,
+.population-legend-dot.is-wrong::after {
+  content: "";
+}
+
+.population-legend-dot.is-outcome-remains {
   background: var(--accent);
-  outline: 2px solid var(--amber);
 }
 
 .population-legend-dot.is-missed {
@@ -783,7 +803,6 @@ h3 {
 
 .population-legend-dot.is-wrong {
   background: var(--risk-safe);
-  outline: 2px solid var(--amber);
 }
 
 .achievement-toast-stack {
@@ -2006,12 +2025,11 @@ def llm_model_options():
 
 
 def default_llm_agent_models(model_options):
-    smallest_default = DEFAULT_LLM_MODEL_OPTIONS[0]
-    if smallest_default in model_options:
-        return [smallest_default]
-    if LLM_MODEL in model_options:
-        return [LLM_MODEL]
-    return model_options[:1]
+    preferred_models = unique_values([LLM_MODEL, *DEFAULT_LLM_MODEL_OPTIONS])
+    defaults = [model for model in preferred_models if model in model_options]
+    if not defaults:
+        defaults = model_options
+    return defaults[:MAX_LLM_MODEL_AGENTS]
 
 
 def clamp_selected_models(model_key, model_options):
@@ -2107,6 +2125,520 @@ def seeded_subset(indices, count, seed_text):
 
 def stable_seed(seed_text):
     return int.from_bytes(hashlib.blake2s(seed_text.encode("utf-8"), digest_size=8).digest(), "big")
+
+
+POLICY_BUBBLE_METADATA = {
+    "Targeted support for high-risk children": {
+        "title": "Targeted Support",
+        "description": "Voluntary counselling, mentoring, and practical assistance for flagged children.",
+        "border": "var(--primary)",
+    },
+    "Surveillance of high-risk children": {
+        "title": "Surveillance",
+        "description": "Flagged children are monitored, reviewed, or recorded more closely.",
+        "border": "var(--primary)",
+    },
+    "Coercive preventive intervention for high-risk children": {
+        "title": "Coercive Prevention",
+        "description": "Flagged children face mandatory requirements or restrictions before the predicted outcome occurs.",
+        "border": "var(--primary)",
+    },
+}
+
+BUBBLE_LAYOUT_WIDTH = 1500
+BUBBLE_LAYOUT_HEIGHT = 620
+BUBBLE_LAYOUT_MARGIN = 40
+BUBBLE_LAYOUT_GAP = 24
+BUBBLE_LAYOUT_CLUSTER_GAP = 78
+BUBBLE_LAYOUT_GROUPS = (
+    ("safe", "wrong", "diverted"),
+    ("missed", "failed", "added"),
+)
+BUBBLE_CATEGORY_Y = {
+    "safe": 310,
+    "wrong": 330,
+    "diverted": 265,
+    "missed": 285,
+    "failed": 320,
+    "added": 265,
+}
+
+BUBBLE_CATEGORY_COLORS = {
+    "safe": "#bed9c6",
+    "diverted": "#00a757",
+    "failed": "#c90024",
+    "wrong": "#79c992",
+    "missed": "#e3293c",
+    "added": "#870016",
+}
+
+BUBBLE_FLAGGED_CATEGORIES = {"wrong", "diverted", "failed", "added"}
+
+BUBBLE_CATEGORY_Z_INDEX = {
+    "safe": 1,
+    "failed": 2,
+    "wrong": 3,
+    "diverted": 4,
+    "missed": 5,
+    "added": 6,
+}
+
+BUBBLE_FLOAT_OFFSETS = {
+    "safe": (0, -8),
+    "wrong": (8, 5),
+    "diverted": (-7, 5),
+    "missed": (6, -7),
+    "failed": (-6, 7),
+    "added": (8, -5),
+}
+
+BUBBLE_FLOAT_DURATIONS = {
+    "safe": 11.4,
+    "wrong": 9.8,
+    "diverted": 10.6,
+    "missed": 9.4,
+    "failed": 11.0,
+    "added": 10.2,
+}
+
+def policy_bubble_counts(metrics, settings):
+    population_size = int(settings["population_size"])
+    baseline = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
+    false_positives, false_negatives, _ = risk_signal_counts(baseline, settings)
+    prevented = 0
+    has_result = bool(metrics)
+
+    if metrics:
+        baseline = clamp_count(metrics.get("baseline"), population_size)
+        false_positives = clamp_count(metrics.get("false_positives"), population_size)
+        false_negatives = clamp_count(metrics.get("false_negatives"), population_size)
+        prevented = int(metrics.get("prevented") or 0)
+
+    flagged_true_positives = max(0, baseline - false_negatives)
+    diverted = min(max(0, prevented), flagged_true_positives)
+    added = min(max(0, -prevented), false_positives)
+    failed = max(0, flagged_true_positives - diverted)
+    wrongly_flagged = max(0, false_positives - added)
+    missed = max(0, false_negatives)
+    safe = max(0, population_size - baseline - false_positives)
+    outcomes_after_policy = failed + missed + added
+
+    return {
+        "safe": safe,
+        "diverted": diverted,
+        "failed": failed,
+        "wrong": wrongly_flagged,
+        "missed": missed,
+        "added": added,
+        "outcomes_after_policy": outcomes_after_policy,
+        "net_prevented": diverted - added,
+        "baseline": baseline,
+        "has_result": has_result,
+    }
+
+
+def bubble_radius(value, population_size):
+    if value <= 0:
+        return 0
+    ratio = max(0, min(1, value / max(population_size, 1)))
+    return max(41, min(261, 35 + 226 * (ratio ** 0.34)))
+
+
+def bubble_layout(counts, population_size):
+    groups = []
+    radii = {}
+    for group in BUBBLE_LAYOUT_GROUPS:
+        visible_group = []
+        for category in group:
+            value = counts.get(category, 0)
+            if value <= 0:
+                continue
+            radii[category] = bubble_radius(value, population_size)
+            visible_group.append(category)
+        if visible_group:
+            groups.append(visible_group)
+
+    if not groups:
+        return {}
+
+    intra_group_gaps = sum(max(0, len(group) - 1) for group in groups)
+    cluster_gaps = max(0, len(groups) - 1)
+    gap_width = (
+        intra_group_gaps * BUBBLE_LAYOUT_GAP
+        + cluster_gaps * BUBBLE_LAYOUT_CLUSTER_GAP
+    )
+    fixed_width = BUBBLE_LAYOUT_MARGIN * 2 + gap_width
+    diameter_width = sum(2 * radii[category] for group in groups for category in group)
+    if fixed_width + diameter_width > BUBBLE_LAYOUT_WIDTH:
+        scale = (BUBBLE_LAYOUT_WIDTH - fixed_width) / max(diameter_width, 1)
+        radii = {
+            category: max(41, radius * scale)
+            for category, radius in radii.items()
+        }
+        diameter_width = sum(2 * radii[category] for group in groups for category in group)
+
+    layout = {}
+    content_width = diameter_width + gap_width
+    cursor = max(BUBBLE_LAYOUT_MARGIN, (BUBBLE_LAYOUT_WIDTH - content_width) / 2)
+    for group_index, group in enumerate(groups):
+        if group_index:
+            cursor += BUBBLE_LAYOUT_CLUSTER_GAP
+        for item_index, category in enumerate(group):
+            if item_index:
+                cursor += BUBBLE_LAYOUT_GAP
+            radius = radii[category]
+            x = cursor + radius
+            layout[category] = (x, BUBBLE_CATEGORY_Y[category], radius)
+            cursor = x + radius
+    return layout
+
+
+def outcome_delta_text(counts):
+    baseline = max(1, counts["baseline"])
+    delta = -(counts["net_prevented"] / baseline) * 100
+    if abs(delta) < 0.05:
+        return "0%"
+    return f"{delta:+.0f}%".replace("+", "+").replace("-", "−")
+
+
+def bubble_font_size(value, radius):
+    digits = len(f"{value:,}")
+    if digits <= 2:
+        factor = 0.38
+    elif digits <= 3:
+        factor = 0.30
+    else:
+        factor = 0.20
+    return max(24, min(48, radius * factor))
+
+
+def bubble_node_html(category, value, layout_entry, index):
+    if value <= 0:
+        return ""
+    x, y, radius = layout_entry
+    color = BUBBLE_CATEGORY_COLORS[category]
+    font_size = bubble_font_size(value, radius)
+    dx, dy = BUBBLE_FLOAT_OFFSETS.get(category, (2, -2))
+    duration = BUBBLE_FLOAT_DURATIONS.get(category, 8.0)
+    begin = -(index * 0.7)
+    soft_dx = dx * 0.24
+    soft_dy = -dy * 0.36
+    left = (x / BUBBLE_LAYOUT_WIDTH) * 100
+    top = (y / BUBBLE_LAYOUT_HEIGHT) * 100
+    size = (radius * 2 / BUBBLE_LAYOUT_WIDTH) * 100
+    flagged_class = "is-flagged" if category in BUBBLE_FLAGGED_CATEGORIES else "is-unflagged"
+    return f"""
+<div class="bubble-position bubble-{category}" style="--bubble-left:{left:.2f}%; --bubble-top:{top:.2f}%; --bubble-size:{size:.2f}%; --bubble-color:{color}; --bubble-font:{font_size:.2f}px; --bubble-delay:{index * 90}ms; --float-x:{dx}px; --float-y:{dy}px; --float-x-soft:{soft_dx:.2f}px; --float-y-soft:{soft_dy:.2f}px; --float-x-neg:{-dx}px; --float-y-neg:{-dy}px; --float-duration:{duration:.1f}s; --float-delay:{begin:.1f}s;">
+  <div class="bubble-float">
+    <div class="bubble-node {flagged_class}">
+      <span class="bubble-value">{escape(f"{value:,}")}</span>
+    </div>
+  </div>
+</div>
+    """
+
+
+def policy_bubble_card(policy, metrics, settings, index):
+    meta = POLICY_BUBBLE_METADATA[policy]
+    counts = policy_bubble_counts(metrics, settings)
+    population_size = int(settings["population_size"])
+    outcome_delta = outcome_delta_text(counts) if counts["has_result"] else "—"
+    delta_class = "is-worse" if counts["net_prevented"] < 0 else "is-better"
+    status_class = "is-ready" if counts["has_result"] else "is-waiting"
+    layout = bubble_layout(counts, population_size)
+
+    bubble_nodes = [
+        bubble_node_html(category, counts[category], layout[category], index)
+        for index, category in enumerate(["safe", "wrong", "diverted", "missed", "failed", "added"])
+        if category in layout
+    ]
+
+    metric_items = [
+        ("OUTCOMES AFTER POLICY", counts["outcomes_after_policy"]),
+        ("OUTCOMES PREVENTED", counts["diverted"]),
+        ("WRONGLY FLAGGED", counts["wrong"] + counts["added"]),
+        ("MISSED BY PREDICTION", counts["missed"]),
+    ]
+    metric_html = "".join(
+        f"""
+<div class="bubble-card-metric">
+  <div class="bubble-card-metric-label">{escape(label)}</div>
+  <div class="bubble-card-metric-value">{value:,}</div>
+</div>
+        """
+        for label, value in metric_items
+    )
+
+    return f"""
+<section class="bubble-policy-card {status_class}" style="--policy-border:{meta['border']}; --card-delay:{index * 110}ms">
+  <div class="bubble-policy-header">
+    <div>
+      <h3>{escape(meta["title"])}</h3>
+      <p>{escape(meta["description"])}</p>
+    </div>
+    <div class="bubble-outcome-delta {delta_class}">
+      <span>OUTCOME CHANGE</span>
+      <strong>{escape(outcome_delta)}</strong>
+    </div>
+  </div>
+  <div class="bubble-chart-frame">
+    <div class="bubble-chart-stage">
+      {''.join(bubble_nodes)}
+    </div>
+  </div>
+  <div class="bubble-card-metrics">
+    {metric_html}
+  </div>
+</section>
+    """
+
+
+def bubble_population_animation_html(policy_metrics_by_policy, true_high_risk_rate, prediction_noise, population_size, title, animation_key="", root_id=None):
+    settings = {
+        "population_size": population_size,
+        "true_high_risk_rate": true_high_risk_rate,
+        "prediction_noise": prediction_noise,
+    }
+    if root_id is None:
+        seed_text = f"{title}-{animation_key}"
+        root_id = f"policyBubble{stable_seed(seed_text) % 100000}"
+    metrics_by_policy = policy_metrics_by_policy if isinstance(policy_metrics_by_policy, dict) else {}
+    cards = [
+        policy_bubble_card(
+            policy,
+            metrics_by_policy.get(policy),
+            settings,
+            index,
+        )
+        for index, policy in enumerate(POLICIES)
+    ]
+
+    return f"""
+<style>
+.bubble-policy-stack {{
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  margin: 0 0 1.2rem;
+}}
+
+.bubble-policy-card {{
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--frame-border);
+  border-left: 4px solid var(--policy-border);
+  border-radius: 8px;
+  padding: 1.35rem 1.55rem 1.25rem;
+  background: var(--frame-bg);
+  box-shadow: none;
+  animation: bubbleCardIn 520ms cubic-bezier(.22,.61,.19,1) both;
+  animation-delay: var(--card-delay);
+}}
+
+.bubble-policy-card.is-waiting {{
+  opacity: 0.78;
+}}
+
+.bubble-policy-header {{
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+}}
+
+.bubble-policy-card h3 {{
+  margin: 0;
+  color: var(--text);
+  font-size: 1.35rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}}
+
+.bubble-policy-card p {{
+  margin: 0.45rem 0 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.35;
+}}
+
+.bubble-outcome-delta {{
+  min-width: 7rem;
+  text-align: right;
+  font-family: var(--mono);
+}}
+
+.bubble-outcome-delta span {{
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}}
+
+.bubble-outcome-delta strong {{
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--primary);
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: 0;
+}}
+
+.bubble-outcome-delta.is-worse strong {{
+  color: var(--accent);
+}}
+
+.bubble-chart-frame {{
+  height: clamp(18.4rem, 30.4vw, 24.8rem);
+  overflow: hidden;
+  border: 1px solid var(--frame-border-soft);
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,253,251,0.78));
+}}
+
+.bubble-chart-stage {{
+  position: relative;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1500 / 620;
+  margin: 0 auto;
+  overflow: hidden;
+}}
+
+.bubble-position {{
+  position: absolute;
+  left: var(--bubble-left);
+  top: var(--bubble-top);
+  width: var(--bubble-size);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}}
+
+.bubble-float {{
+  width: 100%;
+  height: 100%;
+  animation: bubbleFloat var(--float-duration) ease-in-out var(--float-delay) infinite;
+  will-change: transform;
+}}
+
+.bubble-node {{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bubble-color);
+  filter: drop-shadow(0 1px 2px rgba(7, 24, 35, 0.12));
+  color: #ffffff;
+  animation: bubbleNodeIn 440ms cubic-bezier(.22,.61,.19,1) both;
+  animation-delay: var(--bubble-delay);
+}}
+
+.bubble-node.is-flagged::after {{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.30) 0,
+    rgba(0, 0, 0, 0.30) 0.26rem,
+    transparent 0.26rem,
+    transparent 0.82rem
+  );
+  pointer-events: none;
+  z-index: 1;
+}}
+
+.bubble-value {{
+  position: relative;
+  z-index: 2;
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--bubble-font);
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: 0;
+  pointer-events: none;
+}}
+
+.bubble-card-metrics {{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.1rem;
+  margin-top: 1.15rem;
+}}
+
+.bubble-card-metric {{
+  display: flex;
+  flex-direction: column;
+}}
+
+.bubble-card-metric-label {{
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  line-height: 1.35;
+  min-height: 2.2rem;
+}}
+
+.bubble-card-metric-value {{
+  margin-top: 0.35rem;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 1.65rem;
+  line-height: 1;
+}}
+
+@keyframes bubbleNodeIn {{
+  0% {{ opacity: 0; transform: scale(0.92); }}
+  100% {{ opacity: 1; transform: scale(1); }}
+}}
+
+@keyframes bubbleFloat {{
+  0%, 100% {{ transform: translate3d(0, 0, 0); }}
+  28% {{ transform: translate3d(var(--float-x), var(--float-y), 0); }}
+  52% {{ transform: translate3d(var(--float-x-soft), var(--float-y-soft), 0); }}
+  78% {{ transform: translate3d(var(--float-x-neg), var(--float-y-neg), 0); }}
+}}
+
+@keyframes bubbleCardIn {{
+  0% {{ opacity: 0; transform: translateY(12px); }}
+  100% {{ opacity: 1; transform: translateY(0); }}
+}}
+
+@media (max-width: 760px) {{
+  .bubble-policy-card {{
+    padding: 1rem;
+  }}
+
+  .bubble-policy-header {{
+    flex-direction: column;
+  }}
+
+  .bubble-outcome-delta {{
+    text-align: left;
+  }}
+
+  .bubble-chart-frame {{
+    height: 17.6rem;
+  }}
+
+  .bubble-card-metrics {{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }}
+}}
+</style>
+<div class="bubble-policy-stack" id="{root_id}">
+  {''.join(cards)}
+</div>
+    """
 
 
 def _panel_changes(children, policy, metrics):
@@ -2433,7 +2965,7 @@ def population_animation_html(policy_metrics_by_policy, true_high_risk_rate, pre
 
 
 def render_population_animation(container, policy_metrics_by_policy, settings, title, animation_key="", root_id=None):
-    html = population_animation_html(
+    html = bubble_population_animation_html(
         policy_metrics_by_policy,
         settings["true_high_risk_rate"],
         settings["prediction_noise"],
@@ -2539,15 +3071,6 @@ def clamp_percent_session_value(key, default_percent, min_percent, max_percent):
     return value
 
 
-def prediction_reliability_label(error_percent):
-    error_percent = float(error_percent)
-    if error_percent <= 3:
-        return "Ideal"
-    if error_percent <= 6:
-        return "Very reliable"
-    return "Reliable"
-
-
 def render_settings_field_copy(text):
     st.html(f'<div class="settings-field-copy">{escape(text)}</div>')
 
@@ -2599,9 +3122,35 @@ The goal is not to find the right answer — it's to see what the trade-offs act
         st.markdown(glossary_markdown(CHECK_DESCRIPTIONS))
 
 
+DISPLAY_LABEL_ALIASES = {
+    "Would offend without intervention": "Predicted outcomes without policy",
+    "Flagged as high-risk": "Flagged by prediction",
+    "Offenses prevented": "Outcomes prevented",
+    "Net outcome effect": "Outcome change",
+    "Offense reduction (%)": "Outcome change",
+    "Harmed (% of flagged)": "Harmed by policy (% of flagged)",
+    "Would offend without intervention (avg count)": "Predicted outcomes without policy (avg)",
+    "Wrongly flagged (avg count)": "Wrongly flagged (avg)",
+    "Missed by prediction (avg count)": "Missed by prediction (avg)",
+    "Helped by policy (avg count)": "Helped by policy (avg)",
+    "Harmed by policy (avg count)": "Harmed by policy (avg)",
+}
+
+
+def normalize_display_labels(dataframe):
+    if dataframe is None:
+        return pd.DataFrame()
+    if dataframe.empty:
+        return dataframe.copy()
+    display = dataframe.rename(columns=DISPLAY_LABEL_ALIASES).copy()
+    if "Metric" in display.columns:
+        display["Metric"] = display["Metric"].replace(DISPLAY_LABEL_ALIASES)
+    return display
+
+
 def display_average_table(average_table):
     st.dataframe(
-        formatted_average_results_table(average_table),
+        formatted_average_results_table(normalize_display_labels(average_table)),
         use_container_width=True,
         hide_index=True,
     )
@@ -2625,7 +3174,11 @@ def dataframe_from_payload(payload):
 
 
 def display_dataframe_payload(payload):
-    st.dataframe(dataframe_from_payload(payload), use_container_width=True, hide_index=True)
+    st.dataframe(
+        normalize_display_labels(dataframe_from_payload(payload)),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 def chart_rows_payload(policy_runs):
@@ -2671,8 +3224,8 @@ def render_charts(run_results):
                 run_results,
                 "run",
                 "crimes_prevented",
-                "Offenses prevented by run",
-                "Offenses prevented",
+                "Outcomes prevented by run",
+                "Outcomes prevented",
             ),
             use_container_width=True,
         )
@@ -2699,8 +3252,9 @@ def prevented_outcome_phrase(value):
 
 
 def render_interpretation(policy, average_table):
+    average_table = normalize_display_labels(average_table)
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
-    crimes_prevented = values.get("Offenses prevented", 0.0)
+    crimes_prevented = values.get("Outcomes prevented", 0.0)
     false_positives = values.get("Wrongly flagged", 0.0)
     children_helped = values.get("Helped by policy", 0.0)
     children_harmed = values.get("Harmed by policy", 0.0)
@@ -3102,6 +3656,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     progress_note = ""
     progress_note_is_html = False
     progress_note_updated_at = None
+    live_policy_metrics = {}
 
     render_terminal_progress(
         progress_slot, 0, total_calls,
@@ -3110,9 +3665,8 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
         note_is_html=progress_note_is_html,
     )
     scroll_to_anchor("simulation-progress-anchor")
-    children = baseline_children(settings) if SHOW_POPULATION_DOT_VIEW else []
     if SHOW_POPULATION_DOT_VIEW and live_population is not None:
-        render_population_animation(live_population, None, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
+        render_population_animation(live_population, live_policy_metrics, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
 
     tasks = [
         (task_index, model, policy)
@@ -3170,9 +3724,10 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                         "debrief_text": debrief,
                     }
                 )
-                if SHOW_POPULATION_DOT_VIEW and update_slot is not None:
+                if SHOW_POPULATION_DOT_VIEW and live_population is not None:
                     metrics = policy_transition_metrics(run_results, policy, settings)
-                    render_population_update(update_slot, _LIVE_GRID_ID, policy, POLICIES.index(policy), children, metrics)
+                    live_policy_metrics[policy] = metrics
+                    render_population_animation(live_population, live_policy_metrics, settings, "Simulating…", "live", root_id=_LIVE_GRID_ID)
             except Exception as error:
                 completed += 1
                 msg = friendly_llm_error(error)
@@ -3374,7 +3929,15 @@ def sidebar_inputs():
     is_running = bool(st.session_state.get("simulation_running", False))
 
     model_options = llm_model_options()
+    model_defaults = default_llm_agent_models(model_options)
     clamp_selected_models(model_key, model_options)
+    model_default_version_key = f"{model_key}_default_version"
+    if (
+        st.session_state.get(model_default_version_key) != "four-model-default"
+        or model_key not in st.session_state
+    ):
+        st.session_state[model_key] = model_defaults
+        st.session_state[model_default_version_key] = "four-model-default"
 
     with st.sidebar.container(border=True, key="simulation_params_panel"):
         st.html(
@@ -3391,7 +3954,6 @@ def sidebar_inputs():
             "Percentage of true high-risk children (%)",
             true_rate_min,
             true_rate_max,
-            true_rate_default,
             step=0.5,
             format="%.1f%%",
             key=true_rate_key,
@@ -3403,16 +3965,11 @@ def sidebar_inputs():
             "Share of children who would commit the predicted serious harmful act with no intervention."
         )
 
-        prediction_reliability = prediction_reliability_label(prediction_error_value)
-        render_settings_field_header(
-            "Prediction error",
-            f"{format_percent(prediction_error_value)} · {prediction_reliability}",
-        )
+        render_settings_field_header("Prediction error", format_percent(prediction_error_value))
         prediction_noise = st.slider(
             "Prediction error rate (%)",
             prediction_error_min,
             prediction_error_max,
-            prediction_error_default,
             step=0.5,
             format="%.1f%%",
             key=prediction_error_key,
@@ -3421,7 +3978,7 @@ def sidebar_inputs():
             disabled=is_running,
         ) / 100
         render_settings_field_copy(
-            "Symmetric error rate: 0-3% ideal, 3-6% very reliable, 6-10% reliable."
+            "Symmetric error rate for missed high-risk children and wrongly flagged low-risk children."
         )
 
         render_settings_field_header("Intervention intensity", intensity_value)
@@ -3441,7 +3998,7 @@ def sidebar_inputs():
         selected_models = st.multiselect(
             "LLM model agent(s)",
             options=model_options,
-            default=default_llm_agent_models(model_options),
+            default=None,
             max_selections=MAX_LLM_MODEL_AGENTS,
             key=model_key,
             help=f"Select up to {MAX_LLM_MODEL_AGENTS} model agents at once.",

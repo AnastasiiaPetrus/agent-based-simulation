@@ -30,8 +30,7 @@ SETTING_DESCRIPTIONS = {
     "Prediction error rate (%)": (
         "A simplified symmetric error setting: this % of children on the predicted-outcome path are missed, "
         "and the same % of children not on that path are wrongly flagged. "
-        "Because most children are not on the predicted-outcome path, even a small rate can create many false alarms. "
-        "0-3% = ideal, 3-6% = very reliable, 6-10% = reliable."
+        "Because most children are not on the predicted-outcome path, even a small rate can create many false alarms."
     ),
     "Intervention intensity": (
         "Which intensity tier is used when choosing the concrete intervention measure. "
@@ -40,23 +39,23 @@ SETTING_DESCRIPTIONS = {
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Would offend without intervention": (
+    "Predicted outcomes without policy": (
         "How many children would have the predicted serious harmful outcome if no policy were applied. "
         "In average tables, this is an average count per synthetic run."
     ),
-    "Flagged as high-risk": (
+    "Flagged by prediction": (
         "Total children identified as high-risk by the prediction tool — "
         "both correctly and incorrectly identified. This is who the policy acts on."
     ),
     "Wrongly flagged": (
-        "Children flagged as high-risk who would not have offended. "
+        "Children flagged as high-risk who would not have had the predicted outcome. "
         "They are exposed to the policy despite not being on the predicted-outcome path."
     ),
     "Missed by prediction": (
-        "Children who would have offended but were not flagged. "
+        "Children who would have had the predicted outcome but were not flagged. "
         "They receive no intervention under any targeted policy."
     ),
-    "Offenses prevented": (
+    "Outcomes prevented": (
         "How many fewer predicted outcomes occur compared to doing nothing. "
         "This can be negative if a policy worsens outcomes."
     ),
@@ -75,14 +74,14 @@ CHECK_DESCRIPTIONS = {
         "How many predicted outcomes each policy prevents versus how many children it wrongly flags, helps, or harms."
     ),
     "Prediction error": (
-        "How many children are wrongly flagged (flagged despite not being at risk) "
-        "and how many are missed (at risk but not flagged)."
+        "How many children are wrongly flagged despite not being on the predicted-outcome path "
+        "and how many are missed despite being on that path."
     ),
 }
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
 DEFAULT_LLM_MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"]
-MAX_LLM_MODEL_AGENTS = 2
+MAX_LLM_MODEL_AGENTS = 4
 MAX_PARALLEL_LLM_CALLS = 3
 MAX_RUN_LOG_SIZE = 5
 PROGRESS_NOTE_MIN_SECONDS = 6
@@ -125,11 +124,11 @@ POPULATION_DOT_STAGGER_GROUP = 12
 POPULATION_DOT_STAGGER_SECONDS = 0.0005
 
 RUN_METRIC_LABELS = {
-    "baseline_crimes": "Would offend without intervention",
-    "children_flagged": "Flagged as high-risk",
+    "baseline_crimes": "Predicted outcomes without policy",
+    "children_flagged": "Flagged by prediction",
     "false_positives": "Wrongly flagged",
     "false_negatives": "Missed by prediction",
-    "crimes_prevented": "Offenses prevented",
+    "crimes_prevented": "Outcomes prevented",
     "children_helped": "Helped by policy",
     "children_harmed": "Harmed by policy",
 }
