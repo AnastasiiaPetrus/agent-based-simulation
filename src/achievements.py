@@ -13,7 +13,7 @@ ACHIEVEMENTS = [
         "id": "do_no_harm",
         "icon": "💚",
         "name": "Do No Harm",
-        "description": "Achieve zero children harmed under Targeted Support.",
+        "description": "Achieve a policy harm count of zero under Targeted Support.",
     },
     {
         "id": "full_comparison",
@@ -25,7 +25,7 @@ ACHIEVEMENTS = [
         "id": "false_alarm",
         "icon": "🚨",
         "name": "False Alarm",
-        "description": "More children wrongly flagged on average than predicted outcomes prevented.",
+        "description": "More false positives on average than prevented predicted outcomes.",
     },
     {
         "id": "tinkerer",
@@ -49,19 +49,19 @@ ACHIEVEMENTS = [
         "id": "base_rate_trap",
         "icon": "🪤",
         "name": "Base Rate Trap",
-        "description": "Observe more wrongly flagged children than correctly flagged ones.",
+        "description": "Observe more false positives than true positives.",
     },
     {
         "id": "schrodinger",
         "icon": "🧩",
         "name": "Base Rate Warning",
-        "description": "Wrongly flagged children outnumber missed children by at least 10 to 1.",
+        "description": "False positives outnumber false negatives by at least 10 to 1.",
     },
     {
         "id": "helping_hundreds",
         "icon": "🤝",
         "name": "Helping Hundreds",
-        "description": "Average 200+ children helped per run under Targeted Support.",
+        "description": "Average a policy benefit count of 200+ per run under Targeted Support.",
     },
     {
         "id": "overreaction",

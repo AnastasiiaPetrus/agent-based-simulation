@@ -29,8 +29,8 @@ SETTING_DESCRIPTIONS = {
     ),
     "Prediction error rate (%)": (
         "A simplified symmetric error setting: this % of children on the predicted-outcome path are missed, "
-        "and the same % of children not on that path are wrongly flagged. "
-        "Because most children are not on the predicted-outcome path, even a small rate can create many false alarms."
+        "and the same % of children not on that path become false positives. "
+        "Because most children are not on the predicted-outcome path, even a small rate can create many false positives."
     ),
     "Intervention intensity": (
         "Which intensity tier is used when choosing the concrete intervention measure. "
@@ -39,31 +39,31 @@ SETTING_DESCRIPTIONS = {
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Predicted outcomes without policy": (
+    "Baseline predicted outcomes": (
         "How many children would have the predicted serious harmful outcome if no policy were applied. "
         "In average tables, this is an average count per synthetic run."
     ),
-    "Flagged by prediction": (
+    "Positive predictions": (
         "Total children identified as high-risk by the prediction tool — "
         "both correctly and incorrectly identified. This is who the policy acts on."
     ),
-    "Wrongly flagged": (
+    "False positives": (
         "Children flagged as high-risk who would not have had the predicted outcome. "
         "They are exposed to the policy despite not being on the predicted-outcome path."
     ),
-    "Missed by prediction": (
+    "False negatives": (
         "Children who would have had the predicted outcome but were not flagged. "
         "They receive no intervention under any targeted policy."
     ),
-    "Outcomes prevented": (
+    "Prevented predicted outcomes": (
         "How many fewer predicted outcomes occur compared to doing nothing. "
         "This can be negative if a policy worsens outcomes."
     ),
-    "Helped by policy": (
+    "Policy benefit count": (
         "Flagged children whose simulated life-course outcome improves because of the policy. "
         "This is not the same as merely receiving a service, and it can overlap with harm in mixed cases."
     ),
-    "Harmed by policy": (
+    "Policy harm count": (
         "Flagged children whose simulated life-course outcome worsens because of the policy. "
         "This can occur under any policy type and can overlap with help in mixed cases."
     ),
@@ -71,11 +71,11 @@ RESULT_METRIC_DESCRIPTIONS = {
 
 CHECK_DESCRIPTIONS = {
     "Policy trade-off": (
-        "How many predicted outcomes each policy prevents versus how many children it wrongly flags, helps, or harms."
+        "How many predicted outcomes each policy prevents versus false positives, policy benefits, and policy harms."
     ),
     "Prediction error": (
-        "How many children are wrongly flagged despite not being on the predicted-outcome path "
-        "and how many are missed despite being on that path."
+        "How many false positives occur among children not on the predicted-outcome path "
+        "and how many false negatives occur among children on that path."
     ),
 }
 
@@ -124,11 +124,11 @@ POPULATION_DOT_STAGGER_GROUP = 12
 POPULATION_DOT_STAGGER_SECONDS = 0.0005
 
 RUN_METRIC_LABELS = {
-    "baseline_crimes": "Predicted outcomes without policy",
-    "children_flagged": "Flagged by prediction",
-    "false_positives": "Wrongly flagged",
-    "false_negatives": "Missed by prediction",
-    "crimes_prevented": "Outcomes prevented",
-    "children_helped": "Helped by policy",
-    "children_harmed": "Harmed by policy",
+    "baseline_crimes": "Baseline predicted outcomes",
+    "children_flagged": "Positive predictions",
+    "false_positives": "False positives",
+    "false_negatives": "False negatives",
+    "crimes_prevented": "Prevented predicted outcomes",
+    "children_helped": "Policy benefit count",
+    "children_harmed": "Policy harm count",
 }

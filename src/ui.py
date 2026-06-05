@@ -105,7 +105,7 @@ def render_hero_summary(settings):
         ("Synthetic population", f"{population_size:,}", "Children in each run", ""),
         ("True high-risk children", f"{true_high_risk_count:,}", "Without intervention", "primary"),
         ("Prediction error", f"{false_positives + false_negatives:,}", "False positives + false negatives", "warning"),
-        ("Flagged by prediction", f"{flagged_count:,}", "Policy action group", ""),
+        ("Positive predictions", f"{flagged_count:,}", "Policy exposure group", ""),
     ]
     card_html = []
     for label, value, caption, tone in cards:
@@ -136,7 +136,7 @@ def render_hero_statement():
     <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will commit a serious harmful act by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
-    <em>What should we do with that information?</em><br>Run {DEFAULT_POPULATION_SIZE:,} synthetic lives through three policy responses &mdash; and watch the trade-offs come alive: prevented outcomes, false alarms, missed cases, help, and harm.
+    <em>What should we do with that information?</em><br>Run {DEFAULT_POPULATION_SIZE:,} synthetic lives through three policy responses &mdash; and watch the trade-offs come alive: prevented outcomes, false positives, false negatives, benefit, and harm.
   </p>
 </section>
         """
@@ -162,28 +162,28 @@ def render_population_view_overview(settings):
     <span class="population-legend-item">
       <span class="population-legend-dot is-diverted"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">Flagged high-risk &middot; outcome prevented</span>
+        <span class="population-legend-label">True positive &middot; predicted outcome prevented</span>
         <span class="population-legend-desc">On the predicted-outcome path, flagged, and shifted to low-risk</span>
       </span>
     </span>
     <span class="population-legend-item">
       <span class="population-legend-dot is-outcome-remains"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">Flagged high-risk &middot; outcome remains</span>
+        <span class="population-legend-label">True positive &middot; predicted outcome remains</span>
         <span class="population-legend-desc">On the predicted-outcome path, flagged, and still high-risk after policy</span>
       </span>
     </span>
     <span class="population-legend-item">
       <span class="population-legend-dot is-missed"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">Missed by prediction (false negative)</span>
+        <span class="population-legend-label">False negative</span>
         <span class="population-legend-desc">Would have the predicted outcome but was not flagged — receives no intervention</span>
       </span>
     </span>
     <span class="population-legend-item">
       <span class="population-legend-dot is-wrong"></span>
       <span class="population-legend-text">
-        <span class="population-legend-label">Wrongly flagged (false positive)</span>
+        <span class="population-legend-label">False positive</span>
         <span class="population-legend-desc">Not on the predicted-outcome path but flagged and subject to policy action</span>
       </span>
     </span>
@@ -2295,10 +2295,10 @@ def bubble_layout(counts, population_size):
 
 def outcome_delta_text(counts):
     baseline = max(1, counts["baseline"])
-    delta = -(counts["net_prevented"] / baseline) * 100
-    if abs(delta) < 0.05:
+    reduction = (counts["net_prevented"] / baseline) * 100
+    if abs(reduction) < 0.05:
         return "0%"
-    return f"{delta:+.0f}%".replace("+", "+").replace("-", "−")
+    return f"{reduction:+.0f}%".replace("+", "").replace("-", "−")
 
 
 def bubble_font_size(value, radius):
@@ -2354,10 +2354,10 @@ def policy_bubble_card(policy, metrics, settings, index):
     ]
 
     metric_items = [
-        ("OUTCOMES AFTER POLICY", counts["outcomes_after_policy"]),
-        ("OUTCOMES PREVENTED", counts["diverted"]),
-        ("WRONGLY FLAGGED", counts["wrong"] + counts["added"]),
-        ("MISSED BY PREDICTION", counts["missed"]),
+        ("POST-POLICY OUTCOMES", counts["outcomes_after_policy"]),
+        ("PREVENTED OUTCOMES", counts["diverted"]),
+        ("FALSE POSITIVES", counts["wrong"] + counts["added"]),
+        ("FALSE NEGATIVES", counts["missed"]),
     ]
     metric_html = "".join(
         f"""
@@ -2377,7 +2377,7 @@ def policy_bubble_card(policy, metrics, settings, index):
       <p>{escape(meta["description"])}</p>
     </div>
     <div class="bubble-outcome-delta {delta_class}">
-      <span>OUTCOME CHANGE</span>
+      <span>OUTCOME REDUCTION</span>
       <strong>{escape(outcome_delta)}</strong>
     </div>
   </div>
@@ -2670,7 +2670,7 @@ def _panel_changes(children, policy, metrics):
     summary = (
         f"{len(prevented_indices)} prevented (red→green); "
         f"{added_summary}"
-        f"{harmed_total} harmed by intervention (outlined); "
+        f"{harmed_total} policy harm count (outlined); "
         f"{final_high} red remain."
     )
     return prevented_indices, added_indices, harmed_indices, summary, True
@@ -3099,11 +3099,11 @@ def render_reference_guide():
             f"""
 A fictional prediction tool scans {DEFAULT_POPULATION_SIZE:,} children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
 
-Python first fixes the full prediction structure: true positives, wrongly flagged children, missed children, and the large background group that is neither flagged nor on the predicted-outcome path. The AI then simulates only the relevant groups — flagged children plus missed children — as weighted life-course profiles rather than 10,000 separate biographies.
+Python first fixes the full prediction structure: true positives, false positives, false negatives, and the large background group that is neither flagged nor on the predicted-outcome path. The AI then simulates only the relevant groups — flagged children plus false negatives — as weighted life-course profiles rather than 10,000 separate biographies.
 
 For each relevant profile, the model follows life stages from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, restriction, and the final predicted outcome. The unchanged background group stays in the arithmetic, but it is not individually simulated.
 
-The aggregate results are counted from those simulated lives. They show how many predicted outcomes were prevented or added, how many flagged children were helped or harmed, how many were flagged by mistake, and how many were missed by the prediction tool.
+The aggregate results are counted from those simulated lives. They show the baseline predicted outcomes, post-policy predicted outcomes, predicted outcome reduction, policy benefit count, policy harm count, false positives, and false negatives.
 
 The goal is not to find the right answer — it's to see what the trade-offs actually cost.
             """
@@ -3123,17 +3123,32 @@ The goal is not to find the right answer — it's to see what the trade-offs act
 
 
 DISPLAY_LABEL_ALIASES = {
-    "Would offend without intervention": "Predicted outcomes without policy",
-    "Flagged as high-risk": "Flagged by prediction",
-    "Offenses prevented": "Outcomes prevented",
-    "Net outcome effect": "Outcome change",
-    "Offense reduction (%)": "Outcome change",
-    "Harmed (% of flagged)": "Harmed by policy (% of flagged)",
-    "Would offend without intervention (avg count)": "Predicted outcomes without policy (avg)",
-    "Wrongly flagged (avg count)": "Wrongly flagged (avg)",
-    "Missed by prediction (avg count)": "Missed by prediction (avg)",
-    "Helped by policy (avg count)": "Helped by policy (avg)",
-    "Harmed by policy (avg count)": "Harmed by policy (avg)",
+    "Would offend without intervention": "Baseline predicted outcomes",
+    "Predicted outcomes without policy": "Baseline predicted outcomes",
+    "Flagged as high-risk": "Positive predictions",
+    "Flagged by prediction": "Positive predictions",
+    "Prediction positives": "Positive predictions",
+    "Wrongly flagged": "False positives",
+    "Missed by prediction": "False negatives",
+    "Offenses prevented": "Prevented predicted outcomes",
+    "Outcomes prevented": "Prevented predicted outcomes",
+    "Net outcome effect": "Predicted outcome reduction (%)",
+    "Outcome change": "Predicted outcome reduction (%)",
+    "Offense reduction (%)": "Predicted outcome reduction (%)",
+    "Harmed (% of flagged)": "Policy harm rate among positive predictions (%)",
+    "Harmed by policy (% of flagged)": "Policy harm rate among positive predictions (%)",
+    "Policy harm rate among flagged (%)": "Policy harm rate among positive predictions (%)",
+    "Would offend without intervention (avg count)": "Baseline predicted outcomes (avg)",
+    "Predicted outcomes without policy (avg)": "Baseline predicted outcomes (avg)",
+    "Wrongly flagged (avg count)": "False positives (avg)",
+    "Wrongly flagged (avg)": "False positives (avg)",
+    "Missed by prediction (avg count)": "False negatives (avg)",
+    "Missed by prediction (avg)": "False negatives (avg)",
+    "Helped by policy (avg count)": "Policy benefit count (avg)",
+    "Helped by policy (avg)": "Policy benefit count (avg)",
+    "Harmed by policy": "Policy harm count",
+    "Harmed by policy (avg count)": "Policy harm count (avg)",
+    "Harmed by policy (avg)": "Policy harm count (avg)",
 }
 
 
@@ -3224,8 +3239,8 @@ def render_charts(run_results):
                 run_results,
                 "run",
                 "crimes_prevented",
-                "Outcomes prevented by run",
-                "Outcomes prevented",
+                "Prevented predicted outcomes by run",
+                "Prevented predicted outcomes",
             ),
             use_container_width=True,
         )
@@ -3237,8 +3252,8 @@ def render_charts(run_results):
                     run_results,
                     "run",
                     "children_harmed",
-                    "Children harmed by policy by run",
-                    "Children harmed",
+                    "Policy harm count by run",
+                    "Policy harm count",
                 ),
                 use_container_width=True,
             )
@@ -3254,32 +3269,32 @@ def prevented_outcome_phrase(value):
 def render_interpretation(policy, average_table):
     average_table = normalize_display_labels(average_table)
     values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
-    crimes_prevented = values.get("Outcomes prevented", 0.0)
-    false_positives = values.get("Wrongly flagged", 0.0)
-    children_helped = values.get("Helped by policy", 0.0)
-    children_harmed = values.get("Harmed by policy", 0.0)
+    crimes_prevented = values.get("Prevented predicted outcomes", 0.0)
+    false_positives = values.get("False positives", 0.0)
+    children_helped = values.get("Policy benefit count", 0.0)
+    children_harmed = values.get("Policy harm count", 0.0)
     outcome_phrase = prevented_outcome_phrase(crimes_prevented)
 
     if policy == "Coercive preventive intervention for high-risk children":
         st.info(
             f"On average, this policy {outcome_phrase}. "
-            f"{children_helped:.0f} flagged children are helped by it and "
-            f"{children_harmed:.0f} are harmed by mandatory requirements or restrictions. "
-            f"{false_positives:.0f} children are wrongly flagged."
+            f"{children_helped:.0f} flagged children show a policy-associated benefit and "
+            f"{children_harmed:.0f} show policy-associated harm from mandatory requirements or restrictions. "
+            f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Targeted support for high-risk children":
         st.info(
             f"On average, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children have improved life-course outcomes and "
-            f"{children_harmed:.0f} are harmed or experience negative side effects. "
-            f"{false_positives:.0f} children are wrongly flagged."
+            f"{children_harmed:.0f} show policy-associated harm or negative side effects. "
+            f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Surveillance of high-risk children":
         st.info(
             f"On average, this policy {outcome_phrase}. "
-            f"{children_helped:.0f} flagged children are helped by the monitoring response and "
-            f"{children_harmed:.0f} are harmed by scrutiny, stigma, or trust loss. "
-            f"{false_positives:.0f} children are wrongly flagged."
+            f"{children_helped:.0f} flagged children show policy-associated benefit from the monitoring response and "
+            f"{children_harmed:.0f} show policy-associated harm from scrutiny, stigma, or trust loss. "
+            f"{false_positives:.0f} cases are false positives."
         )
 
 
@@ -3363,8 +3378,8 @@ def representative_agent_summary(agent):
         "Agent": agent_text(agent.get("agent_id")),
         "Prediction status": agent_text(agent.get("prediction_status")),
         "Outcome occurred": agent_text(agent.get("predicted_outcome_occurred")),
-        "Helped": policy_effect_text(agent.get("helped_by_policy")),
-        "Harmed": policy_effect_text(agent.get("harmed_by_policy")),
+        "Policy benefit": policy_effect_text(agent.get("helped_by_policy")),
+        "Policy harm": policy_effect_text(agent.get("harmed_by_policy")),
         "Mixed": policy_effect_text(agent.get("mixed_effects")),
     }
 
@@ -3481,8 +3496,8 @@ def render_representative_agents(representative_agents):
             )
 
             st.markdown("**Policy effects**")
-            st.write(f"Helped by policy: {policy_effect_text(agent.get('helped_by_policy'))}")
-            st.write(f"Harmed by policy: {policy_effect_text(agent.get('harmed_by_policy'))}")
+            st.write(f"Policy-associated benefit: {policy_effect_text(agent.get('helped_by_policy'))}")
+            st.write(f"Policy-associated harm: {policy_effect_text(agent.get('harmed_by_policy'))}")
             st.write(f"Mixed effects: {policy_effect_text(agent.get('mixed_effects'))}")
 
             st.markdown("**Outcome**")
@@ -3978,7 +3993,7 @@ def sidebar_inputs():
             disabled=is_running,
         ) / 100
         render_settings_field_copy(
-            "Symmetric error rate for missed high-risk children and wrongly flagged low-risk children."
+            "Symmetric error rate for false negatives among high-risk children and false positives among low-risk children."
         )
 
         render_settings_field_header("Intervention intensity", intensity_value)

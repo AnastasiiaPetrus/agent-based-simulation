@@ -7,34 +7,31 @@ from src.constants import POLICIES, RUN_METRIC_LABELS
 
 POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
-    "baseline_crimes": "Predicted outcomes without policy (avg)",
-    "false_positives": "Wrongly flagged (avg)",
-    "false_negatives": "Missed by prediction (avg)",
-    "children_helped": "Helped by policy (avg)",
-    "children_harmed": "Harmed by policy (avg)",
+    "baseline_crimes": "Baseline predicted outcomes (avg)",
+    "false_positives": "False positives (avg)",
+    "false_negatives": "False negatives (avg)",
+    "children_helped": "Policy benefit count (avg)",
+    "children_harmed": "Policy harm count (avg)",
 }
-OUTCOME_EFFECT_COLUMN = "Outcome change"
-PERCENT_COLUMNS = {"Harmed by policy (% of flagged)"}
+OUTCOME_EFFECT_COLUMN = "Predicted outcome reduction (%)"
+POLICY_HARM_RATE_COLUMN = "Policy harm rate among positive predictions (%)"
+PERCENT_COLUMNS = {OUTCOME_EFFECT_COLUMN, POLICY_HARM_RATE_COLUMN}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
     OUTCOME_EFFECT_COLUMN,
-    "Harmed by policy (% of flagged)",
-    "Predicted outcomes without policy (avg)",
-    "Wrongly flagged (avg)",
-    "Missed by prediction (avg)",
-    "Helped by policy (avg)",
-    "Harmed by policy (avg)",
+    POLICY_HARM_RATE_COLUMN,
+    "Baseline predicted outcomes (avg)",
+    "False positives (avg)",
+    "False negatives (avg)",
+    "Policy benefit count (avg)",
+    "Policy harm count (avg)",
 ]
 
 
 def format_outcome_effect(value):
     if pd.isna(value):
         return "N/A"
-    if value < 0:
-        return f"{abs(value):.1f}% added"
-    if value > 0:
-        return f"{value:.1f}% prevented"
-    return "0.0% net change"
+    return f"{value:.1f}%"
 
 
 @st.cache_data(show_spinner=False)
@@ -68,7 +65,7 @@ def combined_policy_totals_table(run_results, population_size):
     )
     table["policy_sort"] = table["policy"].map(POLICY_SORT_INDEX)
     table = table.sort_values("policy_sort").drop(columns="policy_sort")
-    table["crime_reduction_pct"] = (
+    table["outcome_reduction_pct"] = (
         table["crimes_prevented"] / table["baseline_crimes"].replace(0, np.nan)
     ) * 100
     flagged_denominator = (
@@ -81,8 +78,8 @@ def combined_policy_totals_table(run_results, population_size):
     display_table = table.rename(
         columns={
             "policy": "Policy",
-            "crime_reduction_pct": OUTCOME_EFFECT_COLUMN,
-            "harmed_pct": "Harmed by policy (% of flagged)",
+            "outcome_reduction_pct": OUTCOME_EFFECT_COLUMN,
+            "harmed_pct": POLICY_HARM_RATE_COLUMN,
             **POLICY_TOTAL_AVERAGE_LABELS,
         }
     )
