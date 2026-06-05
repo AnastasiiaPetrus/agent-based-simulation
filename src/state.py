@@ -31,7 +31,7 @@ def latest_result_has_current_schema(latest_result, settings=None):
     if not isinstance(latest_result, dict):
         return False
 
-    if latest_result.get("schema_version") != 2:
+    if latest_result.get("schema_version") != 3:
         return False
 
     if not isinstance(latest_result.get("comparison_table"), dict):

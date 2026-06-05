@@ -2081,16 +2081,46 @@ def baseline_children(settings):
     )
 
 
-def policy_transition_metrics(run_results, policy, settings):
-    if run_results is None or run_results.empty or "policy" not in run_results.columns:
-        return None
+BUBBLE_COUNT_CATEGORIES = ("safe", "diverted", "failed", "wrong", "missed", "added")
 
-    policy_rows = run_results[run_results["policy"] == policy]
-    if policy_rows.empty:
-        return None
 
+def largest_remainder_counts(values, total, categories=BUBBLE_COUNT_CATEGORIES):
+    total = int(total)
+    raw_values = {key: max(0.0, float(values.get(key, 0.0) or 0.0)) for key in categories}
+    raw_total = sum(raw_values.values())
+    if raw_total <= 0:
+        return {key: total if key == "safe" else 0 for key in categories}
+
+    scale = total / raw_total
+    scaled = {key: raw_values[key] * scale for key in categories}
+    floors = {key: int(np.floor(value)) for key, value in scaled.items()}
+    remainder = total - sum(floors.values())
+    if remainder > 0:
+        ordered = sorted(categories, key=lambda key: (scaled[key] - floors[key], raw_values[key]), reverse=True)
+        for key in ordered[:remainder]:
+            floors[key] += 1
+    elif remainder < 0:
+        ordered = sorted(categories, key=lambda key: (scaled[key] - floors[key], raw_values[key]))
+        for key in ordered:
+            if remainder == 0:
+                break
+            removable = min(floors[key], -remainder)
+            floors[key] -= removable
+            remainder += removable
+    return floors
+
+
+def finalized_bubble_counts(category_counts, population_size, has_result):
+    counts = largest_remainder_counts(category_counts, population_size)
+    counts["outcomes_after_policy"] = counts["failed"] + counts["missed"] + counts["added"]
+    counts["net_prevented"] = counts["diverted"] - counts["added"]
+    counts["baseline"] = counts["diverted"] + counts["failed"] + counts["missed"]
+    counts["has_result"] = has_result
+    return counts
+
+
+def transition_metrics_from_averages(averages, settings):
     population_size = int(settings["population_size"])
-    averages = policy_rows.mean(numeric_only=True)
     baseline = clamp_count(averages.get("baseline_crimes"), population_size)
     false_positives = clamp_count(averages.get("false_positives"), population_size)
     false_negatives = clamp_count(averages.get("false_negatives"), population_size)
@@ -2109,6 +2139,40 @@ def policy_transition_metrics(run_results, policy, settings):
         "false_positives": false_positives,
         "false_negatives": false_negatives,
     }
+
+
+def policy_transition_metrics(run_results, policy, settings):
+    if run_results is None or run_results.empty or "policy" not in run_results.columns:
+        return None
+
+    policy_rows = run_results[run_results["policy"] == policy]
+    if policy_rows.empty:
+        return None
+
+    metrics = transition_metrics_from_averages(policy_rows.mean(numeric_only=True), settings)
+    if "llm_model" not in policy_rows.columns:
+        return metrics
+
+    model_bubble_counts = []
+    for _, model_rows in policy_rows.groupby("llm_model", observed=True):
+        if model_rows.empty:
+            continue
+        model_metrics = transition_metrics_from_averages(model_rows.mean(numeric_only=True), settings)
+        model_counts = policy_bubble_counts(model_metrics, settings)
+        model_bubble_counts.append(model_counts)
+
+    if not model_bubble_counts:
+        return metrics
+
+    # Each model gets equal weight; the final visual is rounded back to one full cohort.
+    population_size = int(settings["population_size"])
+    expected_counts = {
+        key: float(np.mean([counts[key] for counts in model_bubble_counts]))
+        for key in BUBBLE_COUNT_CATEGORIES
+    }
+    metrics["bubble_counts"] = finalized_bubble_counts(expected_counts, population_size, True)
+    metrics["model_count"] = len(model_bubble_counts)
+    return metrics
 
 
 def seeded_subset(indices, count, seed_text):
@@ -2203,6 +2267,9 @@ BUBBLE_FLOAT_DURATIONS = {
 
 def policy_bubble_counts(metrics, settings):
     population_size = int(settings["population_size"])
+    if metrics and isinstance(metrics.get("bubble_counts"), dict):
+        return finalized_bubble_counts(metrics["bubble_counts"], population_size, True)
+
     baseline = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
     false_positives, false_negatives, _ = risk_signal_counts(baseline, settings)
     prevented = 0
@@ -2221,20 +2288,19 @@ def policy_bubble_counts(metrics, settings):
     wrongly_flagged = max(0, false_positives - added)
     missed = max(0, false_negatives)
     safe = max(0, population_size - baseline - false_positives)
-    outcomes_after_policy = failed + missed + added
 
-    return {
-        "safe": safe,
-        "diverted": diverted,
-        "failed": failed,
-        "wrong": wrongly_flagged,
-        "missed": missed,
-        "added": added,
-        "outcomes_after_policy": outcomes_after_policy,
-        "net_prevented": diverted - added,
-        "baseline": baseline,
-        "has_result": has_result,
-    }
+    return finalized_bubble_counts(
+        {
+            "safe": safe,
+            "diverted": diverted,
+            "failed": failed,
+            "wrong": wrongly_flagged,
+            "missed": missed,
+            "added": added,
+        },
+        population_size,
+        has_result,
+    )
 
 
 def bubble_radius(value, population_size):
@@ -3220,7 +3286,7 @@ def latest_result_payload(combined_runs, settings):
         population_metrics_by_policy[policy] = policy_transition_metrics(combined_runs, policy, settings)
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "comparison_table": dataframe_to_payload(
             combined_policy_totals_table(combined_runs, settings["population_size"])
         ),
