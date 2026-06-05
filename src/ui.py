@@ -2148,7 +2148,7 @@ POLICY_BUBBLE_METADATA = {
 BUBBLE_LAYOUT_WIDTH = 1500
 BUBBLE_LAYOUT_HEIGHT = 620
 BUBBLE_LAYOUT_MARGIN = 40
-BUBBLE_LAYOUT_GAP = 24
+BUBBLE_LAYOUT_GAP = 30
 BUBBLE_LAYOUT_CLUSTER_GAP = 78
 BUBBLE_LAYOUT_GROUPS = (
     ("safe", "wrong", "diverted"),
@@ -2184,21 +2184,21 @@ BUBBLE_CATEGORY_Z_INDEX = {
 }
 
 BUBBLE_FLOAT_OFFSETS = {
-    "safe": (0, -8),
-    "wrong": (8, 5),
-    "diverted": (-7, 5),
-    "missed": (6, -7),
-    "failed": (-6, 7),
-    "added": (8, -5),
+    "safe": (0, -13),
+    "wrong": (12, 8),
+    "diverted": (-10, 9),
+    "missed": (9, -11),
+    "failed": (-9, 11),
+    "added": (12, -8),
 }
 
 BUBBLE_FLOAT_DURATIONS = {
-    "safe": 11.4,
-    "wrong": 9.8,
-    "diverted": 10.6,
-    "missed": 9.4,
-    "failed": 11.0,
-    "added": 10.2,
+    "safe": 8.1,
+    "wrong": 6.9,
+    "diverted": 7.5,
+    "missed": 6.8,
+    "failed": 7.9,
+    "added": 7.2,
 }
 
 def policy_bubble_counts(metrics, settings):
