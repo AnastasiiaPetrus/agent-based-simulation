@@ -211,30 +211,6 @@ def render_population_view_overview(settings):
     )
 
 
-def render_no_policy_baseline(settings):
-    population_size = int(settings["population_size"])
-    baseline = clamp_count(settings["no_policy_outcome_rate"] * population_size, population_size)
-    false_positives, false_negatives, flagged = risk_signal_counts(baseline, settings)
-    true_positives = max(0, baseline - false_negatives)
-    precision = (true_positives / flagged * 100) if flagged else 0.0
-    st.html(
-        f"""
-<section class="baseline-strip">
-  <div>
-    <div class="baseline-strip-kicker">Computed from settings</div>
-    <div class="baseline-strip-title">No policy action baseline</div>
-    <div class="baseline-strip-copy">The prediction exists, but no policy action is applied to flagged children. Not predicting at all is outside this simulation.</div>
-  </div>
-  <div class="baseline-strip-stats">
-    <span><strong>{baseline:,}</strong> target outcomes</span>
-    <span><strong>{flagged:,}</strong> flagged</span>
-    <span><strong>{false_positives:,}</strong> false positives</span>
-    <span><strong>{precision:.1f}%</strong> precision</span>
-  </div>
-</section>
-        """
-    )
-
 
 ACHIEVEMENT_ICON_BY_ID = {
     "first_run": "rocket",
@@ -868,72 +844,6 @@ h3 {
 
 .population-legend-dot.is-wrong {
   background: var(--risk-safe);
-}
-
-.baseline-strip {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0.75rem 0 1rem;
-  padding: 1rem 1.15rem;
-  border: 1px solid var(--frame-border);
-  border-radius: 8px;
-  background: var(--frame-bg);
-}
-
-.baseline-strip-kicker {
-  color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  line-height: 1.35;
-  text-transform: uppercase;
-}
-
-.baseline-strip-title {
-  margin-top: 0.22rem;
-  color: var(--text);
-  font-size: 1.1rem;
-  font-weight: 750;
-  line-height: 1.25;
-}
-
-.baseline-strip-copy {
-  max-width: 46rem;
-  margin-top: 0.28rem;
-  color: var(--text-muted);
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-
-.baseline-strip-stats {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  min-width: min(100%, 28rem);
-}
-
-.baseline-strip-stats span {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  min-height: 1.8rem;
-  padding: 0.3rem 0.55rem;
-  border: 1px solid var(--frame-border-soft);
-  border-radius: 7px;
-  background: var(--frame-bg-soft);
-  color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 0.76rem;
-  line-height: 1.2;
-}
-
-.baseline-strip-stats strong {
-  color: var(--text);
-  font-size: 0.92rem;
 }
 
 .achievement-toast-stack {
@@ -2096,15 +2006,7 @@ div[data-testid="stVerticalBlockBorderWrapper"].st-key-results_content_panel > d
     padding: 1rem;
   }
 
-  .baseline-strip {
-    flex-direction: column;
-  }
-
-  .baseline-strip-stats {
-    justify-content: flex-start;
-  }
-
-  .population-overview-heading {
+.population-overview-heading {
     font-size: 1.25rem;
   }
 
@@ -4098,7 +4000,6 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
     update_slot = None
     if SHOW_POPULATION_DOT_VIEW:
         render_population_view_overview(settings)
-        render_no_policy_baseline(settings)
         live_population = st.empty()
         update_slot = st.empty()
         render_population_animation(live_population, initial_policy_metrics, settings, initial_title, "initial", root_id=_LIVE_GRID_ID)
