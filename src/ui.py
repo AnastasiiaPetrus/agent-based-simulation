@@ -2721,6 +2721,7 @@ def bubble_population_animation_html(policy_metrics_by_policy, no_policy_outcome
 }}
 
 .bubble-float {{
+
   width: 100%;
   height: 100%;
   animation: bubbleFloat var(--float-duration) ease-in-out var(--float-delay) infinite;
@@ -3309,7 +3310,7 @@ You control three things: the no-policy outcome rate (how common the target outc
 
 The tool makes two kinds of mistakes (both spelled out in the results section below): a false positive is a child flagged by mistake, and a false negative is a child who would have had the outcome but is not flagged. The simulator first locks in this whole structure — correctly flagged children, false positives, false negatives, and the large untouched majority who are neither flagged nor on the target-outcome path. These counts are pure arithmetic, computed from your settings.
 
-Each selected AI model then estimates only what the policies do to people — for the flagged children and the missed ones — as a few weighted life-course profiles rather than {DEFAULT_POPULATION_SIZE:,} separate biographies. For each profile, the AI-generated scenario follows the child from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, and restriction, up to the final outcome. The untouched majority stays in the totals but is not simulated one child at a time.
+Each selected AI model then estimates only what the policies do to people — for the flagged children — as a few weighted life-course profiles rather than {DEFAULT_POPULATION_SIZE:,} separate biographies. For each profile, the AI-generated scenario follows the child from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, and restriction, up to the final outcome. The missed cases and the untouched majority stay in the totals but are not simulated: they receive no intervention and their outcomes are unchanged by policy.
 
 Keep the two sources of numbers apart: counts like false positives and false negatives are computed from your settings, while policy effects like prevented outcomes, benefit, and harm are estimated by the AI and will differ from model to model. The tables average these across runs and selected models; the bubble view combines the models into a single picture of all {DEFAULT_POPULATION_SIZE:,} children.
 
