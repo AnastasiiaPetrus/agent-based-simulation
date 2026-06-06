@@ -67,7 +67,12 @@ from src.state import (
     simulation_settings_signature,
     trim_llm_run_log,
 )
-from src.tables import average_results_table, combined_policy_totals_table, formatted_average_results_table
+from src.tables import (
+    AVERAGE_VALUE_COLUMN,
+    average_results_table,
+    combined_policy_totals_table,
+    formatted_average_results_table,
+)
 
 
 _LIVE_GRID_ID = "livePopGrid"
@@ -146,11 +151,13 @@ def render_hero_statement():
 def render_population_view_overview(settings):
     population_size = int(settings["population_size"])
     policy_count = len(POLICIES)
+    model_count = len(settings.get("llm_agent_models", [])) or 1
     st.html(
         f"""
 <section class="population-overview">
-  <div class="population-overview-title">LIVE_SYNTHETIC_POPULATION_VIEW</div>
-  <div class="population-overview-heading">{population_size:,} synthetic children &middot; {policy_count} parallel policies</div>
+  <div class="population-overview-title">MODEL_AVERAGED_COHORT_VIEW</div>
+  <div class="population-overview-heading">{population_size:,} expected children &middot; {policy_count} policy responses</div>
+  <div class="population-overview-note">After a run, bubble counts are averaged across {model_count} selected LLM model agent(s) and rounded back to a full cohort of {population_size:,}.</div>
   <div class="population-legend">
     <span class="population-legend-item">
       <span class="population-legend-dot is-safe"></span>
@@ -717,6 +724,13 @@ h3 {
   font-size: 1.55rem;
   font-weight: 750;
   line-height: 1.2;
+}
+
+.population-overview-note {
+  margin-top: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
 }
 
 .population-legend {
@@ -3165,11 +3179,11 @@ def render_reference_guide():
             f"""
 A fictional prediction tool scans {DEFAULT_POPULATION_SIZE:,} children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
 
-Python first fixes the full prediction structure: true positives, false positives, false negatives, and the large background group that is neither flagged nor on the predicted-outcome path. The AI then simulates only the relevant groups — flagged children plus false negatives — as weighted life-course profiles rather than 10,000 separate biographies.
+Python first fixes the full prediction structure: true positives, false positives, false negatives, and the large background group that is neither flagged nor on the predicted-outcome path. Each selected LLM model agent then simulates only the relevant groups — flagged children plus false negatives — as weighted life-course profiles rather than 10,000 separate biographies.
 
 For each relevant profile, the model follows life stages from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, restriction, and the final predicted outcome. The unchanged background group stays in the arithmetic, but it is not individually simulated.
 
-The aggregate results are counted from those simulated lives. They show the baseline predicted outcomes, post-policy predicted outcomes, predicted outcome reduction, policy benefit count, policy harm count, false positives, and false negatives.
+The aggregate tables average those counted outcomes across successful synthetic runs and selected model agents. The bubble view is slightly different: it first converts each model agent's result into a full 10,000-child cohort, averages those cohort counts across model agents with equal weight, and then rounds the categories so each policy still sums to exactly 10,000 expected children.
 
 The goal is not to find the right answer — it's to see what the trade-offs actually cost.
             """
@@ -3204,17 +3218,22 @@ DISPLAY_LABEL_ALIASES = {
     "Harmed (% of flagged)": "Policy harm rate among positive predictions (%)",
     "Harmed by policy (% of flagged)": "Policy harm rate among positive predictions (%)",
     "Policy harm rate among flagged (%)": "Policy harm rate among positive predictions (%)",
-    "Would offend without intervention (avg count)": "Baseline predicted outcomes (avg)",
-    "Predicted outcomes without policy (avg)": "Baseline predicted outcomes (avg)",
-    "Wrongly flagged (avg count)": "False positives (avg)",
-    "Wrongly flagged (avg)": "False positives (avg)",
-    "Missed by prediction (avg count)": "False negatives (avg)",
-    "Missed by prediction (avg)": "False negatives (avg)",
-    "Helped by policy (avg count)": "Policy benefit count (avg)",
-    "Helped by policy (avg)": "Policy benefit count (avg)",
+    "Would offend without intervention (avg count)": "Baseline predicted outcomes (mean)",
+    "Predicted outcomes without policy (avg)": "Baseline predicted outcomes (mean)",
+    "Baseline predicted outcomes (avg)": "Baseline predicted outcomes (mean)",
+    "Wrongly flagged (avg count)": "False positives (mean)",
+    "Wrongly flagged (avg)": "False positives (mean)",
+    "False positives (avg)": "False positives (mean)",
+    "Missed by prediction (avg count)": "False negatives (mean)",
+    "Missed by prediction (avg)": "False negatives (mean)",
+    "False negatives (avg)": "False negatives (mean)",
+    "Helped by policy (avg count)": "Policy benefit count (mean)",
+    "Helped by policy (avg)": "Policy benefit count (mean)",
+    "Policy benefit count (avg)": "Policy benefit count (mean)",
     "Harmed by policy": "Policy harm count",
-    "Harmed by policy (avg count)": "Policy harm count (avg)",
-    "Harmed by policy (avg)": "Policy harm count (avg)",
+    "Harmed by policy (avg count)": "Policy harm count (mean)",
+    "Harmed by policy (avg)": "Policy harm count (mean)",
+    "Policy harm count (avg)": "Policy harm count (mean)",
 }
 
 
@@ -3334,7 +3353,8 @@ def prevented_outcome_phrase(value):
 
 def render_interpretation(policy, average_table):
     average_table = normalize_display_labels(average_table)
-    values = dict(zip(average_table["Metric"], average_table["Average per synthetic run"]))
+    value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in average_table.columns else "Average per synthetic run"
+    values = dict(zip(average_table["Metric"], average_table[value_column]))
     crimes_prevented = values.get("Prevented predicted outcomes", 0.0)
     false_positives = values.get("False positives", 0.0)
     children_helped = values.get("Policy benefit count", 0.0)
@@ -3343,21 +3363,21 @@ def render_interpretation(policy, average_table):
 
     if policy == "Coercive preventive intervention for high-risk children":
         st.info(
-            f"On average, this policy {outcome_phrase}. "
+            f"Across successful model-agent runs, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children show a policy-associated benefit and "
             f"{children_harmed:.0f} show policy-associated harm from mandatory requirements or restrictions. "
             f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Targeted support for high-risk children":
         st.info(
-            f"On average, this policy {outcome_phrase}. "
+            f"Across successful model-agent runs, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children have improved life-course outcomes and "
             f"{children_harmed:.0f} show policy-associated harm or negative side effects. "
             f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Surveillance of high-risk children":
         st.info(
-            f"On average, this policy {outcome_phrase}. "
+            f"Across successful model-agent runs, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children show policy-associated benefit from the monitoring response and "
             f"{children_harmed:.0f} show policy-associated harm from scrutiny, stigma, or trust loss. "
             f"{false_positives:.0f} cases are false positives."
@@ -3581,7 +3601,7 @@ def render_results_fragment(settings):
         return
 
     st.subheader("Policy comparison")
-    st.caption("Average outcomes per run. Use this to compare policies side by side.")
+    st.caption("Mean outcomes per synthetic run across successful model-agent results. Use this to compare policies side by side.")
 
     with st.container(border=False, key="results_content_panel"):
         display_dataframe_payload(latest_result.get("comparison_table"))
@@ -3594,7 +3614,7 @@ def render_results_fragment(settings):
                 else:
                     policy_average_table = dataframe_from_payload(policy_result.get("average_table"))
                     chart_rows = dataframe_from_payload(policy_result.get("chart_rows"))
-                    st.subheader("Averages")
+                    st.subheader("Means")
                     display_average_table(policy_average_table)
                     render_charts(chart_rows)
                     render_interpretation(

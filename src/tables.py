@@ -7,24 +7,25 @@ from src.constants import POLICIES, RUN_METRIC_LABELS
 
 POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
-    "baseline_crimes": "Baseline predicted outcomes (avg)",
-    "false_positives": "False positives (avg)",
-    "false_negatives": "False negatives (avg)",
-    "children_helped": "Policy benefit count (avg)",
-    "children_harmed": "Policy harm count (avg)",
+    "baseline_crimes": "Baseline predicted outcomes (mean)",
+    "false_positives": "False positives (mean)",
+    "false_negatives": "False negatives (mean)",
+    "children_helped": "Policy benefit count (mean)",
+    "children_harmed": "Policy harm count (mean)",
 }
 OUTCOME_EFFECT_COLUMN = "Predicted outcome reduction (%)"
 POLICY_HARM_RATE_COLUMN = "Policy harm rate among positive predictions (%)"
+AVERAGE_VALUE_COLUMN = "Mean per synthetic run"
 PERCENT_COLUMNS = {OUTCOME_EFFECT_COLUMN, POLICY_HARM_RATE_COLUMN}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
     OUTCOME_EFFECT_COLUMN,
     POLICY_HARM_RATE_COLUMN,
-    "Baseline predicted outcomes (avg)",
-    "False positives (avg)",
-    "False negatives (avg)",
-    "Policy benefit count (avg)",
-    "Policy harm count (avg)",
+    "Baseline predicted outcomes (mean)",
+    "False positives (mean)",
+    "False negatives (mean)",
+    "Policy benefit count (mean)",
+    "Policy harm count (mean)",
 ]
 
 
@@ -39,7 +40,7 @@ def average_results_table(run_results):
     metric_order = [column for column in RUN_METRIC_LABELS if column in run_results.columns]
     averages = run_results[metric_order].mean(numeric_only=True)
     table = averages.rename(index=RUN_METRIC_LABELS).reset_index()
-    table.columns = ["Metric", "Average per synthetic run"]
+    table.columns = ["Metric", AVERAGE_VALUE_COLUMN]
     return table
 
 
@@ -52,7 +53,8 @@ def formatted_average_results_table(average_table):
             return "Not applicable"
         return f"{value:,.3f}"
 
-    display_table["Average per synthetic run"] = display_table["Average per synthetic run"].map(format_value)
+    value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in display_table.columns else "Average per synthetic run"
+    display_table[value_column] = display_table[value_column].map(format_value)
     return display_table
 
 

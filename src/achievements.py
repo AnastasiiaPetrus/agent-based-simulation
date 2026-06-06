@@ -25,7 +25,7 @@ ACHIEVEMENTS = [
         "id": "false_alarm",
         "icon": "🚨",
         "name": "False Alarm",
-        "description": "More false positives on average than prevented predicted outcomes.",
+        "description": "Mean false positives exceed mean prevented predicted outcomes.",
     },
     {
         "id": "tinkerer",
@@ -37,13 +37,13 @@ ACHIEVEMENTS = [
         "id": "crime_preventer",
         "icon": "🛡️",
         "name": "Outcome Preventer",
-        "description": "Prevent an average of 20+ predicted outcomes per run under any policy.",
+        "description": "Reach a mean of 20+ prevented predicted outcomes per run under any policy.",
     },
     {
         "id": "crime_crusher",
         "icon": "💥",
         "name": "Outcome Reducer",
-        "description": "Achieve 25%+ average predicted outcome reduction under any policy.",
+        "description": "Achieve a 25%+ mean predicted outcome reduction under any policy.",
     },
     {
         "id": "base_rate_trap",
@@ -61,7 +61,7 @@ ACHIEVEMENTS = [
         "id": "helping_hundreds",
         "icon": "🤝",
         "name": "Helping Hundreds",
-        "description": "Average a policy benefit count of 200+ per run under Targeted Support.",
+        "description": "Reach a mean policy benefit count of 200+ per run under Targeted Support.",
     },
     {
         "id": "overreaction",

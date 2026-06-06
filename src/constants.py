@@ -41,7 +41,7 @@ SETTING_DESCRIPTIONS = {
 RESULT_METRIC_DESCRIPTIONS = {
     "Baseline predicted outcomes": (
         "How many children would have the predicted serious harmful outcome if no policy were applied. "
-        "In average tables, this is an average count per synthetic run."
+        "In tables, this is the mean count per synthetic run across successful model-agent results."
     ),
     "Positive predictions": (
         "Total children identified as high-risk by the prediction tool — "
@@ -66,6 +66,11 @@ RESULT_METRIC_DESCRIPTIONS = {
     "Policy harm count": (
         "Flagged children whose simulated life-course outcome worsens because of the policy. "
         "This can occur under any policy type and can overlap with help in mixed cases."
+    ),
+    "Model-averaged cohort view": (
+        "The bubble visualization converts each selected model agent's result into a full synthetic cohort, "
+        "takes the mean of those cohort counts across model agents with equal weight, and rounds the categories back to "
+        "the configured population size."
     ),
 }
 
