@@ -7,7 +7,7 @@ from src.constants import POLICIES, RUN_METRIC_LABELS
 
 POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
-    "baseline_crimes": "Baseline predicted outcomes (mean)",
+    "baseline_outcomes": "Baseline predicted outcomes (mean)",
     "false_positives": "False positives (mean)",
     "false_negatives": "False negatives (mean)",
     "children_helped": "Policy benefit count (mean)",
@@ -60,7 +60,7 @@ def formatted_average_results_table(average_table):
 
 @st.cache_data(show_spinner=False)
 def combined_policy_totals_table(run_results, population_size):
-    required_metric_columns = [*POLICY_TOTAL_AVERAGE_LABELS, "crimes_prevented", "children_flagged"]
+    required_metric_columns = [*POLICY_TOTAL_AVERAGE_LABELS, "net_outcomes_prevented", "children_flagged"]
     metric_columns = [column for column in required_metric_columns if column in run_results.columns]
     table = (
         run_results.groupby("policy", as_index=False, observed=True)[metric_columns].mean(numeric_only=True)
@@ -68,7 +68,7 @@ def combined_policy_totals_table(run_results, population_size):
     table["policy_sort"] = table["policy"].map(POLICY_SORT_INDEX)
     table = table.sort_values("policy_sort").drop(columns="policy_sort")
     table["outcome_reduction_pct"] = (
-        table["crimes_prevented"] / table["baseline_crimes"].replace(0, np.nan)
+        table["net_outcomes_prevented"] / table["baseline_outcomes"].replace(0, np.nan)
     ) * 100
     flagged_denominator = (
         table["children_flagged"].replace(0, np.nan)

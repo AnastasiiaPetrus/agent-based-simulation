@@ -34,13 +34,13 @@ ACHIEVEMENTS = [
         "description": "Run 7 or more simulations in a single session.",
     },
     {
-        "id": "crime_preventer",
+        "id": "outcome_preventer",
         "icon": "🛡️",
         "name": "Outcome Preventer",
         "description": "Reach a mean of 20+ prevented predicted outcomes per run under any policy.",
     },
     {
-        "id": "crime_crusher",
+        "id": "outcome_reducer",
         "icon": "💥",
         "name": "Outcome Reducer",
         "description": "Achieve a 25%+ mean predicted outcome reduction under any policy.",
@@ -73,7 +73,7 @@ ACHIEVEMENTS = [
         "id": "sharp_signal",
         "icon": "🎯",
         "name": "Sharp Signal",
-        "description": "Run a simulation with prediction error rate at most 2%.",
+        "description": "Run a simulation with symmetric misclassification rate at most 2%.",
     },
     {
         "id": "high_risk_world",
@@ -105,10 +105,10 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         if has_policy_col else combined_run_results.iloc[0:0]
     )
 
-    avg_baseline = combined_run_results["baseline_crimes"].mean()
+    avg_baseline = combined_run_results["baseline_outcomes"].mean()
     avg_fp = combined_run_results["false_positives"].mean()
     avg_fn = combined_run_results["false_negatives"].mean()
-    avg_prevented = combined_run_results["crimes_prevented"].mean()
+    avg_prevented = combined_run_results["net_outcomes_prevented"].mean()
     avg_tp = avg_baseline - avg_fn
 
     if set(POLICIES).issubset(policies_present):
@@ -125,7 +125,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
 
     if has_policy_col:
         policy_avg_prevented = combined_run_results.groupby("policy", observed=True)[
-            "crimes_prevented"
+            "net_outcomes_prevented"
         ].mean()
         max_prevented = policy_avg_prevented.max()
     else:
@@ -133,18 +133,18 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         max_prevented = avg_prevented
 
     if max_prevented >= 20:
-        earned.add("crime_preventer")
+        earned.add("outcome_preventer")
 
     if has_policy_col:
         policy_avg_baseline = combined_run_results.groupby("policy", observed=True)[
-            "baseline_crimes"
+            "baseline_outcomes"
         ].mean()
         reduction_rates = policy_avg_prevented / policy_avg_baseline.replace(0, float("nan"))
         if reduction_rates.max() >= 0.25:
-            earned.add("crime_crusher")
+            earned.add("outcome_reducer")
     else:
         if avg_baseline > 0 and max_prevented / avg_baseline >= 0.25:
-            earned.add("crime_crusher")
+            earned.add("outcome_reducer")
 
     if avg_fp > avg_tp:
         earned.add("base_rate_trap")
@@ -158,12 +158,12 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if "children_flagged" in combined_run_results.columns:
         flagged_to_baseline_ratio = (
             combined_run_results["children_flagged"]
-            / combined_run_results["baseline_crimes"].replace(0, float("nan"))
+            / combined_run_results["baseline_outcomes"].replace(0, float("nan"))
         )
         if flagged_to_baseline_ratio.max() >= 5:
             earned.add("overreaction")
 
-    if float(settings["prediction_noise"]) <= 0.02:
+    if float(settings["symmetric_error_rate"]) <= 0.02:
         earned.add("sharp_signal")
 
     if float(settings["true_high_risk_rate"]) >= TRUE_HIGH_RISK_RATE_MAX:

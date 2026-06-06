@@ -307,7 +307,7 @@ POLICY_SCENARIO_LIBRARY = {
                 "name": "Preemptive custody-like restriction",
                 "description": (
                     "In a fictional or hypothetical setting, the person is placed under severe preventive "
-                    "restriction without a prior completed violation or offense. The measure resembles "
+                    "restriction without a prior completed violation or harmful act. The measure resembles "
                     "custody, detention, or confinement and is justified solely by predicted future risk."
                 ),
             },

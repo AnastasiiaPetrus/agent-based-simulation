@@ -19,7 +19,7 @@ def simulation_settings_signature(settings):
     return {
         "population_size": int(settings["population_size"]),
         "true_high_risk_rate": round(float(settings["true_high_risk_rate"]), 6),
-        "prediction_noise": round(float(settings["prediction_noise"]), 6),
+        "symmetric_error_rate": round(float(settings["symmetric_error_rate"]), 6),
         "policy_intensity_tier": str(settings.get("policy_intensity_tier", "")),
         "llm_simulation_runs": int(settings["llm_simulation_runs"]),
         "llm_representative_agents": int(settings["llm_representative_agents"]),
@@ -31,7 +31,7 @@ def latest_result_has_current_schema(latest_result, settings=None):
     if not isinstance(latest_result, dict):
         return False
 
-    if latest_result.get("schema_version") != 3:
+    if latest_result.get("schema_version") != 4:
         return False
 
     if not isinstance(latest_result.get("comparison_table"), dict):

@@ -12,17 +12,17 @@ def clamp_count(value, maximum):
 
 def risk_signal_counts(true_high_risk_count, settings):
     population_size = int(settings["population_size"])
-    # signal_error_rate is used symmetrically as both FNR and FPR.
-    # FNR = P(not flagged | truly high-risk) = error_rate
-    # FPR = P(flagged | truly low-risk)      = error_rate
-    # This is a deliberate simplification: one "prediction error" parameter
+    # symmetric_error_rate is used as both FNR and FPR.
+    # FNR = P(not flagged | truly high-risk) = symmetric_error_rate
+    # FPR = P(flagged | truly low-risk)      = symmetric_error_rate
+    # This is a deliberate simplification: one misclassification parameter
     # controls both miss rate and false alarm rate equally.
-    signal_error_rate = float(settings["prediction_noise"])
+    symmetric_error_rate = float(settings["symmetric_error_rate"])
     true_high_risk_count = clamp_count(true_high_risk_count, population_size)
     not_true_high_risk_count = population_size - true_high_risk_count
 
-    false_negatives = clamp_count(true_high_risk_count * signal_error_rate, true_high_risk_count)
-    false_positives = clamp_count(not_true_high_risk_count * signal_error_rate, not_true_high_risk_count)
+    false_negatives = clamp_count(true_high_risk_count * symmetric_error_rate, true_high_risk_count)
+    false_positives = clamp_count(not_true_high_risk_count * symmetric_error_rate, not_true_high_risk_count)
     true_positives = true_high_risk_count - false_negatives
     flagged_count = true_positives + false_positives
     return false_positives, false_negatives, flagged_count
@@ -37,17 +37,17 @@ def derived_flagged_count(settings):
 def prediction_base_rows(settings):
     population_size = int(settings["population_size"])
     run_count = int(settings["llm_simulation_runs"])
-    baseline_crimes = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
-    false_positives, false_negatives, children_flagged = risk_signal_counts(baseline_crimes, settings)
-    true_positives = baseline_crimes - false_negatives
-    true_negatives = population_size - baseline_crimes - false_positives
+    baseline_outcomes = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
+    false_positives, false_negatives, children_flagged = risk_signal_counts(baseline_outcomes, settings)
+    true_positives = baseline_outcomes - false_negatives
+    true_negatives = population_size - baseline_outcomes - false_positives
     unflagged_agents = population_size - children_flagged
     relevant_agents = children_flagged + false_negatives
 
     return [
         {
             "run": run,
-            "baseline_crimes": baseline_crimes,
+            "baseline_outcomes": baseline_outcomes,
             "true_positives": true_positives,
             "false_positives": false_positives,
             "false_negatives": false_negatives,
@@ -181,9 +181,9 @@ def run_results_from_policy_effects(policy_effects, settings):
     run_results = pd.DataFrame(
         {
             "run": merged["run"].astype(int),
-            "baseline_crimes": merged["baseline_crimes"].astype(int),
-            "crimes_after_policy": (
-                merged["baseline_crimes"]
+            "baseline_outcomes": merged["baseline_outcomes"].astype(int),
+            "outcomes_after_policy": (
+                merged["baseline_outcomes"]
                 - merged["prevented_outcomes"]
                 + merged["policy_caused_outcomes"]
             ).astype(int),
@@ -194,15 +194,15 @@ def run_results_from_policy_effects(policy_effects, settings):
             "children_flagged": merged["children_flagged"].astype(int),
         }
     )
-    run_results["crimes_prevented"] = (
-        run_results["baseline_crimes"] - run_results["crimes_after_policy"]
+    run_results["net_outcomes_prevented"] = (
+        run_results["baseline_outcomes"] - run_results["outcomes_after_policy"]
     ).astype(int)
     return run_results[
         [
             "run",
-            "baseline_crimes",
-            "crimes_after_policy",
-            "crimes_prevented",
+            "baseline_outcomes",
+            "outcomes_after_policy",
+            "net_outcomes_prevented",
             "false_positives",
             "false_negatives",
             "children_helped",
@@ -218,7 +218,7 @@ def validate_llm_tables(run_results, settings, enforce_bounds=True):
     if actual_runs != expected_runs or len(run_results) != len(expected_runs):
         raise ValueError("The computed run-level result table is incomplete.")
 
-    required_run_columns = [column for column in RUN_METRIC_COLUMNS if column != "crimes_prevented"]
+    required_run_columns = [column for column in RUN_METRIC_COLUMNS if column != "net_outcomes_prevented"]
     if run_results[required_run_columns].isna().any().any():
         raise ValueError("The computed run-level result table has missing metric values.")
 
@@ -226,22 +226,22 @@ def validate_llm_tables(run_results, settings, enforce_bounds=True):
         return
 
     population_size = int(settings["population_size"])
-    count_columns = [column for column in RUN_COUNT_COLUMNS if column != "crimes_prevented"]
+    count_columns = [column for column in RUN_COUNT_COLUMNS if column != "net_outcomes_prevented"]
     if (run_results[count_columns] < 0).any().any():
         raise ValueError("The computed run-level result table has negative counts.")
     if (run_results[count_columns] > population_size).any().any():
         raise ValueError("The computed run-level result table has counts above population size.")
 
-    expected_prevented = run_results["baseline_crimes"] - run_results["crimes_after_policy"]
-    if not expected_prevented.equals(run_results["crimes_prevented"]):
+    expected_prevented = run_results["baseline_outcomes"] - run_results["outcomes_after_policy"]
+    if not expected_prevented.equals(run_results["net_outcomes_prevented"]):
         raise ValueError("The computed run-level result table has inconsistent prevented-outcome counts.")
 
-    low_risk_count = population_size - run_results["baseline_crimes"]
-    if (run_results["false_negatives"] > run_results["baseline_crimes"]).any():
+    low_risk_count = population_size - run_results["baseline_outcomes"]
+    if (run_results["false_negatives"] > run_results["baseline_outcomes"]).any():
         raise ValueError("The computed run-level result table has more false negatives than baseline outcomes.")
     if (run_results["false_positives"] > low_risk_count).any():
         raise ValueError("The computed run-level result table has more false positives than no-outcome agents.")
-    if (run_results["crimes_after_policy"] < run_results["false_negatives"]).any():
+    if (run_results["outcomes_after_policy"] < run_results["false_negatives"]).any():
         raise ValueError("The computed run-level result table has fewer post-policy outcomes than unreached false negatives.")
     if "children_flagged" in run_results.columns:
         if (run_results["children_helped"] > run_results["children_flagged"]).any():

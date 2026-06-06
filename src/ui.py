@@ -18,7 +18,7 @@ from src.charts import line_chart_png
 from src.constants import (
     CHECK_DESCRIPTIONS,
     DEFAULT_POPULATION_SIZE,
-    DEFAULT_PREDICTION_ERROR_RATE,
+    DEFAULT_SYMMETRIC_MISCLASSIFICATION_RATE,
     DEFAULT_TRUE_HIGH_RISK_RATE,
     LLM_MODEL,
     DEFAULT_LLM_MODEL_OPTIONS,
@@ -30,11 +30,11 @@ from src.constants import (
     POPULATION_DOT_ANIMATION_SECONDS,
     POPULATION_DOT_STAGGER_GROUP,
     POPULATION_DOT_STAGGER_SECONDS,
-    PREDICTION_ERROR_RATE_MAX,
-    PREDICTION_ERROR_RATE_MIN,
     PROGRESS_NOTE_MIN_SECONDS,
     RESULT_METRIC_DESCRIPTIONS,
     SETTING_DESCRIPTIONS,
+    SYMMETRIC_MISCLASSIFICATION_RATE_MAX,
+    SYMMETRIC_MISCLASSIFICATION_RATE_MIN,
     TRUE_HIGH_RISK_RATE_MAX,
     TRUE_HIGH_RISK_RATE_MIN,
 )
@@ -109,7 +109,7 @@ def render_hero_summary(settings):
     cards = [
         ("Synthetic population", f"{population_size:,}", "Children in each run", ""),
         ("True high-risk children", f"{true_high_risk_count:,}", "Without intervention", "primary"),
-        ("Prediction error", f"{false_positives + false_negatives:,}", "False positives + false negatives", "warning"),
+        ("Misclassified children", f"{false_positives + false_negatives:,}", "False positives + false negatives", "warning"),
         ("Positive predictions", f"{flagged_count:,}", "Policy exposure group", ""),
     ]
     card_html = []
@@ -157,7 +157,7 @@ def render_population_view_overview(settings):
 <section class="population-overview">
   <div class="population-overview-title">MODEL_AVERAGED_COHORT_VIEW</div>
   <div class="population-overview-heading">{population_size:,} expected children &middot; {policy_count} policy responses</div>
-  <div class="population-overview-note">After a run, bubble counts are averaged across {model_count} selected LLM model agent(s) and rounded back to a full cohort of {population_size:,}.</div>
+  <div class="population-overview-note">After a run, this view combines {model_count} selected LLM model agent estimate(s) into one cohort-sized picture, so model dependence is visible without showing separate panels for every model.</div>
   <div class="population-legend">
     <span class="population-legend-item">
       <span class="population-legend-dot is-safe"></span>
@@ -206,8 +206,8 @@ ACHIEVEMENT_ICON_BY_ID = {
     "full_comparison": "puzzle",
     "false_alarm": "siren",
     "tinkerer": "microscope",
-    "crime_preventer": "hero",
-    "crime_crusher": "burst",
+    "outcome_preventer": "hero",
+    "outcome_reducer": "burst",
     "base_rate_trap": "trap",
     "schrodinger": "puzzle",
     "helping_hundreds": "handshake",
@@ -2063,11 +2063,11 @@ def glossary_markdown(items):
 
 
 @st.cache_data(show_spinner=False)
-def cached_baseline_children(population_size, true_high_risk_rate, prediction_noise):
+def cached_baseline_children(population_size, true_high_risk_rate, symmetric_error_rate):
     settings = {
         "population_size": int(population_size),
         "true_high_risk_rate": float(true_high_risk_rate),
-        "prediction_noise": float(prediction_noise),
+        "symmetric_error_rate": float(symmetric_error_rate),
     }
     population_size = settings["population_size"]
     true_high = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
@@ -2091,7 +2091,7 @@ def baseline_children(settings):
     return cached_baseline_children(
         int(settings["population_size"]),
         float(settings["true_high_risk_rate"]),
-        float(settings["prediction_noise"]),
+        float(settings["symmetric_error_rate"]),
     )
 
 
@@ -2135,13 +2135,13 @@ def finalized_bubble_counts(category_counts, population_size, has_result):
 
 def transition_metrics_from_averages(averages, settings):
     population_size = int(settings["population_size"])
-    baseline = clamp_count(averages.get("baseline_crimes"), population_size)
+    baseline = clamp_count(averages.get("baseline_outcomes"), population_size)
     false_positives = clamp_count(averages.get("false_positives"), population_size)
     false_negatives = clamp_count(averages.get("false_negatives"), population_size)
     flagged = clamp_count(averages.get("children_flagged"), population_size)
     if flagged == 0:
         flagged = clamp_count(baseline - false_negatives + false_positives, population_size)
-    prevented_value = averages.get("crimes_prevented")
+    prevented_value = averages.get("net_outcomes_prevented")
     prevented = 0 if pd.isna(prevented_value) else int(round(float(prevented_value)))
     prevented = max(-population_size, min(population_size, prevented))
 
@@ -2473,11 +2473,11 @@ def policy_bubble_card(policy, metrics, settings, index):
     """
 
 
-def bubble_population_animation_html(policy_metrics_by_policy, true_high_risk_rate, prediction_noise, population_size, title, animation_key="", root_id=None):
+def bubble_population_animation_html(policy_metrics_by_policy, true_high_risk_rate, symmetric_error_rate, population_size, title, animation_key="", root_id=None):
     settings = {
         "population_size": population_size,
         "true_high_risk_rate": true_high_risk_rate,
-        "prediction_noise": prediction_noise,
+        "symmetric_error_rate": symmetric_error_rate,
     }
     if root_id is None:
         seed_text = f"{title}-{animation_key}"
@@ -2830,11 +2830,11 @@ def population_update_script(root_id, policy, panel_index, children, metrics):
 
 
 @st.cache_data(show_spinner=False)
-def population_animation_html(policy_metrics_by_policy, true_high_risk_rate, prediction_noise, population_size, title, animation_key="", root_id=None):
+def population_animation_html(policy_metrics_by_policy, true_high_risk_rate, symmetric_error_rate, population_size, title, animation_key="", root_id=None):
     settings = {
         "population_size": population_size,
         "true_high_risk_rate": true_high_risk_rate,
-        "prediction_noise": prediction_noise,
+        "symmetric_error_rate": symmetric_error_rate,
     }
     children = baseline_children(settings)
     if root_id is None:
@@ -3048,7 +3048,7 @@ def render_population_animation(container, policy_metrics_by_policy, settings, t
     html = bubble_population_animation_html(
         policy_metrics_by_policy,
         settings["true_high_risk_rate"],
-        settings["prediction_noise"],
+        settings["symmetric_error_rate"],
         settings["population_size"],
         title,
         animation_key,
@@ -3080,7 +3080,8 @@ setTimeout(function() {{
 
 def render_sidebar_achievements():
     earned = st.session_state.get("earned_achievements", set())
-    count = len(earned)
+    known_achievement_ids = {achievement["id"] for achievement in ACHIEVEMENTS}
+    count = len(earned & known_achievement_ids)
     rows = []
     for ach in ACHIEVEMENTS:
         is_earned = ach["id"] in earned
@@ -3177,15 +3178,15 @@ def render_reference_guide():
     ):
         st.markdown(
             f"""
-A fictional prediction tool scans {DEFAULT_POPULATION_SIZE:,} children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set how many children would commit that act if no policy were applied, how often the tool is wrong, and how intense the policy response is. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
+A fictional prediction tool scans {DEFAULT_POPULATION_SIZE:,} children at age 10 and flags those it believes will commit a serious harmful act by age 30. You set the no-policy outcome prevalence, the shared false-positive/false-negative rate, and the intensity of the policy response. The simulation then tests all three policies in parallel — three possible things society could do with those flags.
 
 Python first fixes the full prediction structure: true positives, false positives, false negatives, and the large background group that is neither flagged nor on the predicted-outcome path. Each selected LLM model agent then simulates only the relevant groups — flagged children plus false negatives — as weighted life-course profiles rather than 10,000 separate biographies.
 
 For each relevant profile, the model follows life stages from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, restriction, and the final predicted outcome. The unchanged background group stays in the arithmetic, but it is not individually simulated.
 
-The aggregate tables average those counted outcomes across successful synthetic runs and selected model agents. The bubble view is slightly different: it first converts each model agent's result into a full 10,000-child cohort, averages those cohort counts across model agents with equal weight, and then rounds the categories so each policy still sums to exactly 10,000 expected children.
+The aggregate tables average those counted outcomes across successful synthetic runs and selected model agents. The bubble view is slightly different: it turns each model agent's result into a full 10,000-child cohort, combines the selected model estimates into one cohort-sized picture, and rounds the categories so each policy still sums to exactly 10,000 expected children.
 
-The goal is not to find the right answer — it's to see what the trade-offs actually cost.
+The goal is not to find the right answer — it's to make the trade-offs visible under the assumptions you choose.
             """
         )
 
@@ -3203,7 +3204,6 @@ The goal is not to find the right answer — it's to see what the trade-offs act
 
 
 DISPLAY_LABEL_ALIASES = {
-    "Would offend without intervention": "Baseline predicted outcomes",
     "Predicted outcomes without policy": "Baseline predicted outcomes",
     "Flagged as high-risk": "Positive predictions",
     "Flagged by prediction": "Positive predictions",
@@ -3218,7 +3218,6 @@ DISPLAY_LABEL_ALIASES = {
     "Harmed (% of flagged)": "Policy harm rate among positive predictions (%)",
     "Harmed by policy (% of flagged)": "Policy harm rate among positive predictions (%)",
     "Policy harm rate among flagged (%)": "Policy harm rate among positive predictions (%)",
-    "Would offend without intervention (avg count)": "Baseline predicted outcomes (mean)",
     "Predicted outcomes without policy (avg)": "Baseline predicted outcomes (mean)",
     "Baseline predicted outcomes (avg)": "Baseline predicted outcomes (mean)",
     "Wrongly flagged (avg count)": "False positives (mean)",
@@ -3284,7 +3283,7 @@ def display_dataframe_payload(payload):
 def chart_rows_payload(policy_runs):
     chart_columns = [
         column
-        for column in ["run", "crimes_prevented", "children_harmed", "llm_model"]
+        for column in ["run", "net_outcomes_prevented", "children_harmed", "llm_model"]
         if column in policy_runs.columns
     ]
     return dataframe_to_payload(policy_runs[chart_columns].copy())
@@ -3305,7 +3304,7 @@ def latest_result_payload(combined_runs, settings):
         population_metrics_by_policy[policy] = policy_transition_metrics(combined_runs, policy, settings)
 
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "comparison_table": dataframe_to_payload(
             combined_policy_totals_table(combined_runs, settings["population_size"])
         ),
@@ -3323,7 +3322,7 @@ def render_charts(run_results):
             line_chart_png(
                 run_results,
                 "run",
-                "crimes_prevented",
+                "net_outcomes_prevented",
                 "Prevented predicted outcomes by run",
                 "Prevented predicted outcomes",
             ),
@@ -3355,11 +3354,11 @@ def render_interpretation(policy, average_table):
     average_table = normalize_display_labels(average_table)
     value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in average_table.columns else "Average per synthetic run"
     values = dict(zip(average_table["Metric"], average_table[value_column]))
-    crimes_prevented = values.get("Prevented predicted outcomes", 0.0)
+    net_outcomes_prevented = values.get("Prevented predicted outcomes", 0.0)
     false_positives = values.get("False positives", 0.0)
     children_helped = values.get("Policy benefit count", 0.0)
     children_harmed = values.get("Policy harm count", 0.0)
-    outcome_phrase = prevented_outcome_phrase(crimes_prevented)
+    outcome_phrase = prevented_outcome_phrase(net_outcomes_prevented)
 
     if policy == "Coercive preventive intervention for high-risk children":
         st.info(
@@ -4005,26 +4004,26 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
 def sidebar_inputs():
     population_size = DEFAULT_POPULATION_SIZE
     true_rate_key = "true_high_risk_rate_percent"
-    prediction_error_key = "prediction_error_percent"
+    symmetric_error_key = "symmetric_misclassification_percent"
     intensity_key = "policy_intensity_tier"
     model_key = "llm_agent_models"
     true_rate_default = DEFAULT_TRUE_HIGH_RISK_RATE * 100
-    prediction_error_default = DEFAULT_PREDICTION_ERROR_RATE * 100
+    symmetric_error_default = DEFAULT_SYMMETRIC_MISCLASSIFICATION_RATE * 100
     true_rate_min = TRUE_HIGH_RISK_RATE_MIN * 100
     true_rate_max = TRUE_HIGH_RISK_RATE_MAX * 100
-    prediction_error_min = PREDICTION_ERROR_RATE_MIN * 100
-    prediction_error_max = PREDICTION_ERROR_RATE_MAX * 100
+    symmetric_error_min = SYMMETRIC_MISCLASSIFICATION_RATE_MIN * 100
+    symmetric_error_max = SYMMETRIC_MISCLASSIFICATION_RATE_MAX * 100
     true_rate_value = clamp_percent_session_value(
         true_rate_key,
         true_rate_default,
         true_rate_min,
         true_rate_max,
     )
-    prediction_error_value = clamp_percent_session_value(
-        prediction_error_key,
-        prediction_error_default,
-        prediction_error_min,
-        prediction_error_max,
+    symmetric_error_value = clamp_percent_session_value(
+        symmetric_error_key,
+        symmetric_error_default,
+        symmetric_error_min,
+        symmetric_error_max,
     )
     intensity_value = st.session_state.get(intensity_key, "Medium")
     is_running = bool(st.session_state.get("simulation_running", False))
@@ -4066,20 +4065,20 @@ def sidebar_inputs():
             "Share of children who would commit the predicted serious harmful act with no intervention."
         )
 
-        render_settings_field_header("Prediction error", format_percent(prediction_error_value))
-        prediction_noise = st.slider(
-            "Prediction error rate (%)",
-            prediction_error_min,
-            prediction_error_max,
+        render_settings_field_header("Symmetric misclassification", format_percent(symmetric_error_value))
+        symmetric_error_rate = st.slider(
+            "Symmetric misclassification rate (%)",
+            symmetric_error_min,
+            symmetric_error_max,
             step=0.5,
             format="%.1f%%",
-            key=prediction_error_key,
-            help=SETTING_DESCRIPTIONS["Prediction error rate (%)"],
+            key=symmetric_error_key,
+            help=SETTING_DESCRIPTIONS["Symmetric misclassification rate (%)"],
             label_visibility="collapsed",
             disabled=is_running,
         ) / 100
         render_settings_field_copy(
-            "Symmetric error rate for false negatives among high-risk children and false positives among low-risk children."
+            "Shared false-negative rate among outcome-path children and false-positive rate among no-outcome children."
         )
 
         render_settings_field_header("Intervention intensity", intensity_value)
@@ -4114,7 +4113,7 @@ def sidebar_inputs():
     settings = {
         "population_size": population_size,
         "true_high_risk_rate": true_high_risk_rate,
-        "prediction_noise": prediction_noise,
+        "symmetric_error_rate": symmetric_error_rate,
         "policy_intensity_tier": policy_intensity_tier or "Medium",
         "llm_simulation_runs": 5,
         "llm_representative_agents": 6,

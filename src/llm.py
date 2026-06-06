@@ -32,7 +32,7 @@ AGENT_BASED_SIMULATION_PROMPT = """
 ## 1. Core methodology - Python owns arithmetic
 Do not invent base prediction numbers or final result tables.
 
-Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_crimes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, unflagged_agents, and relevant_agents. Treat them as facts.
+Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_outcomes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, unflagged_agents, and relevant_agents. Treat them as facts.
 
 You do not simulate every person in the full population. Detailed life-course simulation is only needed for the relevant groups:
 - true_positives: flagged agents who would have the predicted outcome with no policy
@@ -49,9 +49,9 @@ Your job:
 5. Write debrief_text grounded only in fixed counts, policy effects, and representative agents.
 
 Python will compute the final result table after your response:
-- crimes_after_policy = baseline_crimes - prevented_outcomes + policy_caused_outcomes
-- crimes_prevented = baseline_crimes - crimes_after_policy
-- false_positives, false_negatives, baseline_crimes, and children_flagged come from Python, not from you.
+- outcomes_after_policy = baseline_outcomes - prevented_outcomes + policy_caused_outcomes
+- net_outcomes_prevented = baseline_outcomes - outcomes_after_policy
+- false_positives, false_negatives, baseline_outcomes, and children_flagged come from Python, not from you.
 
 Tractable method for large populations: partition only the relevant agents in each run into weighted agent profiles that sum to true_positives + false_positives + false_negatives. Simulate trajectories for these relevant profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort, the relevant internal cohort, or the profiles.
 
@@ -158,7 +158,7 @@ Before responding, verify:
 - policy_effects has exactly synthetic_runs_to_generate items.
 - representative_agents has exactly representative_agents_to_generate items.
 - The full cohort, true-negative background, and internal relevant profiles are not output.
-- You do not return baseline_crimes, crimes_after_policy, crimes_prevented, false_positives, false_negatives, or children_flagged.
+- You do not return baseline_outcomes, outcomes_after_policy, net_outcomes_prevented, false_positives, false_negatives, or children_flagged.
 - All policy_effect counts are integers and within the fixed bounds.
 - Each representative agent has all required fields and comes from the internally simulated relevant groups.
 - The aggregate effect emerged from simulated trajectories, not from the policy label.
@@ -178,7 +178,7 @@ def compact_parameter_summary(settings):
         f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
         f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
         f"true_predicted_outcome_rate={settings['true_high_risk_rate']:.3f}; "
-        f"prediction_noise={settings['prediction_noise']:.3f}; "
+        f"symmetric_error_rate={settings['symmetric_error_rate']:.3f}; "
         f"derived_flagged_rate={derived_flagged_rate:.3f}; "
         f"policy_intensity_tier={policy_intensity_tier}; "
         f"policy_effect_strength={policy_effect_strength:.1f}"
@@ -204,7 +204,7 @@ def build_llm_simulation_prompt(settings):
         "representative_agents_to_generate": int(settings["llm_representative_agents"]),
         "true_predicted_outcome_rate": metric_value(settings["true_high_risk_rate"]),
         "derived_flagged_rate": metric_value(derived_flagged_rate),
-        "prediction_noise": metric_value(settings["prediction_noise"]),
+        "symmetric_error_rate": metric_value(settings["symmetric_error_rate"]),
         "policy_effect_strength": policy_intensity_value(policy_intensity_tier),
         "fixed_prediction_counts_by_run": prediction_base_rows(settings),
         "relevant_groups_for_life_course_simulation": [
