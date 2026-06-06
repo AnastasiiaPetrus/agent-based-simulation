@@ -42,7 +42,6 @@ def prediction_base_rows(settings):
     true_positives = baseline_outcomes - false_negatives
     true_negatives = population_size - baseline_outcomes - false_positives
     unflagged_agents = population_size - children_flagged
-    relevant_agents = children_flagged + false_negatives
 
     return [
         {
@@ -54,7 +53,6 @@ def prediction_base_rows(settings):
             "true_negatives": true_negatives,
             "children_flagged": children_flagged,
             "unflagged_agents": unflagged_agents,
-            "relevant_agents": relevant_agents,
         }
         for run in range(1, run_count + 1)
     ]

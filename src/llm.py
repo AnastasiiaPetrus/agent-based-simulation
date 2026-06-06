@@ -32,28 +32,26 @@ AGENT_BASED_SIMULATION_PROMPT = """
 ## 1. Core methodology - Python owns arithmetic
 Do not invent base prediction numbers or final result tables.
 
-Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_outcomes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, unflagged_agents, and relevant_agents. Treat them as facts.
+Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_outcomes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, and unflagged_agents. Treat them as facts.
 
-You do not simulate every person in the full population. Detailed life-course simulation is only needed for the relevant groups:
+You do not simulate every person in the full population. Detailed life-course simulation is only needed for the flagged groups:
 - true_positives: flagged agents who would have the target harmful outcome with no policy
 - false_positives: flagged agents who would not have the target harmful outcome with no policy
-- false_negatives: unflagged agents who would have the target harmful outcome with no policy
 
-true_negatives are not relevant for detailed policy evaluation in this run. They remain constant background counts fixed by Python: they are not flagged, not reached by policy, not helped by policy, not harmed by policy, and not selected as representative agents.
+Unflagged agents (true_negatives and false_negatives) are constant background counts fixed by Python. They are not flagged, not reached by policy, not helped by policy, not harmed by policy, and not selected as representative agents.
 
 Your job:
 1. Simulate how selected_policy_scenario affects flagged agents.
-2. Simulate false negatives only as missed cases following their no-policy path.
-3. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, children_harmed.
-4. Select representative_agents from those simulated relevant categories.
-5. Write debrief_text grounded only in fixed counts, policy effects, and representative agents.
+2. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, children_harmed.
+3. Select representative_agents from those simulated flagged categories.
+4. Write debrief_text grounded only in fixed counts, policy effects, and representative agents.
 
 Python will compute the final result table after your response:
 - outcomes_after_policy = baseline_outcomes - prevented_outcomes + policy_caused_outcomes
 - net_outcomes_prevented = baseline_outcomes - outcomes_after_policy
 - false_positives, false_negatives, baseline_outcomes, and children_flagged come from Python, not from you.
 
-Tractable method for large populations: partition only the relevant agents in each run into weighted agent profiles that sum to true_positives + false_positives + false_negatives. Simulate trajectories for these relevant profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort, the relevant internal cohort, or the profiles.
+Tractable method for large populations: partition only the flagged agents in each run into weighted agent profiles that sum to true_positives + false_positives. Simulate trajectories for these relevant profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort, the relevant internal cohort, or the profiles.
 
 ## 2. Policy and trajectory rules
 - selected_policy names the policy category; selected_policy_scenario is the specific configured intervention to simulate.
@@ -83,16 +81,16 @@ Hard bounds for each row:
 - children_helped must be between 0 and children_flagged from fixed_prediction_counts_by_run
 - children_harmed must be between 0 and children_flagged from fixed_prediction_counts_by_run
 
-children_helped and children_harmed are independent counts over flagged agents and may overlap. An agent who is both helped and harmed in different respects is counted in both. A prevented target harmful outcome does not by itself make an agent helped, and an agent never on the target-outcome path can still be helped or harmed. Unflagged agents are not reached by the policy and are never counted as helped or harmed.
+children_helped and children_harmed are independent counts over flagged agents and may overlap. An agent who is both helped and harmed in different respects is counted in both. A prevented target harmful outcome does not by itself make an agent helped, and an agent never on the target-outcome path can still be helped or harmed. Unflagged agents (false_negatives and true_negatives) are not reached by the policy and are never counted as helped or harmed.
 
-## 4. representative_agents - selected from simulated relevant groups
-Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated relevant groups, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a true positive whose outcome was not prevented, a false positive helped, a false positive harmed, a false positive not meaningfully changed, and a false negative who received no intervention. Each selected case must correspond to a relevant category that actually occurs in the internally simulated relevant groups.
+## 4. representative_agents - selected from simulated flagged groups
+Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated flagged groups, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a true positive whose outcome was not prevented, a false positive helped, a false positive harmed, and a false positive not meaningfully changed. Each selected case must correspond to a flagged category that actually occurs in the internally simulated groups.
 
 Each agent object must contain:
 - agent_id: fictional first name or fictional first name plus compact identifier
 - case_vignette: one compact sentence, 25-45 words, that names the agent, states the prediction status, names the selected policy measure if applied, includes one relevant life context, and gives the outcome by age 30
 - starting_profile: neutral description at starting_age
-- prediction_status: one of "true positive", "false positive", "false negative"
+- prediction_status: one of "true positive", "false positive"
 - no_policy_counterfactual: whether the target harmful outcome would occur by outcome_age with no policy, plus a brief path
 - life_stages: one entry per stage, each with stage and summary
 - target_outcome_occurred: boolean
@@ -102,12 +100,11 @@ Each agent object must contain:
 - mixed_effects: object with value boolean and detail string
 - mechanism_summary: concise causal explanation
 
-Consistency rules: mixed_effects.value must be true whenever both helped_by_policy.value and harmed_by_policy.value are true. prediction_status must agree with flagging and the counterfactual. For unflagged agents the policy is not applied, so life_stages follow the no-policy path and helped_by_policy.value and harmed_by_policy.value are false.
+Consistency rules: mixed_effects.value must be true whenever both helped_by_policy.value and harmed_by_policy.value are true. prediction_status must agree with flagging and the counterfactual.
 
 Prediction status definitions:
 - true positive: flagged, and the target harmful outcome would occur by outcome_age with no policy
 - false positive: flagged, but it would not
-- false negative: not flagged, but it would occur
 
 ## 5. debrief_text
 Return one plain-text string with no markdown, headings, or bullets. In 80-140 words, summarize the main mechanism, who is helped or harmed, how false positives/false negatives matter, and whether target harmful outcomes decrease, increase, or stay similar after Python's arithmetic. Do not declare the policy morally correct or incorrect.
@@ -130,7 +127,7 @@ Return this shape with concrete values:
       "agent_id": "<string>",
       "case_vignette": "<string>",
       "starting_profile": "<string>",
-      "prediction_status": "true positive | false positive | false negative",
+      "prediction_status": "true positive | false positive",
       "no_policy_counterfactual": "<string>",
       "life_stages": [
         { "stage": "10-13", "summary": "<string>" },
@@ -160,7 +157,7 @@ Before responding, verify:
 - The full cohort, true-negative background, and internal relevant profiles are not output.
 - You do not return baseline_outcomes, outcomes_after_policy, net_outcomes_prevented, false_positives, false_negatives, or children_flagged.
 - All policy_effect counts are integers and within the fixed bounds.
-- Each representative agent has all required fields and comes from the internally simulated relevant groups.
+- Each representative agent has all required fields and comes from the internally simulated flagged groups.
 - The aggregate effect emerged from simulated trajectories, not from the policy label.
 - All entities remain fictional and neutral terminology is used.
 
@@ -210,9 +207,8 @@ def build_llm_simulation_prompt(settings):
         "relevant_groups_for_life_course_simulation": [
             "true_positives",
             "false_positives",
-            "false_negatives",
         ],
-        "constant_background_group": "true_negatives",
+        "constant_background_groups": ["true_negatives", "false_negatives"],
         "profile_life_contexts_by_run": choose_life_context_assignments(run_count),
         "required_policy_effect_columns": POLICY_EFFECT_COLUMNS,
     }
