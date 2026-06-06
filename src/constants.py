@@ -1,90 +1,93 @@
 import os
 
 POLICIES = [
-    "Targeted support for high-risk children",
-    "Surveillance of high-risk children",
-    "Coercive preventive intervention for high-risk children",
+    "Targeted support for flagged children",
+    "Surveillance of flagged children",
+    "Coercive prevention for flagged children",
 ]
 
 POLICY_DESCRIPTIONS = {
-    "Targeted support for high-risk children": (
+    "Targeted support for flagged children": (
         "Flagged children are offered voluntary support such as counselling, mentoring, skills, "
         "or practical assistance. Support can improve stability, trust, or opportunity, but poor fit "
         "or unwanted attention can still leave effects neutral, mixed, or harmful."
     ),
-    "Surveillance of high-risk children": (
+    "Surveillance of flagged children": (
         "Flagged children are monitored, reviewed, or recorded more closely. Scrutiny may deter some "
-        "predicted outcomes, but stigma, trust loss, or disengagement can also create mixed or harmful effects."
+        "target harmful outcomes, but stigma, trust loss, or disengagement can also create mixed or harmful effects."
     ),
-    "Coercive preventive intervention for high-risk children": (
-        "Flagged children face mandatory requirements or restrictions before the predicted outcome occurs. "
+    "Coercive prevention for flagged children": (
+        "Flagged children face mandatory requirements or restrictions before the target harmful outcome occurs. "
         "Restriction may interrupt some pathways, but loss of autonomy, escalation, or stigma can produce "
-        "harm, backfire effects, or no meaningful change."
+        "harm, backfire effects, or no meaningful change if restriction does not change underlying pathways."
     ),
 }
 
 SETTING_DESCRIPTIONS = {
-    "Percentage of true high-risk children (%)": (
-        "How many of the 10,000 children would have the predicted serious harmful outcome by age 30 "
-        "if no policy were applied. This prevalence, or base rate, is the ground truth the prediction tool is trying to identify. "
-        "The simulator keeps this between 1% and 10%."
+    "No-policy outcome rate (%)": (
+        "The percentage of children whose path includes the target harmful outcome by age 30 if no policy "
+        "is applied. This prevalence, or base rate, is the simulation's assumed no-policy truth that the "
+        "prediction tool is trying to detect. Low base rates can make false positives dominate the flagged group."
     ),
     "Symmetric misclassification rate (%)": (
-        "A simplified shared-error setting: this percentage is both the false-negative rate among children "
-        "on the predicted-outcome path and the false-positive rate among children not on that path. "
-        "Because most children are not on the predicted-outcome path, even a small rate can create many false positives."
+        "A simplified shared-error setting where the same percentage applies to both prediction error types: "
+        "children on the target-outcome path who are missed, and children not on that path who are wrongly flagged. "
+        "Equal error rates can still produce very unequal error counts when most children are not on the target-outcome path."
     ),
     "Intervention intensity": (
         "Which intensity tier is used when choosing the concrete intervention measure. Higher tiers make the "
-        "selected measure more structured, frequent, broad, or restrictive, giving the model-agent stronger "
+        "selected measure more structured, frequent, broad, or restrictive, giving the AI simulation stronger "
         "policy mechanisms to weigh for both benefit and harm."
     ),
 }
 
 RESULT_METRIC_DESCRIPTIONS = {
-    "Baseline predicted outcomes": (
-        "How many children would have the predicted serious harmful outcome if no policy were applied. "
-        "This is the no-policy outcome count; in tables, it is shown as the mean per synthetic run across successful model-agent results."
+    "No-policy target outcomes": (
+        "How many children would have the target harmful outcome if no policy were applied. "
+        "This count is computed from the selected no-policy outcome rate."
     ),
-    "Positive predictions": (
-        "Total children identified as high-risk by the prediction tool — "
-        "both correctly and incorrectly identified. This is who the policy acts on."
+    "Flagged by prediction": (
+        "Total children flagged by the prediction tool, including both correct and incorrect flags. "
+        "This is who the policy acts on."
     ),
     "False positives": (
-        "Children flagged as high-risk who would not have had the predicted outcome. "
-        "They are exposed to the policy despite not being on the predicted-outcome path."
+        "Children flagged by prediction who would not have had the target harmful outcome in the simulation's "
+        "assumed no-policy truth. They are exposed to the policy despite not being on the target-outcome path."
     ),
     "False negatives": (
-        "Children who would have had the predicted outcome but were not flagged. "
-        "They receive no intervention under any targeted policy."
+        "Children who would have had the target harmful outcome in the simulation's assumed no-policy truth "
+        "but were not flagged. They receive no intervention under any targeted policy."
     ),
-    "Prevented predicted outcomes": (
-        "How many fewer predicted outcomes occur compared to doing nothing. "
+    "Net target outcomes prevented": (
+        "How many fewer target harmful outcomes occur compared to the no-policy-action baseline. "
         "This can be negative if a policy worsens outcomes."
     ),
+    "Precision among flagged children": (
+        "Among children flagged by prediction, the share who are in the no-policy outcome group. "
+        "This is also called positive predictive value."
+    ),
     "Policy benefit count": (
-        "Flagged children whose model-agent simulated life-course outcome improves because of the policy. "
-        "This is not the same as merely receiving a service, and it can overlap with harm in mixed cases."
+        "Flagged children whose AI-generated life-course scenario improves because of the policy. "
+        "This is not the same as merely receiving a service. The same child can be counted in both benefit and harm."
     ),
     "Policy harm count": (
-        "Flagged children whose model-agent simulated life-course outcome worsens because of the policy. "
-        "This can occur under any policy type and can overlap with help in mixed cases."
+        "Flagged children whose AI-generated life-course scenario worsens because of the policy. "
+        "This can occur under any policy type. The same child can be counted in both harm and benefit."
     ),
-    "Model-averaged cohort view": (
-        "The bubble visualization shows one cohort-sized view of the selected model agents' combined estimates. "
-        "Each model agent first maps its result to a full synthetic cohort; the view then averages those cohort counts "
-        "and rounds them back to the configured population size."
+    "AI-averaged cohort view": (
+        "Different selected AI models may estimate policy effects differently. This view combines their estimates "
+        "into one population-sized picture rather than showing a separate panel for every model."
     ),
 }
 
 CHECK_DESCRIPTIONS = {
     "Policy trade-off": (
-        "Whether a policy's estimated outcome reduction is large enough to justify the false-positive exposure, "
-        "policy-associated benefits, and policy-associated harms it creates."
+        "Whether a policy's estimated target-outcome reduction is large enough to justify the children wrongly "
+        "subjected to the policy, policy-associated benefits, and policy-associated harms it creates."
     ),
     "Misclassification": (
-        "How many false positives occur among children not on the predicted-outcome path "
-        "and how many false negatives occur among children on that path."
+        "How the prediction tool splits its errors: children wrongly flagged despite not being on the "
+        "target-outcome path, and children missed despite being on that path."
     ),
 }
 
@@ -95,10 +98,10 @@ MAX_PARALLEL_LLM_CALLS = 3
 MAX_RUN_LOG_SIZE = 5
 PROGRESS_NOTE_MIN_SECONDS = 6
 DEFAULT_POPULATION_SIZE = 10_000
-DEFAULT_TRUE_HIGH_RISK_RATE = 0.01
+DEFAULT_NO_POLICY_OUTCOME_RATE = 0.01
 DEFAULT_SYMMETRIC_MISCLASSIFICATION_RATE = 0.01
-TRUE_HIGH_RISK_RATE_MIN = 0.01
-TRUE_HIGH_RISK_RATE_MAX = 0.10
+NO_POLICY_OUTCOME_RATE_MIN = 0.01
+NO_POLICY_OUTCOME_RATE_MAX = 0.10
 SYMMETRIC_MISCLASSIFICATION_RATE_MIN = 0.0
 SYMMETRIC_MISCLASSIFICATION_RATE_MAX = 0.10
 
@@ -133,11 +136,11 @@ POPULATION_DOT_STAGGER_GROUP = 12
 POPULATION_DOT_STAGGER_SECONDS = 0.0005
 
 RUN_METRIC_LABELS = {
-    "baseline_outcomes": "Baseline predicted outcomes",
-    "children_flagged": "Positive predictions",
+    "baseline_outcomes": "No-policy target outcomes",
+    "children_flagged": "Flagged by prediction",
     "false_positives": "False positives",
     "false_negatives": "False negatives",
-    "net_outcomes_prevented": "Prevented predicted outcomes",
+    "net_outcomes_prevented": "Net target outcomes prevented",
     "children_helped": "Policy benefit count",
     "children_harmed": "Policy harm count",
 }

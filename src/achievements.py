@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from src.constants import POLICIES, TRUE_HIGH_RISK_RATE_MAX
+from src.constants import NO_POLICY_OUTCOME_RATE_MAX, POLICIES
 
 ACHIEVEMENTS = [
     {
@@ -25,7 +25,7 @@ ACHIEVEMENTS = [
         "id": "false_alarm",
         "icon": "🚨",
         "name": "False Alarm",
-        "description": "Mean false positives exceed mean prevented predicted outcomes.",
+        "description": "Mean false positives exceed mean net target outcomes prevented.",
     },
     {
         "id": "tinkerer",
@@ -36,14 +36,14 @@ ACHIEVEMENTS = [
     {
         "id": "outcome_preventer",
         "icon": "🛡️",
-        "name": "Outcome Preventer",
-        "description": "Reach a mean of 20+ prevented predicted outcomes per run under any policy.",
+        "name": "Outcome Detour",
+        "description": "Reach a mean of 20+ net target outcomes prevented per run under any policy.",
     },
     {
         "id": "outcome_reducer",
         "icon": "💥",
-        "name": "Outcome Reducer",
-        "description": "Achieve a 25%+ mean predicted outcome reduction under any policy.",
+        "name": "Risk Signal Wrangler",
+        "description": "Achieve a 25%+ mean target-outcome reduction under any policy.",
     },
     {
         "id": "base_rate_trap",
@@ -67,7 +67,7 @@ ACHIEVEMENTS = [
         "id": "overreaction",
         "icon": "😱",
         "name": "Overreaction",
-        "description": "Flag at least five times as many children as would have the predicted outcome.",
+        "description": "Flag at least five times as many children as would have the target outcome.",
     },
     {
         "id": "sharp_signal",
@@ -78,8 +78,8 @@ ACHIEVEMENTS = [
     {
         "id": "high_risk_world",
         "icon": "⚠️",
-        "name": "High-Risk World",
-        "description": "Simulate a population at the maximum true high-risk rate.",
+        "name": "Base Rate Bonanza",
+        "description": "Simulate a population at the maximum no-policy outcome rate.",
     },
     {
         "id": "night_owl",
@@ -101,7 +101,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
         set(combined_run_results["policy"].dropna().unique()) if has_policy_col else set()
     )
     targeted = (
-        combined_run_results[combined_run_results["policy"] == "Targeted support for high-risk children"]
+        combined_run_results[combined_run_results["policy"] == "Targeted support for flagged children"]
         if has_policy_col else combined_run_results.iloc[0:0]
     )
 
@@ -166,7 +166,7 @@ def check_achievements(combined_run_results, settings, simulation_count=1):
     if float(settings["symmetric_error_rate"]) <= 0.02:
         earned.add("sharp_signal")
 
-    if float(settings["true_high_risk_rate"]) >= TRUE_HIGH_RISK_RATE_MAX:
+    if float(settings["no_policy_outcome_rate"]) >= NO_POLICY_OUTCOME_RATE_MAX:
         earned.add("high_risk_world")
 
     now = datetime.now()

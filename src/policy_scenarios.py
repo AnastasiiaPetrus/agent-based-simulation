@@ -5,7 +5,7 @@ POLICY_INTENSITY_VALUES = {"Low": 0.2, "Medium": 0.4, "High": 0.7}
 
 
 POLICY_SCENARIO_LIBRARY = {
-    "Targeted support for high-risk children": {
+    "Targeted support for flagged children": {
         "Low": [
             {
                 "name": "Optional mentoring offer",
@@ -112,7 +112,7 @@ POLICY_SCENARIO_LIBRARY = {
             },
         ],
     },
-    "Surveillance of high-risk children": {
+    "Surveillance of flagged children": {
         "Low": [
             {
                 "name": "Basic participation monitoring",
@@ -215,7 +215,7 @@ POLICY_SCENARIO_LIBRARY = {
             },
         ],
     },
-    "Coercive preventive intervention for high-risk children": {
+    "Coercive prevention for flagged children": {
         "Low": [
             {
                 "name": "Mandatory counseling or behavior sessions",

@@ -7,21 +7,23 @@ from src.constants import POLICIES, RUN_METRIC_LABELS
 
 POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
-    "baseline_outcomes": "Baseline predicted outcomes (mean)",
+    "baseline_outcomes": "No-policy target outcomes (mean)",
     "false_positives": "False positives (mean)",
     "false_negatives": "False negatives (mean)",
     "children_helped": "Policy benefit count (mean)",
     "children_harmed": "Policy harm count (mean)",
 }
-OUTCOME_EFFECT_COLUMN = "Predicted outcome reduction (%)"
-POLICY_HARM_RATE_COLUMN = "Policy harm rate among positive predictions (%)"
+OUTCOME_EFFECT_COLUMN = "Reduction in target outcomes (%)"
+POLICY_HARM_RATE_COLUMN = "Policy harm rate among flagged children (%)"
+PRECISION_COLUMN = "Precision among flagged children (%)"
 AVERAGE_VALUE_COLUMN = "Mean per synthetic run"
-PERCENT_COLUMNS = {OUTCOME_EFFECT_COLUMN, POLICY_HARM_RATE_COLUMN}
+PERCENT_COLUMNS = {OUTCOME_EFFECT_COLUMN, POLICY_HARM_RATE_COLUMN, PRECISION_COLUMN}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
+    PRECISION_COLUMN,
     OUTCOME_EFFECT_COLUMN,
     POLICY_HARM_RATE_COLUMN,
-    "Baseline predicted outcomes (mean)",
+    "No-policy target outcomes (mean)",
     "False positives (mean)",
     "False negatives (mean)",
     "Policy benefit count (mean)",
@@ -76,12 +78,17 @@ def combined_policy_totals_table(run_results, population_size):
         else np.nan
     )
     table["harmed_pct"] = (table["children_harmed"] / flagged_denominator) * 100
+    table["precision_pct"] = (
+        (table["baseline_outcomes"] - table["false_negatives"])
+        / flagged_denominator
+    ) * 100
 
     display_table = table.rename(
         columns={
             "policy": "Policy",
             "outcome_reduction_pct": OUTCOME_EFFECT_COLUMN,
             "harmed_pct": POLICY_HARM_RATE_COLUMN,
+            "precision_pct": PRECISION_COLUMN,
             **POLICY_TOTAL_AVERAGE_LABELS,
         }
     )

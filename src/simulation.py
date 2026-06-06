@@ -10,34 +10,34 @@ def clamp_count(value, maximum):
     return int(max(0, min(maximum, round(float(value)))))
 
 
-def risk_signal_counts(true_high_risk_count, settings):
+def risk_signal_counts(no_policy_outcome_count, settings):
     population_size = int(settings["population_size"])
     # symmetric_error_rate is used as both FNR and FPR.
-    # FNR = P(not flagged | truly high-risk) = symmetric_error_rate
-    # FPR = P(flagged | truly low-risk)      = symmetric_error_rate
+    # FNR = P(not flagged | in no-policy outcome group) = symmetric_error_rate
+    # FPR = P(flagged | not in no-policy outcome group) = symmetric_error_rate
     # This is a deliberate simplification: one misclassification parameter
     # controls both miss rate and false alarm rate equally.
     symmetric_error_rate = float(settings["symmetric_error_rate"])
-    true_high_risk_count = clamp_count(true_high_risk_count, population_size)
-    not_true_high_risk_count = population_size - true_high_risk_count
+    no_policy_outcome_count = clamp_count(no_policy_outcome_count, population_size)
+    no_policy_non_outcome_count = population_size - no_policy_outcome_count
 
-    false_negatives = clamp_count(true_high_risk_count * symmetric_error_rate, true_high_risk_count)
-    false_positives = clamp_count(not_true_high_risk_count * symmetric_error_rate, not_true_high_risk_count)
-    true_positives = true_high_risk_count - false_negatives
+    false_negatives = clamp_count(no_policy_outcome_count * symmetric_error_rate, no_policy_outcome_count)
+    false_positives = clamp_count(no_policy_non_outcome_count * symmetric_error_rate, no_policy_non_outcome_count)
+    true_positives = no_policy_outcome_count - false_negatives
     flagged_count = true_positives + false_positives
     return false_positives, false_negatives, flagged_count
 
 
 def derived_flagged_count(settings):
     population_size = int(settings["population_size"])
-    true_high_risk_count = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
-    return risk_signal_counts(true_high_risk_count, settings)[2]
+    no_policy_outcome_count = clamp_count(settings["no_policy_outcome_rate"] * population_size, population_size)
+    return risk_signal_counts(no_policy_outcome_count, settings)[2]
 
 
 def prediction_base_rows(settings):
     population_size = int(settings["population_size"])
     run_count = int(settings["llm_simulation_runs"])
-    baseline_outcomes = clamp_count(settings["true_high_risk_rate"] * population_size, population_size)
+    baseline_outcomes = clamp_count(settings["no_policy_outcome_rate"] * population_size, population_size)
     false_positives, false_negatives, children_flagged = risk_signal_counts(baseline_outcomes, settings)
     true_positives = baseline_outcomes - false_negatives
     true_negatives = population_size - baseline_outcomes - false_positives
