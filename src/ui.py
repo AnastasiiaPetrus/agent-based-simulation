@@ -3405,7 +3405,7 @@ def estimated_range_text(run_results):
             )
     if not pieces:
         return ""
-    return "Variation across the selected AI-model estimates: " + "; ".join(pieces) + "."
+    return "Variation across successful AI-model responses: " + "; ".join(pieces) + "."
 
 
 def render_interpretation(policy, average_table):
@@ -3420,21 +3420,21 @@ def render_interpretation(policy, average_table):
 
     if policy == "Coercive prevention for flagged children":
         st.info(
-            f"Across the selected AI-model estimates, this policy {outcome_phrase}. "
+            f"Across successful AI-model responses, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children show a policy-associated benefit and "
             f"{children_harmed:.0f} show policy-associated harm from mandatory requirements or restrictions. "
             f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Targeted support for flagged children":
         st.info(
-            f"Across the selected AI-model estimates, this policy {outcome_phrase}. "
+            f"Across successful AI-model responses, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children have improved life-course outcomes and "
             f"{children_harmed:.0f} show policy-associated harm or negative side effects. "
             f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Surveillance of flagged children":
         st.info(
-            f"Across the selected AI-model estimates, this policy {outcome_phrase}. "
+            f"Across successful AI-model responses, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children show policy-associated benefit from the monitoring response and "
             f"{children_harmed:.0f} show policy-associated harm from scrutiny, stigma, or trust loss. "
             f"{false_positives:.0f} cases are false positives."
@@ -3546,7 +3546,7 @@ def render_weighted_agent_results(weighted_agent_results):
 
     st.caption(
         "Each row is one weighted profile. Weight is the number of flagged children represented by that profile. "
-        "Shares are averaged across the selected AI models; Python multiplies each share by its weight before calculating totals. "
+        "Shares are averaged across successful AI-model responses; Python multiplies each share by its weight before calculating totals. "
         "Benefit and harm shares equal their favorable or harmful score-point sums divided by 25, capped at 100%. "
         "For true positives, prevented share = 65% × benefit share × (1 − 35% × harm share). "
         "For false positives, policy-caused share = 25% × harm share × (1 − 25% × benefit share)."
