@@ -25,7 +25,7 @@ ACHIEVEMENTS = [
         "id": "false_alarm",
         "icon": "🚨",
         "name": "False Alarm",
-        "description": "Mean false positives exceed mean net target outcomes prevented.",
+        "description": "False positives exceed AI-model-average net target outcomes prevented.",
     },
     {
         "id": "tinkerer",
@@ -37,13 +37,13 @@ ACHIEVEMENTS = [
         "id": "outcome_preventer",
         "icon": "🛡️",
         "name": "Outcome Detour",
-        "description": "Reach a mean of 20+ net target outcomes prevented per run under any policy.",
+        "description": "Reach an AI-model average of 20+ net target outcomes prevented under any policy.",
     },
     {
         "id": "outcome_reducer",
         "icon": "💥",
         "name": "Risk Signal Wrangler",
-        "description": "Achieve a 25%+ mean target-outcome reduction under any policy.",
+        "description": "Achieve a 25%+ AI-model-average target-outcome reduction under any policy.",
     },
     {
         "id": "base_rate_trap",
@@ -61,7 +61,7 @@ ACHIEVEMENTS = [
         "id": "helping_hundreds",
         "icon": "🤝",
         "name": "Helping Hundreds",
-        "description": "Reach a mean policy benefit count of 200+ per run under Targeted Support.",
+        "description": "Reach an AI-model-average policy benefit count of 200+ under Targeted Support.",
     },
     {
         "id": "overreaction",

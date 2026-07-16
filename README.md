@@ -1,129 +1,123 @@
 # Predictive Justice Thought Experiment
 
-Suppose we could reliably predict, at age 10, who will commit a serious harmful act by age 30. What should we do with that information? This Streamlit app compares three policy responses to that question using synthetic AI-generated life-course scenarios.
+Suppose a fictional system predicts at age 10 who will commit a serious harmful act by age 30. What should society do with that information? This Streamlit app compares three policy responses through a compact weighted-agent simulation.
 
-The app is not a real-world decision tool. It does not use real justice-system data, personal data, protected-class data, demographic proxies, or real locations. No real children are predicted or evaluated. All agents, flags, trajectories, and outcomes are synthetic.
+The app is a thought experiment, not a real-world decision tool. It uses no real personal data, justice-system data, protected traits, demographic proxies, or real locations. No real children are predicted or evaluated.
 
-## What The App Does
+## Simulation Architecture
 
-The app uses selected AI models to generate policy-effect estimates from synthetic life-course scenarios. Python fixes the full prediction structure first, then the AI model estimates effects only for the relevant groups: flagged children plus missed children. The large true-negative background remains in the arithmetic but is not individually simulated.
+One click creates a single shared scenario:
 
-Each LLM response must return JSON with:
+1. Python calculates the fixed prediction groups for the 10,000-child cohort: true positives, false positives, false negatives, and true negatives.
+2. Python creates six abstract true-positive profiles and six abstract false-positive profiles. Every profile has numeric traits, life contexts, and an integer weight. The weights add up exactly to the number of flagged children in the corresponding group.
+3. Python chooses one concrete measure for each of the three policies. The same profiles, contexts, weights, and measures are sent to every selected AI model.
+4. Each AI model evaluates all 12 weighted profiles under all three policies in one batched API call.
+5. For every profile-policy combination, the model returns five life-stage score vectors covering ages 10-30. It does not return cohort totals.
+6. Python validates complete coverage, converts the stage scores into benefit, harm, prevented-outcome, and policy-caused-outcome shares, multiplies those shares by profile weights, and calculates the final cohort metrics.
+7. Results are averaged across the selected AI models. The interface also shows the range between their estimates.
 
-- `policy_effects`: only the estimated policy-effect counts Python cannot know directly.
-- `representative_agents`: a few abstract synthetic child trajectories.
-- `debrief_text`: a concise explanation of the mechanisms and trade-offs.
+This is a hybrid weighted-agent simulation: the AI models simulate the changing states of representative agents, while Python owns sampling, weights, validation, arithmetic, and population-level aggregation. It does not create 10,000 separate AI biographies.
 
-Before showing results, the app validates and normalizes the LLM output. It checks required rows, rejects missing metric values, removes negative counts, caps policy-effect counts to Python-computed prediction groups, and computes the final run-level metrics in Python.
+## What One Agent Represents
 
-During a run, the app updates a live policy comparison view after each model-policy response arrives. It shows three panels, one per policy, with the same 10,000 synthetic children in the same positions. Dots start from the shared no-policy-action baseline and then transition to the outcome implied by each policy:
+A weighted agent is an abstract profile, not one child. For example, an agent with weight 17 represents 17 flagged children with the same simulation profile.
 
-- Green: no target harmful outcome or target outcome prevented.
-- Red: target-outcome path / outcome remains.
-- Orange: wrongly flagged and harmed by an intervention.
-- Yellow outline: flagged by the prediction.
+Profiles are deliberately mechanism-based rather than demographic. They vary in resilience, stability, institutional trust, engagement, peer support, responsiveness to help, and sensitivity to monitoring or restriction. Each profile also receives deterministic fictional life contexts, such as a change in routine or a missed opportunity.
 
-This animation is an aggregate visualization, not 10,000 individually returned LLM records.
+The six profile templates are reused for true positives and false positives. Profiles with zero weight are omitted, so a run may contain fewer than 12 agents when a prediction group is empty.
+
+## Why There Are Five Life Stages
+
+The stages are `10-13`, `14-17`, `18-21`, `22-25`, and `26-30`. They are not five separate runs or five groups of children. They are five consecutive periods in the same agent's simulated path. This lets an effect appear early, accumulate, reverse, or remain neutral instead of forcing one score for the entire 20-year period.
+
+At every stage, the model scores policy-associated change in:
+
+- wellbeing;
+- trust;
+- opportunity;
+- autonomy;
+- stress.
+
+Scores are integers from -2 to 2. Positive values are beneficial for the first four dimensions; for stress, a positive value means more stress and is treated as harmful.
 
 ## Policies Compared
 
-The app automatically runs all three policies:
+The app automatically evaluates all three policies under the same scenario:
 
-- **Targeted support for flagged children**: flagged children receive voluntary developmental support. Some may benefit; false positives receive unnecessary intervention; false negatives receive no support.
-- **Surveillance of flagged children**: flagged children are monitored without consent. It may deter some target outcomes, but can also create stigma, distrust, and disengagement.
-- **Coercive prevention for flagged children**: flagged children face state-imposed restrictions before any act. It may reduce some target harmful outcomes, but has the highest ethical danger and harmful exposure.
+- **Targeted support for flagged children** — voluntary developmental or practical support.
+- **Surveillance of flagged children** — monitoring, recording, or institutional scrutiny.
+- **Coercive prevention for flagged children** — mandatory requirements or restrictions imposed before any harmful act.
 
-There is no user-selected policy dropdown. The point is comparison across all policies under the same assumptions.
+## Inputs
 
-## Current Inputs
+The sidebar controls:
 
-The sidebar intentionally keeps only the main assumptions:
+- **Synthetic population** — fixed at 10,000 children.
+- **No-policy outcome rate** — share whose no-policy path includes the target harmful outcome; 1-10%.
+- **Symmetric misclassification rate** — the same rate is applied to false negatives and false positives; 0-10%.
+- **Intervention intensity** — low, medium, or high; determines the concrete policy-measure tier.
+- **AI models** — up to four selected OpenAI models.
 
-- **Synthetic population**: fixed at 10,000 children.
-- **No-policy outcome rate (%)**: share of the population whose no-policy trajectory would include the target harmful outcome; limited to 1-10%.
-- **Symmetric misclassification rate (%)**: shared false-negative and false-positive rate; limited to 0-10%.
-- **Intervention intensity**: low, medium, or high scenario assumption for how structured, frequent, broad, or restrictive the selected policy measure is.
+The weighted-agent structure is fixed at up to six true-positive and six false-positive profiles. There is one simulation scenario per click; there are no five synthetic runs.
 
-The number of children flagged by the prediction is calculated from population size, no-policy outcome rate, and symmetric misclassification rate.
+## API Calls and Cost
 
-The app currently uses fixed simulation settings:
+Each selected model makes one batched OpenAI API call containing all profiles and all policies. With four selected models, a full simulation makes four calls, not twelve.
 
-- `llm_simulation_runs = 5`
-- `llm_representative_agents = 6`
+The app reads the actual input and output token counts returned by the API and displays an estimated token cost using the configured standard per-token prices. The estimate covers model tokens only and should be updated if provider pricing changes.
 
-## Models
-
-AI models are configured through environment variables rather than the visible sidebar.
-
-Optional variables:
+Optional model configuration:
 
 ```bash
 LLM_MODEL=gpt-4o-mini
 LLM_AGENT_MODELS=gpt-4o-mini,gpt-4.1-mini
 ```
 
-`LLM_MODEL` sets the first preferred model. `LLM_AGENT_MODELS` controls the available model list. By default, the app selects up to four configured AI models, starting with `LLM_MODEL` and then the built-in defaults.
-
-Each selected model makes one OpenAI API call per policy. With four default AI models and three policies, one full run makes twelve OpenAI API calls.
+`LLM_MODEL` sets the first preferred model. `LLM_AGENT_MODELS` controls the available model list. By default, the app selects up to four configured models.
 
 ## Metrics
 
-The app separates computed prediction counts from AI-estimated policy effects:
+Python computes directly from the settings:
 
-- **No-policy target outcomes**: computed count before any policy action.
-- **Flagged by prediction**: children exposed to the selected policy response.
-- **False positives**: flagged children who would not have had the target harmful outcome in the simulation's assumed no-policy truth.
-- **False negatives**: unflagged children who would have had the target harmful outcome in the simulation's assumed no-policy truth.
-- **Precision among flagged children**: true positives divided by all flagged children, also called positive predictive value.
-- **Net target outcomes prevented**: AI-estimated target outcomes prevented or added compared with no policy action.
-- **Policy benefit count**: flagged children whose AI-generated life-course scenario improves because of the policy.
-- **Policy harm count**: flagged children whose AI-generated life-course scenario worsens because of the policy.
+- **No-policy target outcomes** — children whose path contains the target outcome without policy action.
+- **Flagged by prediction** — true positives plus false positives; the group exposed to policy.
+- **False positives** — flagged children who would not have had the target outcome.
+- **False negatives** — unflagged children who would have had the target outcome.
+- **Precision among flagged children** — true positives divided by all flagged children.
 
-The app deliberately does not calculate total cost, total harm, dollar values, utility scores, recall, or per-outcome ratios.
+Python derives from AI-generated stage scores and agent weights:
+
+- **Net target outcomes prevented** — prevented outcomes minus policy-caused outcomes.
+- **Policy benefit count** — weighted number of flagged children showing beneficial changes.
+- **Policy harm count** — weighted number showing harmful changes.
+
+A profile can show both benefit and harm across different dimensions or stages. These counts are scenario estimates, not empirical predictions.
 
 ## Outputs
 
-After a successful run, the app shows:
+After a successful simulation, the app shows:
 
-- Live progress while model-policy calls complete.
-- Animated 10,000-child population view based on the latest received aggregate result.
-- Combined totals across all selected AI models and synthetic runs.
-- Net target-outcome effect for each policy.
-- Per-policy average tables.
-- Line charts across synthetic runs.
-- Per-policy interpretation text.
-- Per-model AI explanations.
-- Representative synthetic trajectories.
-- CSV download for run-level results.
-- In-session run log.
+- live progress by completed AI-model call;
+- an aggregate 10,000-child policy comparison view;
+- AI-model-average metrics for every policy;
+- ranges across selected models;
+- per-model explanations;
+- weighted profile effects and weights;
+- actual API token use and estimated token cost;
+- an in-session log of the latest five runs.
 
-The run log is stored only in the current Streamlit session and is limited to the latest five entries.
-
-## Install
+## Install and Run
 
 ```bash
 pip install -r requirements.txt
-```
-
-## Run Locally
-
-```bash
 export OPENAI_API_KEY="your_api_key_here"
 streamlit run app.py
 ```
 
-Then open the local URL printed by Streamlit.
-
-## Railway Setup
-
-On Railway, add this service variable:
-
-```bash
-OPENAI_API_KEY=your_api_key_here
-```
+On Railway, configure `OPENAI_API_KEY` as a service variable.
 
 ## Important Limitations
 
-This app is a thought experiment. It does not predict real behavior, estimate real-world harmful-outcome risk, or recommend policy. The outputs are synthetic and depend on selected assumptions and LLM-generated scenario data.
+The conversion from stage scores to outcome shares is an explicit modelling assumption, not an empirically calibrated causal model. Results depend on the selected assumptions, generated profiles, prompt, model version, and provider behavior. The design makes those steps inspectable and holds the scenario constant across policies and models, but it does not establish real-world validity.
 
 Prediction is not destiny. Children should not be punished for a predicted future act.

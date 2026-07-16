@@ -316,7 +316,7 @@ POLICY_SCENARIO_LIBRARY = {
 }
 
 
-def choose_policy_scenario(policy, intensity_tier):
+def choose_policy_scenario(policy, intensity_tier, rng=None):
     policy_entry = POLICY_SCENARIO_LIBRARY.get(policy)
     if not policy_entry:
         return None
@@ -325,7 +325,7 @@ def choose_policy_scenario(policy, intensity_tier):
     if not measures:
         return None
 
-    selected_measure = random.choice(measures)
+    selected_measure = (rng or random).choice(measures)
     return {
         "policy": policy,
         "measure": selected_measure["name"],

@@ -14,7 +14,6 @@ import pandas as pd
 import streamlit as st
 
 from src.achievements import ACHIEVEMENT_INDEX, ACHIEVEMENTS, check_achievements
-from src.charts import line_chart_png
 from src.constants import (
     CHECK_DESCRIPTIONS,
     DEFAULT_NO_POLICY_OUTCOME_RATE,
@@ -42,8 +41,10 @@ from src.llm import (
     DEFAULT_SYSTEM_PROMPT,
     build_llm_simulation_prompt,
     compact_parameter_summary,
+    estimate_model_cost_usd,
     friendly_llm_error,
     run_openai_json,
+    weighted_agent_response_format,
 )
 from src.simulation import (
     clamp_count,
@@ -63,7 +64,6 @@ from src.state import (
     attach_policy_label,
     initialize_llm_state,
     latest_result_has_current_schema,
-    normalize_representative_agents,
     simulation_settings_signature,
     trim_llm_run_log,
 )
@@ -72,6 +72,16 @@ from src.tables import (
     average_results_table,
     combined_policy_totals_table,
     formatted_average_results_table,
+)
+from src.weighted_agents import (
+    LIFE_STAGES,
+    STATE_DIMENSIONS,
+    aggregate_weighted_agent_trajectories,
+    build_weighted_agents,
+    choose_shared_policy_scenarios,
+    normalize_agent_trajectories,
+    normalize_policy_debriefs,
+    scenario_seed,
 )
 
 
@@ -109,7 +119,7 @@ def render_hero_summary(settings):
     true_positives = no_policy_outcome_count - false_negatives
     precision_pct = (true_positives / flagged_count * 100) if flagged_count else 0.0
     cards = [
-        ("Synthetic population", f"{population_size:,}", "Children in each run", ""),
+        ("Synthetic population", f"{population_size:,}", "Children in this cohort", ""),
         ("No-policy outcome group", f"{no_policy_outcome_count:,}", "Would have target outcome", "primary"),
         ("Misclassified children", f"{false_positives + false_negatives:,}", "False positives + false negatives", "warning"),
         ("Flagged by prediction", f"{flagged_count:,}", "Policy exposure group", ""),
@@ -144,14 +154,14 @@ def render_hero_statement():
   <span class="badge-chip badge-live">Thought Experiment</span>
   <span class="badge-chip">Statistical</span>
   <span class="badge-chip">LLM</span>
-  <span class="badge-chip">Agentic AI</span>
+  <span class="badge-chip">Weighted Agents</span>
 </div>
 <section class="hero-copy">
   <h1 class="hero-question">
     <span class="hero-nowrap">Suppose we could reliably predict, at age <span class="hero-accent">10</span></span>,<br><span class="hero-nowrap">who will commit a serious harmful act by age <span class="hero-accent">30</span></span>.
   </h1>
   <p class="hero-subtitle">
-    <em>What should we do with that information?</em><br>Run {DEFAULT_POPULATION_SIZE:,} synthetic lives through three policy responses and compare false positives, false negatives, target outcomes prevented, benefit, and harm.
+    <em>What should we do with that information?</em><br>Compare three policy responses for a {DEFAULT_POPULATION_SIZE:,}-child synthetic cohort: false positives, false negatives, target outcomes prevented, benefit, and harm.
   </p>
   <p class="hero-disclaimer">No real children, no real predictions: all lives, flags, and outcomes are synthetic.</p>
 </section>
@@ -3212,9 +3222,9 @@ You control three things: the no-policy outcome rate (how common the target outc
 
 The tool makes two kinds of mistakes (both spelled out in the results section below): a false positive is a child flagged by mistake, and a false negative is a child who would have had the outcome but is not flagged. The simulator first locks in this whole structure — correctly flagged children, false positives, false negatives, and the large untouched majority who are neither flagged nor on the target-outcome path. These counts are pure arithmetic, computed from your settings.
 
-Each selected AI model then estimates only what the policies do to people — for the flagged children — as a few weighted life-course profiles rather than {DEFAULT_POPULATION_SIZE:,} separate biographies. For each profile, the AI-generated scenario follows the child from age 10 to 30, tracking how the policy might affect trust, autonomy, relationships, opportunities, stress, support, monitoring, and restriction, up to the final outcome. The missed cases and the untouched majority stay in the totals but are not simulated: they receive no intervention and their outcomes are unchanged by policy.
+Each selected AI model then evaluates the same six weighted true-positive and six weighted false-positive profiles under all three policies in one batched call. A profile is not one child: its weight says how many flagged children it represents. The model follows each profile through five consecutive life stages from age 10 to 30 and scores changes in wellbeing, trust, opportunity, autonomy, and stress. The missed cases and the untouched majority stay in the totals but are not individually simulated.
 
-Keep the two sources of numbers apart: counts like false positives and false negatives are computed from your settings, while policy effects like prevented outcomes, benefit, and harm are estimated by the AI and will differ from model to model. The tables average these across runs and selected models; the bubble view combines the models into a single picture of all {DEFAULT_POPULATION_SIZE:,} children.
+Keep the two sources of numbers apart: the AI returns only stage-level profile scores and explanations. Python validates full profile-policy coverage, multiplies the derived effect shares by profile weights, and calculates every cohort total. Counts like false positives and false negatives come directly from your settings. The tables average the resulting estimates across selected models; the bubble view combines them into one picture of all {DEFAULT_POPULATION_SIZE:,} children.
 
 The goal is not to find the right answer — it's to make the trade-offs visible under the assumptions you choose.
             """
@@ -3252,22 +3262,22 @@ DISPLAY_LABEL_ALIASES = {
     "Harmed by policy (% of flagged)": "Policy harm rate among flagged children (%)",
     "Policy harm rate among flagged (%)": "Policy harm rate among flagged children (%)",
     "Policy harm rate among positive predictions (%)": "Policy harm rate among flagged children (%)",
-    "Predicted outcomes without policy (avg)": "No-policy target outcomes (mean)",
-    "Baseline predicted outcomes (avg)": "No-policy target outcomes (mean)",
-    "Baseline predicted outcomes (mean)": "No-policy target outcomes (mean)",
-    "Wrongly flagged (avg count)": "False positives (mean)",
-    "Wrongly flagged (avg)": "False positives (mean)",
-    "False positives (avg)": "False positives (mean)",
-    "Missed by prediction (avg count)": "False negatives (mean)",
-    "Missed by prediction (avg)": "False negatives (mean)",
-    "False negatives (avg)": "False negatives (mean)",
-    "Helped by policy (avg count)": "Policy benefit count (mean)",
-    "Helped by policy (avg)": "Policy benefit count (mean)",
-    "Policy benefit count (avg)": "Policy benefit count (mean)",
+    "Predicted outcomes without policy (avg)": "No-policy target outcomes (AI-model average)",
+    "Baseline predicted outcomes (avg)": "No-policy target outcomes (AI-model average)",
+    "Baseline predicted outcomes (mean)": "No-policy target outcomes (AI-model average)",
+    "Wrongly flagged (avg count)": "False positives (AI-model average)",
+    "Wrongly flagged (avg)": "False positives (AI-model average)",
+    "False positives (avg)": "False positives (AI-model average)",
+    "Missed by prediction (avg count)": "False negatives (AI-model average)",
+    "Missed by prediction (avg)": "False negatives (AI-model average)",
+    "False negatives (avg)": "False negatives (AI-model average)",
+    "Helped by policy (avg count)": "Policy benefit count (AI-model average)",
+    "Helped by policy (avg)": "Policy benefit count (AI-model average)",
+    "Policy benefit count (avg)": "Policy benefit count (AI-model average)",
     "Harmed by policy": "Policy harm count",
-    "Harmed by policy (avg count)": "Policy harm count (mean)",
-    "Harmed by policy (avg)": "Policy harm count (mean)",
-    "Policy harm count (avg)": "Policy harm count (mean)",
+    "Harmed by policy (avg count)": "Policy harm count (AI-model average)",
+    "Harmed by policy (avg)": "Policy harm count (AI-model average)",
+    "Policy harm count (avg)": "Policy harm count (AI-model average)",
 }
 
 
@@ -3315,13 +3325,13 @@ def display_dataframe_payload(payload):
     )
 
 
-def chart_rows_payload(policy_runs):
-    chart_columns = [
+def model_estimate_rows_payload(policy_runs):
+    estimate_columns = [
         column
-        for column in ["run", "net_outcomes_prevented", "children_harmed", "llm_model"]
+        for column in ["net_outcomes_prevented", "children_harmed", "llm_model"]
         if column in policy_runs.columns
     ]
-    return dataframe_to_payload(policy_runs[chart_columns].copy())
+    return dataframe_to_payload(policy_runs[estimate_columns].copy())
 
 
 def latest_result_payload(combined_runs, settings):
@@ -3334,12 +3344,12 @@ def latest_result_payload(combined_runs, settings):
 
         policy_results[policy] = {
             "average_table": dataframe_to_payload(average_results_table(policy_runs)),
-            "chart_rows": chart_rows_payload(policy_runs),
+            "model_estimate_rows": model_estimate_rows_payload(policy_runs),
         }
         population_metrics_by_policy[policy] = policy_transition_metrics(combined_runs, policy, settings)
 
     return {
-        "schema_version": 5,
+        "schema_version": 7,
         "comparison_table": dataframe_to_payload(
             combined_policy_totals_table(combined_runs, settings["population_size"])
         ),
@@ -3349,44 +3359,17 @@ def latest_result_payload(combined_runs, settings):
     }
 
 
-def render_charts(run_results):
-    chart_left, chart_right = st.columns(2)
-
-    with chart_left:
-        st.image(
-            line_chart_png(
-                run_results,
-                "run",
-                "net_outcomes_prevented",
-                "Net target outcomes prevented by run",
-                "Net target outcomes prevented",
-            ),
-            use_container_width=True,
-        )
-
-    if "children_harmed" in run_results.columns and run_results["children_harmed"].sum() > 0:
-        with chart_right:
-            st.image(
-                line_chart_png(
-                    run_results,
-                    "run",
-                    "children_harmed",
-                    "Policy harm count by run",
-                    "Policy harm count",
-                ),
-                use_container_width=True,
-            )
-
-
 def prevented_outcome_phrase(value):
     rounded = abs(value)
     if value < 0:
-        return f"adds {rounded:.0f} target outcomes per run compared with no policy action"
-    return f"prevents {rounded:.0f} target outcomes per run"
+        return f"adds {rounded:.0f} target outcomes compared with no policy action"
+    return f"prevents {rounded:.0f} target outcomes"
 
 
 def estimated_range_text(run_results):
     if run_results is None or run_results.empty:
+        return ""
+    if "llm_model" not in run_results.columns or run_results["llm_model"].nunique() < 2:
         return ""
 
     pieces = []
@@ -3404,12 +3387,12 @@ def estimated_range_text(run_results):
             )
     if not pieces:
         return ""
-    return "AI-estimated variation across synthetic runs/models: " + "; ".join(pieces) + "."
+    return "Variation across the selected AI-model estimates: " + "; ".join(pieces) + "."
 
 
 def render_interpretation(policy, average_table):
     average_table = normalize_display_labels(average_table)
-    value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in average_table.columns else "Average per synthetic run"
+    value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in average_table.columns else "AI-model average"
     values = dict(zip(average_table["Metric"], average_table[value_column]))
     net_outcomes_prevented = values.get("Net target outcomes prevented", 0.0)
     false_positives = values.get("False positives", 0.0)
@@ -3419,51 +3402,29 @@ def render_interpretation(policy, average_table):
 
     if policy == "Coercive prevention for flagged children":
         st.info(
-            f"Across successful AI-estimated runs, this policy {outcome_phrase}. "
+            f"Across the selected AI-model estimates, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children show a policy-associated benefit and "
             f"{children_harmed:.0f} show policy-associated harm from mandatory requirements or restrictions. "
             f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Targeted support for flagged children":
         st.info(
-            f"Across successful AI-estimated runs, this policy {outcome_phrase}. "
+            f"Across the selected AI-model estimates, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children have improved life-course outcomes and "
             f"{children_harmed:.0f} show policy-associated harm or negative side effects. "
             f"{false_positives:.0f} cases are false positives."
         )
     elif policy == "Surveillance of flagged children":
         st.info(
-            f"Across successful AI-estimated runs, this policy {outcome_phrase}. "
+            f"Across the selected AI-model estimates, this policy {outcome_phrase}. "
             f"{children_helped:.0f} flagged children show policy-associated benefit from the monitoring response and "
             f"{children_harmed:.0f} show policy-associated harm from scrutiny, stigma, or trust loss. "
             f"{false_positives:.0f} cases are false positives."
         )
 
 
-def agent_text(value):
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if isinstance(value, (list, dict)):
-        return json.dumps(value, ensure_ascii=False)
-    return str(value)
-
-
-CASE_STORY_NAMES = [
-    "Alex",
-    "Maya",
-    "Sam",
-    "Nina",
-    "Leo",
-    "Iris",
-    "Owen",
-    "Rina",
-]
-
-
 def compact_sentence(value, max_length=170):
-    text = " ".join(agent_text(value).split())
+    text = " ".join(str(value or "").split())
     if len(text) <= max_length:
         return text
 
@@ -3471,125 +3432,9 @@ def compact_sentence(value, max_length=170):
     return f"{clipped}..."
 
 
-def agent_display_name(agent, index):
-    raw_name = agent_text(agent.get("agent_id")).strip()
-    if raw_name and not raw_name.lower().startswith(("agent", "case", "id-")):
-        return raw_name.split()[0]
-    return CASE_STORY_NAMES[(index - 1) % len(CASE_STORY_NAMES)]
-
-
-def policy_effect_text(effect):
-    if not isinstance(effect, dict):
-        return agent_text(effect)
-
-    value = "Yes" if effect.get("value") else "No"
-    detail = agent_text(effect.get("detail")).strip()
-    if not detail:
-        return value
-    return f"{value}: {detail}"
-
-
-def life_stage_rows(life_stages):
-    if not isinstance(life_stages, list):
-        return [{"Stage": "", "Summary": agent_text(life_stages)}]
-
-    rows = []
-    for item in life_stages:
-        if isinstance(item, dict):
-            rows.append(
-                {
-                    "Stage": agent_text(item.get("stage")),
-                    "Summary": agent_text(item.get("summary")),
-                }
-            )
-        else:
-            rows.append({"Stage": "", "Summary": agent_text(item)})
-    return rows
-
-
-def representative_agent_dict(agent):
-    if isinstance(agent, dict):
-        return agent
-    return {"description": agent_text(agent)}
-
-
-def target_outcome_occurred(agent):
-    if "target_outcome_occurred" in agent:
-        return agent.get("target_outcome_occurred")
-    return agent.get("predicted_outcome_occurred")
-
-
-def representative_agent_summary(agent):
-    return {
-        "Policy": agent_text(agent.get("policy")),
-        "Model": agent_text(agent.get("llm_model")),
-        "Agent": agent_text(agent.get("agent_id")),
-        "Prediction status": agent_text(agent.get("prediction_status")),
-        "Target outcome occurred": agent_text(target_outcome_occurred(agent)),
-        "Policy benefit": policy_effect_text(agent.get("helped_by_policy")),
-        "Policy harm": policy_effect_text(agent.get("harmed_by_policy")),
-        "Mixed": policy_effect_text(agent.get("mixed_effects")),
-    }
-
-
-def representative_agent_title(index, agent):
-    title_parts = [
-        agent_text(agent.get("agent_id")) or f"Agent {index}",
-        agent_text(agent.get("policy")),
-        agent_text(agent.get("prediction_status")),
-    ]
-    return " | ".join(part for part in title_parts if part)
-
-
-def representative_agent_case_vignette(agent, index):
-    explicit_vignette = compact_sentence(agent.get("case_vignette"), 260)
-    if explicit_vignette:
-        return explicit_vignette
-
-    name = agent_display_name(agent, index)
-    status = agent_text(agent.get("prediction_status")) or "representative case"
-    profile = compact_sentence(agent.get("starting_profile"), 95)
-    mechanism = compact_sentence(agent.get("mechanism_summary"), 120)
-    outcome = "the target outcome occurred" if target_outcome_occurred(agent) else "the target outcome did not occur"
-
-    pieces = [f"{name} was a {status}."]
-    if profile:
-        pieces.append(profile)
-    if mechanism:
-        pieces.append(mechanism)
-    pieces.append(f"By age 30, {outcome}.")
-    return " ".join(pieces)
-
-
-def representative_agent_progress_note(model, policy, policy_agents, max_agents=3):
-    agents = [representative_agent_dict(agent) for agent in policy_agents[:max_agents]]
-    if not agents:
-        return ""
-
-    lines = [f"<div>{escape(model)} | {escape(policy)}:</div>"]
-    for index, agent in enumerate(agents, start=1):
-        vignette = representative_agent_case_vignette(agent, index)
-        name = agent_display_name(agent, index)
-        name_is_prefix = vignette.casefold().startswith(name.casefold())
-        name_has_boundary = name_is_prefix and (
-            len(vignette) == len(name) or not vignette[len(name)].isalnum()
-        )
-        if name_is_prefix and name_has_boundary:
-            name_text = vignette[:len(name)]
-            rest = vignette[len(name):]
-            line = f"<strong>{escape(name_text)}</strong>{escape(rest)}"
-        else:
-            line = f"<strong>{escape(name)}</strong>: {escape(vignette)}"
-        lines.append(f'<div class="terminal-progress-case">{line}</div>')
-    return "".join(lines)
-
-
-def progress_note_candidate(model, policy, policy_agents, debrief):
-    case_note = representative_agent_progress_note(model, policy, policy_agents)
-    if case_note:
-        return case_note, True
+def progress_note_candidate(model, debrief):
     if debrief:
-        return f"{model} | {policy}: {compact_sentence(debrief, 320)}", False
+        return f"{model} | all policies: {compact_sentence(debrief, 320)}", False
     return "", False
 
 
@@ -3616,44 +3461,87 @@ def maybe_update_progress_note(
     return candidate_note, candidate_is_html, current_time
 
 
-def render_representative_agents(representative_agents):
-    agents = [representative_agent_dict(agent) for agent in representative_agents]
-    summary_rows = [representative_agent_summary(agent) for agent in agents]
-    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+def render_weighted_agent_results(weighted_agent_results):
+    if not weighted_agent_results:
+        return
 
-    for index, agent in enumerate(agents, start=1):
-        with st.expander(representative_agent_title(index, agent), expanded=False):
-            if agent.get("description"):
-                st.write(agent_text(agent.get("description")))
-
-            if agent.get("case_vignette"):
-                st.markdown("**Case vignette**")
-                st.write(agent_text(agent.get("case_vignette")))
-
-            st.markdown("**Starting profile**")
-            st.write(agent_text(agent.get("starting_profile")))
-
-            st.markdown("**No-policy counterfactual**")
-            st.write(agent_text(agent.get("no_policy_counterfactual")))
-
-            st.markdown("**Life stages**")
-            st.dataframe(
-                pd.DataFrame(life_stage_rows(agent.get("life_stages"))),
-                use_container_width=True,
-                hide_index=True,
+    rows = []
+    stage_rows = []
+    for row in weighted_agent_results:
+        contexts = row.get("life_contexts", [])
+        context_names = [
+            str(context.get("name", ""))
+            for context in contexts
+            if isinstance(context, dict) and context.get("name")
+        ]
+        rows.append(
+            {
+                "Policy": row.get("policy"),
+                "Concrete measure": row.get("policy_measure", ""),
+                "Agent": row.get("agent_id"),
+                "Prediction status": str(row.get("prediction_status", "")).replace("_", " "),
+                "Archetype": row.get("archetype"),
+                "Weight": row.get("weight", 0),
+                "Life contexts": ", ".join(context_names),
+                "Helped share": row.get("helped_share", 0.0),
+                "Harmed share": row.get("harmed_share", 0.0),
+                "Prevented share": row.get("prevented_outcome_share", 0.0),
+                "Policy-caused share": row.get("policy_caused_outcome_share", 0.0),
+            }
+        )
+        for stage, scores in zip(LIFE_STAGES, row.get("stage_scores", []), strict=False):
+            if not isinstance(scores, list) or len(scores) != len(STATE_DIMENSIONS):
+                continue
+            stage_rows.append(
+                {
+                    "Policy": row.get("policy"),
+                    "Model": row.get("llm_model"),
+                    "Agent": row.get("agent_id"),
+                    "Stage": stage,
+                    **{
+                        dimension.capitalize(): score
+                        for dimension, score in zip(STATE_DIMENSIONS, scores, strict=True)
+                    },
+                    "Mechanism": row.get("mechanism", ""),
+                }
             )
 
-            st.markdown("**Policy effects**")
-            st.write(f"Policy-associated benefit: {policy_effect_text(agent.get('helped_by_policy'))}")
-            st.write(f"Policy-associated harm: {policy_effect_text(agent.get('harmed_by_policy'))}")
-            st.write(f"Mixed effects: {policy_effect_text(agent.get('mixed_effects'))}")
+    frame = pd.DataFrame(rows)
+    group_columns = [
+        "Policy",
+        "Concrete measure",
+        "Agent",
+        "Prediction status",
+        "Archetype",
+        "Weight",
+        "Life contexts",
+    ]
+    share_columns = [
+        "Helped share",
+        "Harmed share",
+        "Prevented share",
+        "Policy-caused share",
+    ]
+    summary = frame.groupby(group_columns, as_index=False, observed=True)[share_columns].mean()
+    for column in share_columns:
+        summary[column] = summary[column].map(lambda value: f"{float(value) * 100:.1f}%")
 
-            st.markdown("**Outcome**")
-            st.write(f"Target outcome occurred: {agent_text(target_outcome_occurred(agent))}")
-            st.write(agent_text(agent.get("life_course_outcome")))
-
-            st.markdown("**Mechanism summary**")
-            st.write(agent_text(agent.get("mechanism_summary")))
+    st.caption(
+        "Each row is one weighted profile. Weight is the number of flagged children represented by that profile. "
+        "Shares are averaged across the selected AI models; Python multiplies each share by its weight before calculating totals."
+    )
+    for policy, policy_tab in zip(POLICIES, st.tabs(POLICIES), strict=True):
+        with policy_tab:
+            policy_summary = summary[summary["Policy"] == policy].drop(columns="Policy")
+            st.dataframe(policy_summary, use_container_width=True, hide_index=True)
+            policy_stage_rows = [row for row in stage_rows if row["Policy"] == policy]
+            if policy_stage_rows:
+                with st.expander("Inspect stage scores returned by each AI model", expanded=False):
+                    stage_frame = pd.DataFrame(policy_stage_rows).drop(columns="Policy")
+                    st.caption(
+                        "Scores range from -2 to 2. Positive stress means more stress; for the other dimensions, positive means improvement."
+                    )
+                    st.dataframe(stage_frame, use_container_width=True, hide_index=True)
 
 
 @st.fragment
@@ -3678,13 +3566,12 @@ def render_results_fragment(settings):
                     st.caption("No results for this policy in the current session.")
                 else:
                     policy_average_table = dataframe_from_payload(policy_result.get("average_table"))
-                    chart_rows = dataframe_from_payload(policy_result.get("chart_rows"))
-                    st.subheader("Means")
+                    model_estimate_rows = dataframe_from_payload(policy_result.get("model_estimate_rows"))
+                    st.subheader("AI-model average")
                     display_average_table(policy_average_table)
-                    range_text = estimated_range_text(chart_rows)
+                    range_text = estimated_range_text(model_estimate_rows)
                     if range_text:
                         st.caption(range_text)
-                    render_charts(chart_rows)
                     render_interpretation(
                         selected_policy,
                         policy_average_table,
@@ -3704,10 +3591,25 @@ def render_results_fragment(settings):
     else:
         st.write(latest_result["debrief_text"])
 
-    representative_agents = latest_result.get("representative_agents", [])
-    if representative_agents:
-        with st.expander("Representative synthetic AI cases used", expanded=False):
-            render_representative_agents(representative_agents)
+    weighted_agent_results = latest_result.get("weighted_agent_results", [])
+    if weighted_agent_results:
+        with st.expander("Weighted agent profiles and effects", expanded=False):
+            render_weighted_agent_results(weighted_agent_results)
+
+    usage_summary = latest_result.get("usage_summary", {})
+    if usage_summary:
+        usage_text = (
+            f"API usage for this simulation: {int(usage_summary.get('input_tokens', 0)):,} input tokens, "
+            f"{int(usage_summary.get('output_tokens', 0)):,} output tokens."
+        )
+        unknown_cost_models = usage_summary.get("unknown_cost_models", [])
+        if unknown_cost_models:
+            usage_text += f" Token cost unavailable for: {', '.join(unknown_cost_models)}."
+        else:
+            usage_text += (
+                f" Estimated token cost: ${float(usage_summary.get('estimated_cost_usd', 0.0)):.4f}."
+            )
+        st.caption(usage_text)
 
 
 @st.fragment
@@ -3785,42 +3687,89 @@ def render_terminal_progress(
     )
 
 
-def run_llm_policy_task(settings, model, policy):
-    policy_settings = {**settings, "policy": policy}
-    user_prompt = build_llm_simulation_prompt(policy_settings)
-    raw = run_openai_json(DEFAULT_SYSTEM_PROMPT, user_prompt, model=model)
-    policy_effects = clean_llm_policy_effects(raw.get("policy_effects", []))
-    validate_llm_policy_effects(policy_effects, policy_settings, enforce_bounds=False)
-    policy_effects = normalize_llm_policy_effects(policy_effects, policy_settings)
-    validate_llm_policy_effects(policy_effects, policy_settings)
-    run_results = run_results_from_policy_effects(policy_effects, policy_settings)
-    validate_llm_tables(run_results, policy_settings)
-    run_results = attach_model_label(run_results, model)
-    run_results = attach_policy_label(run_results, policy)
-    policy_agents = normalize_representative_agents(
-        raw.get("representative_agents", [])[:int(settings["llm_representative_agents"])],
-        model,
-        policy,
+def run_llm_model_task(settings, model, weighted_agents, policy_scenarios):
+    """Evaluate every weighted profile and policy in one batched model call."""
+    user_prompt = build_llm_simulation_prompt(settings, weighted_agents, policy_scenarios)
+    raw, usage = run_openai_json(
+        DEFAULT_SYSTEM_PROMPT,
+        user_prompt,
+        model=model,
+        response_format=weighted_agent_response_format(weighted_agents, policy_scenarios),
     )
-    debrief = str(raw.get("debrief_text", "")).strip()
-    aggregate = compact_aggregate_metrics(run_results)
+    trajectories = normalize_agent_trajectories(
+        raw.get("agent_trajectories", []),
+        weighted_agents,
+    )
+    debriefs = normalize_policy_debriefs(raw.get("policy_debriefs", []))
+    policy_effect_rows, detail_rows = aggregate_weighted_agent_trajectories(
+        trajectories,
+        weighted_agents,
+    )
+
+    run_frames = []
+    policy_summaries = []
+    for policy_index, policy in enumerate(POLICIES):
+        policy_settings = {**settings, "policy": policy}
+        policy_effects = clean_llm_policy_effects(policy_effect_rows[policy])
+        validate_llm_policy_effects(policy_effects, policy_settings, enforce_bounds=False)
+        policy_effects = normalize_llm_policy_effects(policy_effects, policy_settings)
+        validate_llm_policy_effects(policy_effects, policy_settings)
+        run_results = run_results_from_policy_effects(policy_effects, policy_settings)
+        validate_llm_tables(run_results, policy_settings)
+        run_results = attach_model_label(run_results, model)
+        run_results = attach_policy_label(run_results, policy)
+        run_frames.append(run_results)
+        policy_summaries.append(
+            {
+                "policy_index": policy_index,
+                "llm_model": model,
+                "policy": policy,
+                "aggregate_metrics": compact_aggregate_metrics(run_results),
+                "debrief_text": debriefs[policy],
+            }
+        )
+
+    scenario_by_policy = {
+        scenario["policy"]: scenario
+        for scenario in policy_scenarios
+        if isinstance(scenario, dict) and scenario.get("policy")
+    }
+    weighted_agent_results = []
+    for row in detail_rows:
+        scenario = scenario_by_policy.get(row["policy"], {})
+        weighted_agent_results.append(
+            {
+                **row,
+                "llm_model": model,
+                "policy_measure": scenario.get("measure", ""),
+            }
+        )
 
     return {
         "model": model,
-        "policy": policy,
-        "run_results": run_results,
-        "agents": policy_agents,
-        "debrief_text": debrief,
-        "aggregate_metrics": aggregate,
+        "run_results": pd.concat(run_frames, ignore_index=True, copy=False),
+        "weighted_agent_results": weighted_agent_results,
+        "policy_summaries": policy_summaries,
+        "usage": usage,
+        "estimated_cost_usd": estimate_model_cost_usd(model, usage),
     }
 
 
 def _run_simulation(settings, selected_models, progress_slot, update_slot, live_population):
     st.session_state.pop("llm_agent_latest_result", None)
     parameter_summary = compact_parameter_summary(settings)
-    total_calls = len(selected_models) * len(POLICIES)
+    weighted_agents = build_weighted_agents(settings)
+    policy_scenarios = choose_shared_policy_scenarios(settings)
+    total_calls = len(selected_models)
     run_frames, model_summaries = [], []
-    agents, debrief_parts, errors = [], [], []
+    weighted_agent_results, debrief_parts, errors = [], [], []
+    usage_summary = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "estimated_cost_usd": 0.0,
+        "unknown_cost_models": [],
+    }
     completed = 0
     progress_note = ""
     progress_note_is_html = False
@@ -3829,7 +3778,8 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 
     render_terminal_progress(
         progress_slot, 0, total_calls,
-        f"Running {len(POLICIES)} policies × {len(selected_models)} AI model(s)...",
+        f"Running {len(weighted_agents)} weighted profiles × {len(POLICIES)} policies with "
+        f"{len(selected_models)} AI model(s)...",
         note=progress_note,
         note_is_html=progress_note_is_html,
     )
@@ -3837,12 +3787,7 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
     if SHOW_POPULATION_DOT_VIEW and live_population is not None:
         render_population_animation(live_population, live_policy_metrics, settings, "Simulating…", "waiting", root_id=_LIVE_GRID_ID)
 
-    tasks = [
-        (task_index, model, policy)
-        for task_index, (model, policy) in enumerate(
-            (model, policy) for model in selected_models for policy in POLICIES
-        )
-    ]
+    tasks = list(enumerate(selected_models))
     max_workers = max(1, min(MAX_PARALLEL_LLM_CALLS, total_calls))
     render_terminal_progress(
         progress_slot, 0, total_calls,
@@ -3853,18 +3798,24 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_task = {
-            executor.submit(run_llm_policy_task, settings, model, policy): (task_index, model, policy)
-            for task_index, model, policy in tasks
+            executor.submit(
+                run_llm_model_task,
+                settings,
+                model,
+                weighted_agents,
+                policy_scenarios,
+            ): (task_index, model)
+            for task_index, model in tasks
         }
 
         for future in as_completed(future_to_task):
-            task_index, model, policy = future_to_task[future]
+            task_index, model = future_to_task[future]
             try:
                 result = future.result()
                 completed += 1
-                policy_agents = result["agents"]
-                debrief = result["debrief_text"]
-                candidate_note, candidate_is_html = progress_note_candidate(model, policy, policy_agents, debrief)
+                summaries = result["policy_summaries"]
+                debrief = " ".join(summary["debrief_text"] for summary in summaries)
+                candidate_note, candidate_is_html = progress_note_candidate(model, debrief)
                 progress_note, progress_note_is_html, progress_note_updated_at = maybe_update_progress_note(
                     progress_note,
                     progress_note_is_html,
@@ -3874,28 +3825,45 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 )
                 render_terminal_progress(
                     progress_slot, completed, total_calls,
-                    f"Received {model} / {policy}.",
+                    f"Received {model}: all weighted profiles and policies.",
                     note=progress_note,
                     note_is_html=progress_note_is_html,
                 )
-                aggregate = result["aggregate_metrics"]
                 run_results = result["run_results"]
                 run_frames.append(run_results)
-                agents.extend(policy_agents)
-                if debrief:
-                    debrief_parts.append((task_index, f"{model} | {policy}: {debrief}"))
-                model_summaries.append(
-                    {
-                        "task_index": task_index,
-                        "llm_model": model,
-                        "policy": policy,
-                        "aggregate_metrics": aggregate,
-                        "debrief_text": debrief,
-                    }
-                )
+                weighted_agent_results.extend(result["weighted_agent_results"])
+                for summary in summaries:
+                    policy = summary["policy"]
+                    summary_order = task_index * len(POLICIES) + summary["policy_index"]
+                    debrief_parts.append(
+                        (summary_order, f"{model} | {policy}: {summary['debrief_text']}")
+                    )
+                    model_summaries.append(
+                        {
+                            "task_index": summary_order,
+                            "llm_model": model,
+                            "policy": policy,
+                            "aggregate_metrics": summary["aggregate_metrics"],
+                            "debrief_text": summary["debrief_text"],
+                        }
+                    )
+
+                usage = result["usage"]
+                for key in ("input_tokens", "output_tokens", "total_tokens"):
+                    usage_summary[key] += int(usage.get(key, 0))
+                model_cost = result.get("estimated_cost_usd")
+                if model_cost is not None:
+                    usage_summary["estimated_cost_usd"] += float(model_cost)
+                else:
+                    usage_summary["unknown_cost_models"].append(model)
+
                 if SHOW_POPULATION_DOT_VIEW and live_population is not None:
-                    metrics = policy_transition_metrics(run_results, policy, settings)
-                    live_policy_metrics[policy] = metrics
+                    for policy in POLICIES:
+                        live_policy_metrics[policy] = policy_transition_metrics(
+                            pd.concat(run_frames, ignore_index=True, copy=False),
+                            policy,
+                            settings,
+                        )
                     render_population_animation(live_population, live_policy_metrics, settings, "Simulating…", "live", root_id=_LIVE_GRID_ID)
             except Exception as error:
                 completed += 1
@@ -3909,11 +3877,11 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
                 )
                 render_terminal_progress(
                     progress_slot, completed, total_calls,
-                    f"Error: {model} / {policy}.",
+                    f"Error: {model}.",
                     note=progress_note,
                     note_is_html=progress_note_is_html,
                 )
-                errors.append((f"{model} | {policy}", msg))
+                errors.append((model, msg))
 
     progress_slot.empty()
     notices = [("error", f"{label}: {msg}") for label, msg in errors]
@@ -3934,8 +3902,15 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
         latest_payload.update(
             {
                 "model_results": model_summaries_for_display,
-                "representative_agents": agents,
+                "weighted_agent_results": weighted_agent_results,
                 "debrief_text": debrief_combined,
+                "usage_summary": {
+                    **usage_summary,
+                    "estimated_cost_usd": round(usage_summary["estimated_cost_usd"], 6),
+                },
+                "weighted_agents": weighted_agents,
+                "policy_scenarios": policy_scenarios,
+                "scenario_seed": scenario_seed(settings),
             }
         )
 
@@ -3945,10 +3920,12 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "policy_summary": "All policies",
             "parameter_summary": parameter_summary,
-            "representative_agent_count": len(agents),
+            "weighted_agent_count": len(weighted_agents),
             "llm_model": ", ".join(unique_values(s["llm_model"] for s in model_summaries_for_display)),
             "aggregate_metrics": aggregate,
             "debrief_text": debrief_combined,
+            "usage_summary": latest_payload["usage_summary"],
+            "scenario_seed": latest_payload["scenario_seed"],
         }
         add_llm_run_log_entry(entry, MAX_RUN_LOG_SIZE)
 
@@ -3979,10 +3956,14 @@ def _run_simulation(settings, selected_models, progress_slot, update_slot, live_
 def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None):
     initialize_llm_state()
     selected_models = settings["llm_agent_models"]
-    total_calls = len(selected_models) * len(POLICIES)
+    weighted_agent_count = len(build_weighted_agents(settings))
+    total_calls = len(selected_models)
     if SHOW_POPULATION_DOT_VIEW:
         st.subheader("Simulation")
-        st.caption(f"{total_calls} LLM call(s) — one per policy × AI model.")
+        st.caption(
+            f"{total_calls} batched LLM call(s) — one per AI model. Each model evaluates "
+            f"the same {weighted_agent_count} weighted profiles across all {len(POLICIES)} policies."
+        )
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -4010,9 +3991,9 @@ def render_llm_agent_section(settings, run_info_slot=None, run_button_slot=None)
         run_info_slot = st.sidebar.container()
     with run_info_slot:
         st.caption(
-            f"Current run: {len(POLICIES)} policies × {len(selected_models)} AI model(s) = "
-            f"{total_calls} LLM call(s). Each call generates {int(settings['llm_simulation_runs'])} "
-            f"synthetic run(s) over {int(settings['population_size']):,} synthetic children."
+            f"Current run: {len(selected_models)} batched LLM call(s), one per selected AI model. "
+            f"Each evaluates {weighted_agent_count} weighted profiles under all {len(POLICIES)} policies; "
+            "Python expands their weights into cohort totals."
         )
     with run_info_slot:
         if not selected_models:
@@ -4184,8 +4165,8 @@ def sidebar_inputs():
         "no_policy_outcome_rate": no_policy_outcome_rate,
         "symmetric_error_rate": symmetric_error_rate,
         "policy_intensity_tier": policy_intensity_tier or "Medium",
-        "llm_simulation_runs": 5,
-        "llm_representative_agents": 6,
+        "llm_simulation_runs": 1,
+        "weighted_profiles_per_group": 6,
     }
     settings["derived_flagged_rate"] = derived_flagged_count(settings) / population_size
     settings["llm_agent_models"] = selected_models

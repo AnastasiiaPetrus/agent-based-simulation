@@ -2,168 +2,108 @@ import json
 import os
 from textwrap import dedent
 
-from src.constants import POLICY_EFFECT_COLUMNS
-from src.life_contexts import choose_life_context_assignments
-from src.policy_scenarios import choose_policy_scenario, policy_intensity_value
+from src.policy_scenarios import policy_intensity_value
 from src.simulation import metric_value, prediction_base_rows
+from src.weighted_agents import LIFE_STAGES, STATE_DIMENSIONS
+
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are an agent-based life-course simulation engine for a fictional society. "
+    "You are a weighted-agent life-course simulation component for a fictional society. "
     "Use English only. Return exactly one valid JSON object and no other text. "
-    "Use the fixed prediction counts supplied by Python, simulate only the relevant prediction groups, "
-    "and select representative examples afterward. "
+    "Evaluate only the supplied weighted agents and policy measures. "
     "Never claim to predict real people, assign guilt, use demographic characteristics, or recommend punishment. "
     "Treat all output as synthetic thought-experiment data."
 )
 
-AGENT_BASED_SIMULATION_PROMPT = """
-# Agent-Based Policy-Effect Simulation
+WEIGHTED_AGENT_SIMULATION_PROMPT = """
+# Weighted-Agent Policy Simulation
 
-## 0. Contract
-- Everything is fictional and synthetic. Never reference real jurisdictions, real systems, real organizations, or real people.
-- The age-10 prediction is a fictional premise only: not guilt, blame, destiny, or a policy recommendation.
-- Return exactly one valid JSON object with these top-level keys and nothing else:
-  - policy_effects
-  - representative_agents
-  - debrief_text
-- Output JSON only. No markdown, comments, preamble, trailing text, or visible reasoning.
-- Use neutral terms only: person, individual, agent, family, peers, institution, authority, provider, support worker, monitoring body, program. Avoid stigmatizing, accusatory, deterministic, demographic, or real-world claims.
+## Contract
+- Everything is fictional and synthetic. Never reference real jurisdictions, systems, organizations, or people.
+- The age-10 prediction is a fictional premise, not guilt, destiny, or a policy recommendation.
+- Return exactly one JSON object with top-level keys `agent_trajectories` and `policy_debriefs`.
+- Do not return aggregate counts. Python owns all weighting, arithmetic, outcome counts, and validation.
+- Use only the supplied weighted agents, life contexts, and concrete policy measures.
 
-## 1. Core methodology - Python owns arithmetic
-Do not invent base prediction numbers or final result tables.
+## Fixed cohort
+Python supplies one fixed prediction structure and a compact set of weighted agents.
+- Each weighted agent represents `weight` flagged children with the same abstract profile.
+- True-positive weights sum to the fixed true-positive count.
+- False-positive weights sum to the fixed false-positive count.
+- False negatives and true negatives remain fixed background counts and are not simulated.
+- The identical agents and life contexts must be evaluated under every policy so policy comparisons are like-for-like.
+- An agent's weight must not change its scores; Python applies weights after the simulation.
 
-Python has already fixed the no-policy prediction structure for each run in fixed_prediction_counts_by_run. These fixed counts include baseline_outcomes, true_positives, false_positives, false_negatives, true_negatives, children_flagged, and unflagged_agents. Treat them as facts.
+## Task
+For every combination of supplied policy and weighted agent:
+1. Carry the profile through the five ordered stages supplied in `stage_order`.
+2. At every stage, score the incremental policy-associated change in the five dimensions supplied in `state_dimension_order`.
+3. Return one compact mechanism summary grounded in the policy measure, traits, and life contexts.
 
-You do not simulate every person in the full population. Detailed life-course simulation is only needed for the flagged groups:
-- true_positives: flagged agents who would have the target harmful outcome with no policy
-- false_positives: flagged agents who would not have the target harmful outcome with no policy
+Treat the stages as one continuous trajectory, not independent cases. Later-stage scores should reflect accumulated earlier changes, adaptation, and the supplied life contexts. Do not invent random events beyond those contexts.
 
-Unflagged agents (true_negatives and false_negatives) are constant background counts fixed by Python. They are not flagged, not reached by policy, not helped by policy, not harmed by policy, and not selected as representative agents.
+The five scores at each stage must be integers from -2 to 2 in this exact dimension order:
+`[wellbeing, trust, opportunity, autonomy, stress]`
 
-Your job:
-1. Simulate how selected_policy_scenario affects flagged agents.
-2. Return only policy_effects: prevented_outcomes, policy_caused_outcomes, children_helped, children_harmed.
-3. Select representative_agents from those simulated flagged categories.
-4. Write debrief_text grounded only in fixed counts, policy effects, and representative agents.
+Score meaning:
+- -2 = strong decrease
+- -1 = moderate decrease
+- 0 = no meaningful change
+- 1 = moderate increase
+- 2 = strong increase
 
-Python will compute the final result table after your response:
-- outcomes_after_policy = baseline_outcomes - prevented_outcomes + policy_caused_outcomes
-- net_outcomes_prevented = baseline_outcomes - outcomes_after_policy
-- false_positives, false_negatives, baseline_outcomes, and children_flagged come from Python, not from you.
+For wellbeing, trust, opportunity, and autonomy, positive is beneficial and negative is harmful.
+For stress, positive means more stress and negative means less stress.
 
-Tractable method for large populations: partition only the flagged agents in each run into weighted agent profiles that sum to true_positives + false_positives. Simulate trajectories for these relevant profiles, split profiles where chance matters, and count the policy effects from those weighted profiles. Do not output the full internal cohort, the relevant internal cohort, or the profiles.
+Do not force a policy label to determine direction. Support may be neutral or harmful, surveillance may be neutral or beneficial, and coercion may be neutral or protective. Effects must follow from the concrete measure and the profile.
 
-## 2. Policy and trajectory rules
-- selected_policy names the policy category; selected_policy_scenario is the specific configured intervention to simulate.
-- Simulate only that intervention. Do not add measures from other policies, categories, or intensity levels.
-- The policy type defines what the intervention does. It must not by itself decide whether the policy helps, harms, prevents the target harmful outcome, increases it, or has no effect.
-- Surveillance is not automatically harmful; support is not automatically helpful; coercion is not automatically protective.
-- Effects must emerge from simulated trajectories, not from policy label, intensity, or desired outcome.
-- Give agents varied synthetic starting traits: resilience, household stability, institutional trust, engagement, peer ties, sensitivity to pressure/support/monitoring/restriction.
-- Use profile_life_contexts_by_run only as independent background context. These are not policy measures, policy reactions, or direct outcomes.
-- Carry relevant profiles through stages 10-13, 14-17, 18-21, 22-25, 26-30. Track changes in trust, autonomy, relationships, opportunity, stability, stress, and target-outcome probability.
-- Mechanisms may include individual response, self-concept, household dynamics, peers, institutional behavior, opportunity pathways, legitimacy, autonomy, risk displacement, timing, chance, false positives/negatives, and implementation quality.
+## Output requirements
+`agent_trajectories` must contain exactly one row for every policy-agent combination. Each row must contain exactly:
+- `policy`: exact supplied policy string
+- `agent_id`: exact supplied agent ID
+- `stage_scores`: exactly five arrays, one per stage in `stage_order`; each array has exactly five integer scores in `state_dimension_order`
+- `mechanism`: one concise sentence, at most 25 words
 
-## 3. policy_effects - the only numeric counts you return
-Produce exactly synthetic_runs_to_generate rows. Each row must contain exactly:
-run, prevented_outcomes, policy_caused_outcomes, children_helped, children_harmed.
+`policy_debriefs` must contain exactly one row per policy:
+- `policy`: exact supplied policy string
+- `text`: 60-100 words describing the dominant mechanisms and profile differences without inventing aggregate counts
 
-Field definitions:
-- run: run index
-- prevented_outcomes: flagged true positives whose target harmful outcome is prevented by the policy
-- policy_caused_outcomes: flagged false positives whose target harmful outcome occurs because the policy worsens their trajectory
-- children_helped: flagged agents whose life-course outcome improves because of the policy
-- children_harmed: flagged agents whose life-course outcome worsens because of the policy
-
-Hard bounds for each row:
-- prevented_outcomes must be between 0 and true_positives from fixed_prediction_counts_by_run
-- policy_caused_outcomes must be between 0 and false_positives from fixed_prediction_counts_by_run
-- children_helped must be between 0 and children_flagged from fixed_prediction_counts_by_run
-- children_harmed must be between 0 and children_flagged from fixed_prediction_counts_by_run
-
-children_helped and children_harmed are independent counts over flagged agents and may overlap. An agent who is both helped and harmed in different respects is counted in both. A prevented target harmful outcome does not by itself make an agent helped, and an agent never on the target-outcome path can still be helped or harmed. Unflagged agents (false_negatives and true_negatives) are not reached by the policy and are never counted as helped or harmed.
-
-## 4. representative_agents - selected from simulated flagged groups
-Produce exactly representative_agents_to_generate agents. They are genuine instances drawn from the internally simulated flagged groups, not free-standing illustrations. The selection is purposive, not proportional. Pick informative cases where available, such as a true positive helped, a true positive harmed, a true positive whose outcome was not prevented, a false positive helped, a false positive harmed, and a false positive not meaningfully changed. Each selected case must correspond to a flagged category that actually occurs in the internally simulated groups.
-
-Each agent object must contain:
-- agent_id: fictional first name or fictional first name plus compact identifier
-- case_vignette: one compact sentence, 25-45 words, that names the agent, states the prediction status, names the selected policy measure if applied, includes one relevant life context, and gives the outcome by age 30
-- starting_profile: neutral description at starting_age
-- prediction_status: one of "true positive", "false positive"
-- no_policy_counterfactual: whether the target harmful outcome would occur by outcome_age with no policy, plus a brief path
-- life_stages: one entry per stage, each with stage and summary
-- target_outcome_occurred: boolean
-- life_course_outcome: broad life outcome at outcome_age, wider than the target harmful outcome alone
-- helped_by_policy: object with value boolean and detail string
-- harmed_by_policy: object with value boolean and detail string
-- mixed_effects: object with value boolean and detail string
-- mechanism_summary: concise causal explanation
-
-Consistency rules: mixed_effects.value must be true whenever both helped_by_policy.value and harmed_by_policy.value are true. prediction_status must agree with flagging and the counterfactual.
-
-Prediction status definitions:
-- true positive: flagged, and the target harmful outcome would occur by outcome_age with no policy
-- false positive: flagged, but it would not
-
-## 5. debrief_text
-Return one plain-text string with no markdown, headings, or bullets. In 80-140 words, summarize the main mechanism, who is helped or harmed, how false positives/false negatives matter, and whether target harmful outcomes decrease, increase, or stay similar after Python's arithmetic. Do not declare the policy morally correct or incorrect.
-
-## 6. Output format
-Return this shape with concrete values:
-
+## Output shape
 {
-  "policy_effects": [
+  "agent_trajectories": [
     {
-      "run": <int>,
-      "prevented_outcomes": <int>,
-      "policy_caused_outcomes": <int>,
-      "children_helped": <int>,
-      "children_harmed": <int>
-    }
-  ],
-  "representative_agents": [
-    {
-      "agent_id": "<string>",
-      "case_vignette": "<string>",
-      "starting_profile": "<string>",
-      "prediction_status": "true positive | false positive",
-      "no_policy_counterfactual": "<string>",
-      "life_stages": [
-        { "stage": "10-13", "summary": "<string>" },
-        { "stage": "14-17", "summary": "<string>" },
-        { "stage": "18-21", "summary": "<string>" },
-        { "stage": "22-25", "summary": "<string>" },
-        { "stage": "26-30", "summary": "<string>" }
+      "policy": "<exact policy>",
+      "agent_id": "<exact agent id>",
+      "stage_scores": [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0]
       ],
-      "target_outcome_occurred": <bool>,
-      "life_course_outcome": "<string>",
-      "helped_by_policy": { "value": <bool>, "detail": "<string>" },
-      "harmed_by_policy": { "value": <bool>, "detail": "<string>" },
-      "mixed_effects": { "value": <bool>, "detail": "<string>" },
-      "mechanism_summary": "<string>"
+      "mechanism": "<compact sentence>"
     }
   ],
-  "debrief_text": "<string>"
+  "policy_debriefs": [
+    {"policy": "<exact policy>", "text": "<60-100 words>"}
+  ]
 }
 
-Do not include run_results or any key not listed above. Never output the full internal cohort.
+Before responding, verify complete policy-agent coverage, exact IDs, five score arrays per row, five integer values per score array, and no aggregate result counts.
 
-## 7. Validation checklist
-Before responding, verify:
-- Output is a single valid JSON object with exactly policy_effects, representative_agents, and debrief_text.
-- policy_effects has exactly synthetic_runs_to_generate items.
-- representative_agents has exactly representative_agents_to_generate items.
-- The full cohort, true-negative background, and internal relevant profiles are not output.
-- You do not return baseline_outcomes, outcomes_after_policy, net_outcomes_prevented, false_positives, false_negatives, or children_flagged.
-- All policy_effect counts are integers and within the fixed bounds.
-- Each representative agent has all required fields and comes from the internally simulated flagged groups.
-- The aggregate effect emerged from simulated trajectories, not from the policy label.
-- All entities remain fictional and neutral terminology is used.
-
-## 8. Current settings JSON
-<CURRENT_SETTINGS_JSON>
+## Simulation input JSON
+<SIMULATION_INPUT_JSON>
 """
+
+
+# Standard text-token prices per 1M tokens, checked against the official
+# OpenAI pricing page on 2026-07-16: https://developers.openai.com/api/docs/pricing
+MODEL_TOKEN_PRICES_USD_PER_MILLION = {
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    "gpt-4.1": {"input": 2.00, "output": 8.00},
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+}
 
 
 def compact_parameter_summary(settings):
@@ -172,7 +112,7 @@ def compact_parameter_summary(settings):
     intervention_intensity_score = policy_intensity_value(policy_intensity_tier)
     return (
         f"population_size={int(settings['population_size'])}; "
-        f"llm_synthetic_runs={int(settings['llm_simulation_runs'])}; "
+        "weighted_agent_cohort_estimates=1; "
         f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
         f"no_policy_outcome_rate={settings['no_policy_outcome_rate']:.3f}; "
         f"symmetric_error_rate={settings['symmetric_error_rate']:.3f}; "
@@ -182,44 +122,91 @@ def compact_parameter_summary(settings):
     )
 
 
-def build_llm_simulation_prompt(settings):
-    run_count = int(settings["llm_simulation_runs"])
-    derived_flagged_rate = settings.get("derived_flagged_rate", 0.0)
+def build_llm_simulation_prompt(settings, weighted_agents, policy_scenarios):
     policy_intensity_tier = settings.get("policy_intensity_tier", "Medium")
-    selected_policy_scenario = choose_policy_scenario(
-        settings["policy"],
-        policy_intensity_tier,
-    )
     prompt_payload = {
-        "selected_policy": settings["policy"],
-        "selected_policy_scenario": selected_policy_scenario,
         "population_size": int(settings["population_size"]),
         "starting_age": 10,
         "outcome_age": 30,
         "target_harmful_outcome": "future serious harmful act",
-        "synthetic_runs_to_generate": run_count,
-        "representative_agents_to_generate": int(settings["llm_representative_agents"]),
         "no_policy_outcome_rate": metric_value(settings["no_policy_outcome_rate"]),
-        "derived_flagged_rate": metric_value(derived_flagged_rate),
+        "derived_flagged_rate": metric_value(settings.get("derived_flagged_rate", 0.0)),
         "symmetric_error_rate": metric_value(settings["symmetric_error_rate"]),
+        "policy_intensity_tier": policy_intensity_tier,
         "intervention_intensity_score": policy_intensity_value(policy_intensity_tier),
-        "fixed_prediction_counts_by_run": prediction_base_rows(settings),
-        "relevant_groups_for_life_course_simulation": [
-            "true_positives",
-            "false_positives",
-        ],
-        "constant_background_groups": ["true_negatives", "false_negatives"],
-        "profile_life_contexts_by_run": choose_life_context_assignments(run_count),
-        "required_policy_effect_columns": POLICY_EFFECT_COLUMNS,
+        "fixed_prediction_counts": prediction_base_rows({**settings, "llm_simulation_runs": 1})[0],
+        "stage_order": list(LIFE_STAGES),
+        "state_dimension_order": list(STATE_DIMENSIONS),
+        "policies": policy_scenarios,
+        "weighted_agents": weighted_agents,
     }
-
-    return dedent(AGENT_BASED_SIMULATION_PROMPT).strip().replace(
-        "<CURRENT_SETTINGS_JSON>",
+    return dedent(WEIGHTED_AGENT_SIMULATION_PROMPT).strip().replace(
+        "<SIMULATION_INPUT_JSON>",
         json.dumps(prompt_payload, indent=2),
     )
 
 
-def run_openai_json(system_prompt, user_prompt, model, max_tokens=12000):
+def weighted_agent_response_format(weighted_agents, policy_scenarios):
+    policy_names = [scenario["policy"] for scenario in policy_scenarios]
+    agent_ids = [agent["agent_id"] for agent in weighted_agents]
+    trajectory_count = len(policy_names) * len(agent_ids)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "weighted_agent_simulation",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["agent_trajectories", "policy_debriefs"],
+                "properties": {
+                    "agent_trajectories": {
+                        "type": "array",
+                        "minItems": trajectory_count,
+                        "maxItems": trajectory_count,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["policy", "agent_id", "stage_scores", "mechanism"],
+                            "properties": {
+                                "policy": {"type": "string", "enum": policy_names},
+                                "agent_id": {"type": "string", "enum": agent_ids},
+                                "stage_scores": {
+                                    "type": "array",
+                                    "minItems": len(LIFE_STAGES),
+                                    "maxItems": len(LIFE_STAGES),
+                                    "items": {
+                                        "type": "array",
+                                        "minItems": len(STATE_DIMENSIONS),
+                                        "maxItems": len(STATE_DIMENSIONS),
+                                        "items": {"type": "integer", "minimum": -2, "maximum": 2},
+                                    },
+                                },
+                                "mechanism": {"type": "string"},
+                            },
+                        },
+                    },
+                    "policy_debriefs": {
+                        "type": "array",
+                        "minItems": len(policy_names),
+                        "maxItems": len(policy_names),
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["policy", "text"],
+                            "properties": {
+                                "policy": {"type": "string", "enum": policy_names},
+                                "text": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
+def run_openai_json(system_prompt, user_prompt, model, response_format=None, max_tokens=8000):
     from openai import OpenAI
 
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -229,18 +216,39 @@ def run_openai_json(system_prompt, user_prompt, model, max_tokens=12000):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        response_format={"type": "json_object"},
+        response_format=response_format or {"type": "json_object"},
         max_tokens=max_tokens,
-        temperature=0.6,
+        temperature=0.35,
     )
-    return json.loads(response.choices[0].message.content)
+    usage = getattr(response, "usage", None)
+    usage_payload = {
+        "input_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
+        "output_tokens": int(getattr(usage, "completion_tokens", 0) or 0),
+        "total_tokens": int(getattr(usage, "total_tokens", 0) or 0),
+    }
+    message = response.choices[0].message
+    refusal = getattr(message, "refusal", None)
+    if refusal:
+        raise ValueError(f"The model refused the fictional simulation request: {refusal}")
+    if not message.content:
+        raise ValueError("The model returned no structured simulation content.")
+    return json.loads(message.content), usage_payload
+
+
+def estimate_model_cost_usd(model, usage):
+    prices = MODEL_TOKEN_PRICES_USD_PER_MILLION.get(model)
+    if not prices:
+        return None
+    input_cost = (int(usage.get("input_tokens", 0)) / 1_000_000) * prices["input"]
+    output_cost = (int(usage.get("output_tokens", 0)) / 1_000_000) * prices["output"]
+    return round(input_cost + output_cost, 6)
 
 
 def friendly_llm_error(error):
     message = str(error)
     if "insufficient_quota" in message or "429" in message:
         return (
-            "AI simulation failed because the OpenAI account has no available API quota or billing "
-            "credit. Add credits or increase the project limit, then run the simulation again."
+            "AI simulation failed because the OpenAI account has no available API quota, billing credit, "
+            "or request capacity. Check the project limit, then run the simulation again."
         )
     return f"AI simulation failed: {message}"

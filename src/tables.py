@@ -7,27 +7,27 @@ from src.constants import POLICIES, RUN_METRIC_LABELS
 
 POLICY_SORT_INDEX = {policy: index for index, policy in enumerate(POLICIES)}
 POLICY_TOTAL_AVERAGE_LABELS = {
-    "baseline_outcomes": "No-policy target outcomes (mean)",
-    "false_positives": "False positives (mean)",
-    "false_negatives": "False negatives (mean)",
-    "children_helped": "Policy benefit count (mean)",
-    "children_harmed": "Policy harm count (mean)",
+    "baseline_outcomes": "No-policy target outcomes (AI-model average)",
+    "false_positives": "False positives (AI-model average)",
+    "false_negatives": "False negatives (AI-model average)",
+    "children_helped": "Policy benefit count (AI-model average)",
+    "children_harmed": "Policy harm count (AI-model average)",
 }
 OUTCOME_EFFECT_COLUMN = "Reduction in target outcomes (%)"
 POLICY_HARM_RATE_COLUMN = "Policy harm rate among flagged children (%)"
 PRECISION_COLUMN = "Precision among flagged children (%)"
-AVERAGE_VALUE_COLUMN = "Mean per synthetic run"
+AVERAGE_VALUE_COLUMN = "AI-model average"
 PERCENT_COLUMNS = {OUTCOME_EFFECT_COLUMN, POLICY_HARM_RATE_COLUMN, PRECISION_COLUMN}
 ORDERED_POLICY_TOTAL_COLUMNS = [
     "Policy",
     PRECISION_COLUMN,
     OUTCOME_EFFECT_COLUMN,
     POLICY_HARM_RATE_COLUMN,
-    "No-policy target outcomes (mean)",
-    "False positives (mean)",
-    "False negatives (mean)",
-    "Policy benefit count (mean)",
-    "Policy harm count (mean)",
+    "No-policy target outcomes (AI-model average)",
+    "False positives (AI-model average)",
+    "False negatives (AI-model average)",
+    "Policy benefit count (AI-model average)",
+    "Policy harm count (AI-model average)",
 ]
 
 
@@ -55,7 +55,7 @@ def formatted_average_results_table(average_table):
             return "Not applicable"
         return f"{value:,.3f}"
 
-    value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in display_table.columns else "Average per synthetic run"
+    value_column = AVERAGE_VALUE_COLUMN if AVERAGE_VALUE_COLUMN in display_table.columns else "AI-model average"
     display_table[value_column] = display_table[value_column].map(format_value)
     return display_table
 
