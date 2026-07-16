@@ -112,8 +112,9 @@ def compact_parameter_summary(settings):
     intervention_intensity_score = policy_intensity_value(policy_intensity_tier)
     return (
         f"population_size={int(settings['population_size'])}; "
-        "weighted_agent_cohort_estimates=1; "
-        f"llm_model_agents={', '.join(settings['llm_agent_models'])}; "
+        "scenario_count=1; "
+        f"weighted_profiles_per_prediction_group={int(settings['weighted_profiles_per_group'])}; "
+        f"selected_ai_models={', '.join(settings['llm_agent_models'])}; "
         f"no_policy_outcome_rate={settings['no_policy_outcome_rate']:.3f}; "
         f"symmetric_error_rate={settings['symmetric_error_rate']:.3f}; "
         f"derived_flagged_rate={derived_flagged_rate:.3f}; "

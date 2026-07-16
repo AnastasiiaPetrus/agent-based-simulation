@@ -18,7 +18,7 @@ from src.weighted_agents import (
 )
 
 
-def settings(outcome_rate=0.01, error_rate=0.01, intensity="Medium"):
+def settings(outcome_rate=0.01, error_rate=0.01, intensity="Medium", profiles_per_group=6):
     return {
         "population_size": 10_000,
         "no_policy_outcome_rate": outcome_rate,
@@ -26,7 +26,7 @@ def settings(outcome_rate=0.01, error_rate=0.01, intensity="Medium"):
         "derived_flagged_rate": 0.0198,
         "policy_intensity_tier": intensity,
         "llm_simulation_runs": 1,
-        "weighted_profiles_per_group": 6,
+        "weighted_profiles_per_group": profiles_per_group,
         "llm_agent_models": ["gpt-4o-mini"],
     }
 
@@ -81,6 +81,24 @@ class WeightedAgentConstructionTests(unittest.TestCase):
         self.assertEqual(sum(agent["weight"] for agent in agents), 100)
         self.assertTrue(all(agent["prediction_status"] == "true_positive" for agent in agents))
 
+    def test_profile_count_comes_from_settings(self):
+        agents = build_weighted_agents(settings(profiles_per_group=4))
+        self.assertEqual(len(agents), 8)
+        self.assertEqual(
+            sum(agent["weight"] for agent in agents if agent["prediction_status"] == "true_positive"),
+            99,
+        )
+        self.assertEqual(
+            sum(agent["weight"] for agent in agents if agent["prediction_status"] == "false_positive"),
+            99,
+        )
+
+    def test_invalid_profile_count_is_rejected(self):
+        for profile_count in (0, 7):
+            with self.subTest(profile_count=profile_count):
+                with self.assertRaisesRegex(ValueError, "profiles_per_group"):
+                    build_weighted_agents(settings(profiles_per_group=profile_count))
+
     def test_scenario_is_deterministic_and_shared(self):
         current_settings = settings(0.055, 0.025, "High")
         self.assertEqual(build_weighted_agents(current_settings), build_weighted_agents(current_settings))
@@ -116,6 +134,12 @@ class WeightedAgentContractTests(unittest.TestCase):
         rows = trajectory_rows(self.agents)
         with self.assertRaisesRegex(ValueError, "incomplete weighted-agent trajectories"):
             normalize_agent_trajectories(rows[:-1], self.agents)
+
+    def test_mechanism_is_limited_to_25_words(self):
+        rows = trajectory_rows(self.agents)
+        rows[0]["mechanism"] = " ".join(f"word-{index}" for index in range(30))
+        normalized = normalize_agent_trajectories(rows, self.agents)
+        self.assertEqual(len(normalized[0]["mechanism"].split()), 25)
 
     def test_missing_debrief_is_rejected(self):
         debriefs = [{"policy": policy, "text": "Synthetic explanation."} for policy in POLICIES[:-1]]

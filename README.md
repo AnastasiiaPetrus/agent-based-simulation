@@ -9,14 +9,14 @@ The app is a thought experiment, not a real-world decision tool. It uses no real
 One click creates a single shared scenario:
 
 1. Python calculates the fixed prediction groups for the 10,000-child cohort: true positives, false positives, false negatives, and true negatives.
-2. Python creates six abstract true-positive profiles and six abstract false-positive profiles. Every profile has numeric traits, life contexts, and an integer weight. The weights add up exactly to the number of flagged children in the corresponding group.
+2. Python creates up to six abstract true-positive profiles and up to six abstract false-positive profiles. It divides each prediction group as evenly as possible across the profiles. Every profile has numeric traits, life contexts, and an integer weight. The weights add up exactly to the number of flagged children in the corresponding group; zero-weight profiles are omitted.
 3. Python chooses one concrete measure for each of the three policies. The same profiles, contexts, weights, and measures are sent to every selected AI model.
-4. Each AI model evaluates all 12 weighted profiles under all three policies in one batched API call.
+4. Each AI model evaluates all weighted profiles under all three policies in one batched API call.
 5. For every profile-policy combination, the model returns five life-stage score vectors covering ages 10-30. It does not return cohort totals.
 6. Python validates complete coverage, converts the stage scores into benefit, harm, prevented-outcome, and policy-caused-outcome shares, multiplies those shares by profile weights, and calculates the final cohort metrics.
-7. Results are averaged across the selected AI models. The interface also shows the range between their estimates.
+7. Results are averaged across successful responses from the selected AI models. The interface also shows the range between their estimates.
 
-This is a hybrid weighted-agent simulation: the AI models simulate the changing states of representative agents, while Python owns sampling, weights, validation, arithmetic, and population-level aggregation. It does not create 10,000 separate AI biographies.
+This is a hybrid weighted-agent simulation: the AI models evaluate stage-by-stage changes for representative agents, while Python owns profile construction, weights, validation, arithmetic, and population-level aggregation. It does not create 10,000 separate AI biographies.
 
 ## What One Agent Represents
 
@@ -24,7 +24,7 @@ A weighted agent is an abstract profile, not one child. For example, an agent wi
 
 Profiles are deliberately mechanism-based rather than demographic. They vary in resilience, stability, institutional trust, engagement, peer support, responsiveness to help, and sensitivity to monitoring or restriction. Each profile also receives deterministic fictional life contexts, such as a change in routine or a missed opportunity.
 
-The six profile templates are reused for true positives and false positives. Profiles with zero weight are omitted, so a run may contain fewer than 12 agents when a prediction group is empty.
+The six profile templates are reused for true positives and false positives. Profiles with zero weight are omitted, so a simulation may contain fewer than 12 agents when a prediction group is empty.
 
 ## Why There Are Five Life Stages
 
@@ -64,7 +64,7 @@ The weighted-agent structure is fixed at up to six true-positive and six false-p
 
 Each selected model makes one batched OpenAI API call containing all profiles and all policies. With four selected models, a full simulation makes four calls, not twelve.
 
-The app reads the actual input and output token counts returned by the API and displays an estimated token cost using the configured standard per-token prices. The estimate covers model tokens only and should be updated if provider pricing changes.
+The app sums the input and output token counts reported by successful API responses and displays an estimated token cost using the configured standard per-token prices. The estimate covers those model tokens only and should be updated if provider pricing changes.
 
 Optional model configuration:
 
@@ -92,6 +92,15 @@ Python derives from AI-generated stage scores and agent weights:
 - **Policy harm count** — weighted number showing harmful changes.
 
 A profile can show both benefit and harm across different dimensions or stages. These counts are scenario estimates, not empirical predictions.
+
+The score-to-share conversion is a fixed Python rule; the AI never supplies population counts:
+
+- `benefit share = min(100%, favorable score points / 25)`;
+- `harm share = min(100%, harmful score points / 25)`;
+- for a true-positive profile, `prevented share = 65% × benefit share × (1 − 35% × harm share)`;
+- for a false-positive profile, `policy-caused share = 25% × harm share × (1 − 25% × benefit share)`.
+
+Favorable points are positive wellbeing, trust, opportunity, and autonomy scores plus negative stress scores; harmful points are the reverse. Python multiplies these shares by profile weights and rounds the summed cohort totals. The 65%, 35%, and 25% coefficients are inspectable thought-experiment assumptions, not empirically calibrated causal effects.
 
 ## Outputs
 

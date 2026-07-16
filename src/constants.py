@@ -59,24 +59,26 @@ RESULT_METRIC_DESCRIPTIONS = {
         "but were not flagged. They receive no intervention under any targeted policy."
     ),
     "Net target outcomes prevented": (
-        "How many fewer target harmful outcomes occur compared to the no-policy-action baseline. "
-        "This can be negative if a policy worsens outcomes."
+        "How many fewer target harmful outcomes occur compared to the no-policy-action baseline. Python derives "
+        "this from AI stage scores using fixed scenario coefficients; it can be negative if a policy worsens outcomes."
     ),
     "Precision among flagged children": (
         "Among children flagged by prediction, the share who are in the no-policy outcome group. "
         "This is also called positive predictive value."
     ),
     "Policy benefit count": (
-        "Flagged children whose AI-generated life-course scenario improves because of the policy. "
-        "This is not the same as merely receiving a service. The same child can be counted in both benefit and harm."
+        "The weighted number of flagged children represented by profiles with beneficial AI stage-score points, "
+        "as converted by Python's fixed score-to-share rule. This is not the same as merely receiving a service. "
+        "The same child can be represented in both benefit and harm counts."
     ),
     "Policy harm count": (
-        "Flagged children whose AI-generated life-course scenario worsens because of the policy. "
-        "This can occur under any policy type. The same child can be counted in both harm and benefit."
+        "The weighted number of flagged children represented by profiles with harmful AI stage-score points, "
+        "as converted by Python's fixed score-to-share rule. This can occur under any policy type. "
+        "The same child can be represented in both harm and benefit counts."
     ),
     "AI-averaged cohort view": (
-        "Different selected AI models may estimate policy effects differently. This view combines their estimates "
-        "into one population-sized picture rather than showing a separate panel for every model."
+        "Different selected AI models may estimate policy effects differently. This view combines the estimates "
+        "from successful model responses into one population-sized picture rather than showing a separate panel for every model."
     ),
 }
 

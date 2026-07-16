@@ -172,13 +172,31 @@ def render_hero_statement():
 def render_population_view_overview(settings):
     population_size = int(settings["population_size"])
     policy_count = len(POLICIES)
-    model_count = len(settings.get("llm_agent_models", [])) or 1
+    selected_model_count = len(settings.get("llm_agent_models", []))
+    latest_result = st.session_state.get("llm_agent_latest_result")
+    successful_models = set()
+    if latest_result and latest_result_has_current_schema(latest_result, settings):
+        successful_models = {
+            result.get("llm_model")
+            for result in latest_result.get("model_results", [])
+            if result.get("llm_model")
+        }
+    if successful_models:
+        model_note = (
+            f"This view combines {len(successful_models)} successful AI model estimate(s) "
+            f"from {selected_model_count} selected model(s) into one cohort-sized picture."
+        )
+    else:
+        model_note = (
+            f"After a run, this view combines successful estimates from up to "
+            f"{selected_model_count or 1} selected AI model(s) into one cohort-sized picture."
+        )
     st.html(
         f"""
 <section class="population-overview">
   <div class="population-overview-title">AI_AVERAGED_COHORT_VIEW</div>
   <div class="population-overview-heading">{population_size:,} expected children &middot; {policy_count} policy responses</div>
-  <div class="population-overview-note">After a run, this view combines {model_count} selected AI model estimate(s) into one cohort-sized picture, so model dependence is visible without showing separate panels for every model.</div>
+  <div class="population-overview-note">{escape(model_note)} Model dependence remains visible in the per-model ranges without requiring a separate population panel for every model.</div>
   <div class="population-legend">
     <span class="population-legend-item">
       <span class="population-legend-dot is-safe"></span>
@@ -3222,9 +3240,9 @@ You control three things: the no-policy outcome rate (how common the target outc
 
 The tool makes two kinds of mistakes (both spelled out in the results section below): a false positive is a child flagged by mistake, and a false negative is a child who would have had the outcome but is not flagged. The simulator first locks in this whole structure — correctly flagged children, false positives, false negatives, and the large untouched majority who are neither flagged nor on the target-outcome path. These counts are pure arithmetic, computed from your settings.
 
-Each selected AI model then evaluates the same six weighted true-positive and six weighted false-positive profiles under all three policies in one batched call. A profile is not one child: its weight says how many flagged children it represents. The model follows each profile through five consecutive life stages from age 10 to 30 and scores changes in wellbeing, trust, opportunity, autonomy, and stress. The missed cases and the untouched majority stay in the totals but are not individually simulated.
+Each selected AI model then evaluates the same set of up to six weighted true-positive and up to six weighted false-positive profiles under all three policies in one batched call. Python divides each prediction group as evenly as possible across its profiles. A profile is not one child: its weight says how many flagged children it represents. The model follows each profile through five consecutive life stages from age 10 to 30 and scores changes in wellbeing, trust, opportunity, autonomy, and stress. The missed cases and the untouched majority stay in the totals but are not individually simulated. With unchanged settings, Python reuses the same profiles, fictional life contexts, weights, and concrete policy measures for every selected model so comparisons are like-for-like; AI responses can still vary.
 
-Keep the two sources of numbers apart: the AI returns only stage-level profile scores and explanations. Python validates full profile-policy coverage, multiplies the derived effect shares by profile weights, and calculates every cohort total. Counts like false positives and false negatives come directly from your settings. The tables average the resulting estimates across selected models; the bubble view combines them into one picture of all {DEFAULT_POPULATION_SIZE:,} children.
+Keep the two sources of numbers apart: the AI returns only stage-level profile scores and explanations, never population counts. Python validates full profile-policy coverage and converts those scores using a fixed rule. It adds favorable and harmful score points across the 25 stage-dimension positions, divides each sum by 25, and caps the resulting benefit and harm shares at 100%. For true-positive profiles, the assumed prevented-outcome share is 65% of the benefit share, adjusted down for harm. For false-positive profiles, the assumed policy-caused-outcome share is 25% of the harm share, adjusted down for benefit. Python then multiplies all shares by profile weights and calculates every cohort total. These coefficients are transparent scenario assumptions, not empirical causal estimates. Counts like false positives and false negatives come directly from your settings. The tables average estimates from successful selected-model responses; the bubble view combines them into one picture of all {DEFAULT_POPULATION_SIZE:,} children.
 
 The goal is not to find the right answer — it's to make the trade-offs visible under the assumptions you choose.
             """
@@ -3528,7 +3546,10 @@ def render_weighted_agent_results(weighted_agent_results):
 
     st.caption(
         "Each row is one weighted profile. Weight is the number of flagged children represented by that profile. "
-        "Shares are averaged across the selected AI models; Python multiplies each share by its weight before calculating totals."
+        "Shares are averaged across the selected AI models; Python multiplies each share by its weight before calculating totals. "
+        "Benefit and harm shares equal their favorable or harmful score-point sums divided by 25, capped at 100%. "
+        "For true positives, prevented share = 65% × benefit share × (1 − 35% × harm share). "
+        "For false positives, policy-caused share = 25% × harm share × (1 − 25% × benefit share)."
     )
     for policy, policy_tab in zip(POLICIES, st.tabs(POLICIES), strict=True):
         with policy_tab:
@@ -3553,7 +3574,8 @@ def render_results_fragment(settings):
     st.subheader("Policy comparison")
     st.caption(
         "Computed from settings: no-policy target outcomes, flagged children, false positives, false negatives, and precision. "
-        "Estimated by AI-generated scenarios: target-outcome reduction, policy benefit, and policy harm."
+        "Derived by Python from AI-generated stage scores using the fixed, non-empirical rule described in ‘How this works’: "
+        "target-outcome reduction, policy benefit, and policy harm."
     )
 
     with st.container(border=False, key="results_content_panel"):
@@ -3599,7 +3621,7 @@ def render_results_fragment(settings):
     usage_summary = latest_result.get("usage_summary", {})
     if usage_summary:
         usage_text = (
-            f"API usage for this simulation: {int(usage_summary.get('input_tokens', 0)):,} input tokens, "
+            f"API usage reported by successful model responses: {int(usage_summary.get('input_tokens', 0)):,} input tokens, "
             f"{int(usage_summary.get('output_tokens', 0)):,} output tokens."
         )
         unknown_cost_models = usage_summary.get("unknown_cost_models", [])
@@ -3607,7 +3629,7 @@ def render_results_fragment(settings):
             usage_text += f" Token cost unavailable for: {', '.join(unknown_cost_models)}."
         else:
             usage_text += (
-                f" Estimated token cost: ${float(usage_summary.get('estimated_cost_usd', 0.0)):.4f}."
+                f" Estimated token cost for those responses: ${float(usage_summary.get('estimated_cost_usd', 0.0)):.4f}."
             )
         st.caption(usage_text)
 

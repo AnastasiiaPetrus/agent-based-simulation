@@ -130,7 +130,17 @@ def balanced_integer_weights(total, count):
     return [quotient + (1 if index < remainder else 0) for index in range(count)]
 
 
-def build_weighted_agents(settings, profiles_per_group=PROFILES_PER_PREDICTION_GROUP):
+def build_weighted_agents(settings, profiles_per_group=None):
+    if profiles_per_group is None:
+        profiles_per_group = settings.get(
+            "weighted_profiles_per_group", PROFILES_PER_PREDICTION_GROUP
+        )
+    profiles_per_group = int(profiles_per_group)
+    if not 1 <= profiles_per_group <= len(PROFILE_TEMPLATES):
+        raise ValueError(
+            f"profiles_per_group must be between 1 and {len(PROFILE_TEMPLATES)}"
+        )
+
     base = prediction_base_rows({**settings, "llm_simulation_runs": 1})[0]
     seed = scenario_seed(settings)
     agents = []
@@ -173,7 +183,12 @@ def choose_shared_policy_scenarios(settings):
     scenarios = []
     for index, policy in enumerate(POLICIES):
         rng = random.Random(seed + 50_000 + index * 997)
-        scenarios.append(choose_policy_scenario(policy, intensity_tier, rng=rng))
+        scenario = choose_policy_scenario(policy, intensity_tier, rng=rng)
+        if not scenario:
+            raise ValueError(
+                f"No policy scenario is configured for {policy!r} at intensity {intensity_tier!r}"
+            )
+        scenarios.append(scenario)
     return scenarios
 
 
@@ -219,7 +234,9 @@ def normalize_agent_trajectories(raw_rows, weighted_agents, policies=POLICIES):
                 "policy": policy,
                 "agent_id": agent_id,
                 "stage_scores": stage_scores,
-                "mechanism": " ".join(str(raw.get("mechanism", "")).split())[:240],
+                "mechanism": " ".join(
+                    str(raw.get("mechanism", "")).split()[:25]
+                ),
             }
         )
         seen.add(key)

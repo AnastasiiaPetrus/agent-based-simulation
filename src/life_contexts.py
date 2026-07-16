@@ -1,6 +1,3 @@
-import random
-
-
 LIFE_CONTEXT_DEFINITIONS = [
     ("Change of residence", "The person changes their place of residence."),
     ("Change of daily environment", "The person begins spending time in a different regular environment."),
@@ -107,24 +104,3 @@ LIFE_CONTEXT_LIBRARY = [
     {"name": name, "description": description}
     for name, description in LIFE_CONTEXT_DEFINITIONS
 ]
-
-
-def choose_life_context_assignments(run_count, profiles_per_run=6, max_contexts_per_profile=3):
-    assignments = []
-    for run in range(1, int(run_count) + 1):
-        profile_contexts = []
-        for profile_index in range(1, profiles_per_run + 1):
-            context_count = random.choices(
-                [0, 1, 2, max_contexts_per_profile],
-                weights=[0.2, 0.45, 0.25, 0.1],
-                k=1,
-            )[0]
-            contexts = random.sample(LIFE_CONTEXT_LIBRARY, context_count) if context_count else []
-            profile_contexts.append(
-                {
-                    "profile_id": f"run-{run}-profile-{profile_index}",
-                    "life_contexts": contexts,
-                }
-            )
-        assignments.append({"run": run, "profile_contexts": profile_contexts})
-    return assignments
